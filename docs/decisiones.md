@@ -112,3 +112,15 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** Medido sobre una foto real de 1800×1200: a calidad 100 pesa 999,8 KB, a 75 pesa 298 KB, a 40 pesa 123,2 KB. Un trámite que pide 50 KB es inalcanzable solo con calidad, y el spec responde a eso reduciendo dimensiones.
 
 **Consecuencia.** El resultado vuelve con `withinBudget: false` y el archivo más pequeño encontrado. No es un error: quien llama necesita saber el piso para calcular cuánto hay que encoger, y decidir el redimensionado no es asunto de la búsqueda. Esa separación mantiene el algoritmo aplicable tal cual cuando llegue el redimensionado.
+
+## D19 — Redimensionar nunca agranda, y la geometría va separada del remuestreo
+
+**Contexto.** Un perfil que permite 1920 px de ancho está declarando un techo, no un objetivo. Agrandar una foto de 400 px para alcanzarlo inventaría detalle que nunca existió y produciría un archivo más pesado sin beneficio para nadie. Aparte, la aritmética que decide el tamaño destino y la llamada wasm que remuestrea fallan de maneras distintas: en la primera se esconde un error de redondeo o una relación de aspecto perdida, la segunda funciona o lanza.
+
+**Consecuencia.** `fitWithin` solo reduce, redondea a píxeles enteros con mínimo de uno, y devuelve siempre un par nuevo en vez del objeto recibido — `ImageData` satisface la forma de `Dimensions`, así que devolver el argumento entregaría un bitmap completo donde se pidieron dos números. La geometría es pura y se prueba en Node contra una batería de relaciones de aspecto; el remuestreo se prueba en el navegador contra píxeles reales.
+
+## D20 — Se conservan `premultiply` y `linearRGB`, y se comprueba que sirven
+
+**Contexto.** `@jsquash/resize` trae ambos en `true`. Sin `premultiply`, el remuestreo promedia el color de los píxeles totalmente transparentes —habitualmente negro— dentro de sus vecinos visibles, y cada borde suave gana un halo oscuro. Sin `linearRGB`, promediar valores sRGB directamente oscurece el resultado, porque sRGB no es lineal en luz.
+
+**Consecuencia.** Se conservan los dos y hay un test A/B que lo demuestra en lugar de darlo por sentado: con `premultiply` el píxel visible más oscuro del borde queda en 254, sin él baja a 248. Ese test necesitó una imagen construida a propósito —mitad blanco opaco, mitad transparente con negro debajo— porque ninguno de los fixtures de PngSuite tiene color lejano bajo la transparencia y con ellos la diferencia era del 0,13%, o sea ruido. Un test que parece evidencia sin serlo es peor que no tenerlo.
