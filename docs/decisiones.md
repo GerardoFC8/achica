@@ -94,3 +94,21 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** Medido en el build: el wasm de AVIF pesa 1.171 KB (345 KB comprimido), contra 166 KB de MozJPEG, 181 KB de PNG y 138 KB de WebP. Empaquetarlos todos de entrada haría que AVIF fuera el 87% de la carga inicial, para algo que la mayoría de usuarios nunca usa.
 
 **Consecuencia.** Cada envoltorio usa `import()` dinámico, así que Vite emite un asset por códec y el JS de entrada queda en 8 KB. Es el mismo argumento que el spec ya aplica a HEIC, extendido a AVIF porque los números lo piden.
+
+## D16 — La búsqueda por presupuesto prueba el techo primero y recibe el codificador inyectado
+
+**Contexto.** El caso frecuente es un presupuesto holgado: un límite de 500 KB contra una foto que pesa 200 KB a calidad máxima. Bisecar hacia arriba desde el medio cuesta seis codificaciones para descubrir que no había nada que sacrificar, y cada codificación es cara de verdad — AVIF puede tardar segundos.
+
+**Consecuencia.** Se prueba `maxQuality` primero: si entra, termina en una sola codificación. Si no entra, esa medición tampoco se desperdicia porque fija el techo desde el que baja la bisección. Además el codificador se recibe como parámetro, así que el algoritmo es puro, se prueba en Node con un codificador falso, y los casos incómodos —un formato sin perilla de calidad, un presupuesto inalcanzable— se cubren en milisegundos en lugar de minutos.
+
+## D17 — El corte temprano del 3% solo aplica cuando ya hay un resultado que entra
+
+**Contexto.** El spec pide cortar cuando dos iteraciones consecutivas quedan dentro de un margen del 3%. Leído al pie de la letra, ese corte puede dispararse mientras **todas** las tentativas siguen por encima del presupuesto, y entonces se reporta "no entra, hay que reducir dimensiones" cuando simplemente bajar más habría funcionado.
+
+**Consecuencia.** El corte por estancamiento exige que ya exista un resultado que entre. Aparte, si dos codificaciones consecutivas dan exactamente el mismo tamaño, se corta siempre: significa que la calidad no está conectada a nada, que es justo lo que pasa con PNG. El corte temprano existe para ahorrar codificaciones una vez que hay respuesta, no para rendirse antes de tenerla. Hay un test que fija esta diferencia con un codificador casi plano arriba y con caída abrupta abajo.
+
+## D18 — Cuando la calidad no alcanza, la búsqueda informa el piso en vez de fallar
+
+**Contexto.** Medido sobre una foto real de 1800×1200: a calidad 100 pesa 999,8 KB, a 75 pesa 298 KB, a 40 pesa 123,2 KB. Un trámite que pide 50 KB es inalcanzable solo con calidad, y el spec responde a eso reduciendo dimensiones.
+
+**Consecuencia.** El resultado vuelve con `withinBudget: false` y el archivo más pequeño encontrado. No es un error: quien llama necesita saber el piso para calcular cuánto hay que encoger, y decidir el redimensionado no es asunto de la búsqueda. Esa separación mantiene el algoritmo aplicable tal cual cuando llegue el redimensionado.

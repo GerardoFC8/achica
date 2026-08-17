@@ -105,4 +105,8 @@ Seis modos de fallo distintos en menos de 1 KB. **El defecto de cada archivo se 
 
 **AVIF y HEIC decodificables.** Solo hay cabeceras, suficientes para probar la detección pero no la decodificación. Chromium no sirve como generador: pedirle `image/avif` **devuelve un PNG en silencio**, sin lanzar error y con el tipo MIME cambiado. Por eso el generador comprueba `blob.type` en lugar de confiar en lo que pidió. Los fixtures decodificables entran cuando existan los envoltorios de códec.
 
+**~~JPEG progresivo~~ — resuelto sin agregar un binario.** MozJPEG codifica progresivo por defecto, así que nuestro propio codificador produce uno. `encode.browser-test.ts` codifica, verifica que la cabecera de trama sea SOF2 (`0xFFC2`) en lugar de SOF0, y lo decodifica de vuelta. Prueba las dos direcciones, que es más de lo que habría mostrado un fixture estático.
+
+<!-- Entrada original, conservada para explicar por qué no hay archivo:
 **JPEG progresivo.** El spec lo pide como fixture de la Fase 1 y todavía no está. No hay codificador JPEG en el sistema y el lienzo de Chromium solo emite baseline. Se generará con `@jsquash/jpeg` y su opción `progressive` en cuanto exista el envoltorio de códec en `core/`, que es de esta misma fase. Está anotado acá en lugar de omitirse en silencio.
+-->
