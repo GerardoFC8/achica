@@ -54,7 +54,7 @@ function render(report: SmokeReport, audit: NetworkAudit): void {
     <h1 class="mb-4 text-base font-bold">achica — fase 0</h1>
     <p class="mb-4">Todavía no comprime nada. Esta página verifica que el host sirve WebAssembly correctamente y audita sus propias peticiones de red.</p>
     ${rows.map(renderRow).join('')}
-    <p class="mt-4">Las peticiones de la CDN son la protección anti-bots de Cloudflare, sobre nuestro mismo origen. No transportan datos de imagen y desaparecen si autohospedás el proyecto.</p>
+    <p class="mt-4">Las peticiones de la CDN son la protección anti-bots de Cloudflare, sobre nuestro mismo origen. No transportan datos de imagen y desaparecen al autoalojar el proyecto.</p>
     ${report.error === null ? '' : `<pre class="mt-4 whitespace-pre-wrap">${report.error}</pre>`}
   `
 }

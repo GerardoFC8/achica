@@ -2,13 +2,13 @@
 
 Comprime y convierte **muchas imágenes a la vez**, en tu navegador. Sin backend, sin cuentas, sin límite de archivos.
 
-Ningún byte de tus imágenes sale de tu dispositivo, y no tenés que creernos: abrí las herramientas de desarrollo, pestaña Red, y comprimí una carpeta entera. **La aplicación no hace ninguna petición después de cargar.**
+Ningún byte de tus imágenes sale de tu dispositivo, y no hace falta creernos: abre las herramientas de desarrollo, pestaña Red, y comprime una carpeta entera. **La aplicación no hace ninguna petición después de cargar.**
 
-Lo que sí vas a ver en el sitio desplegado son unas pocas peticiones al mismo origen bajo `/cdn-cgi/`. Son de la protección anti-bots de Cloudflare, no las hace nuestro código, no llevan datos de imagen, y desaparecen si autohospedás el proyecto — que es exactamente para lo que la licencia es MIT. La propia página las cuenta y las muestra, separadas de las nuestras, para que no tengas que confiar en este párrafo.
+En el sitio desplegado sí aparecen unas pocas peticiones al mismo origen bajo `/cdn-cgi/`. Son de la protección anti-bots de Cloudflare, no las hace nuestro código, no llevan datos de imagen, y desaparecen al autoalojar el proyecto — que es exactamente para lo que la licencia es MIT. La propia página las cuenta y las muestra, separadas de las nuestras, para que nadie tenga que confiar en este párrafo.
 
 ## El problema
 
-Un trámite pide fotos "de menos de 500 KB". Tenés 40 fotos de 4 MB salidas del celular. Las herramientas que hay o te cobran pasadas las 20 imágenes, o te suben los archivos a un servidor ajeno, o te obligan a elegir "calidad 75" sin decirte qué significa eso para el límite que tenés que cumplir.
+Un trámite pide fotos "de menos de 500 KB". Tienes 40 fotos de 4 MB salidas del celular. Las herramientas disponibles o cobran pasadas las 20 imágenes, o suben los archivos a un servidor ajeno, o exigen elegir "calidad 75" sin explicar qué significa eso para el límite que hay que cumplir.
 
 ## Tres ejes
 
@@ -20,13 +20,13 @@ Licencia MIT, autohospedable, sin límite de archivos, sin cuentas, sin telemetr
 
 ### 2. Perfiles por destino, no por calidad
 
-No elegís "calidad 75". Elegís a dónde va la imagen — "Mesa de Partes", "foto para ficha", "adjunto de correo" — y la app resuelve formato, peso máximo y dimensiones.
+No eliges "calidad 75". Eliges a dónde va la imagen — "Mesa de Partes", "foto para ficha", "adjunto de correo" — y la app resuelve formato, peso máximo y dimensiones.
 
 Los perfiles de trámites solo se agregan con fuente oficial verificable y fecha de verificación. Un perfil con un límite equivocado es peor que no tener el perfil: el usuario descubre el error recién cuando le rechazan el trámite.
 
 ### 3. Presupuesto de peso de primera clase
 
-"Dejalas todas bajo 100 KB" es la operación principal, no una casilla escondida.
+"Déjalas todas bajo 100 KB" es la operación principal, no una casilla escondida.
 
 ## Estado
 
