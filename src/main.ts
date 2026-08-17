@@ -41,10 +41,10 @@ function render(report: SmokeReport, audit: NetworkAudit): void {
       value: report.crossOriginIsolated ? 'activo' : 'inactivo (AVIF irá monohilo)',
       ok: report.crossOriginIsolated,
     },
-    { label: 'Peticiones propias', value: String(audit.own), ok: null },
-    { label: 'Peticiones inyectadas por la CDN', value: String(audit.edge), ok: null },
+    { label: 'Peticiones propias observadas', value: String(audit.own), ok: null },
+    { label: 'Peticiones de la CDN observadas', value: String(audit.edge), ok: null },
     {
-      label: 'Peticiones a terceros',
+      label: 'Peticiones a terceros observadas',
       value: String(audit.thirdParty),
       ok: audit.thirdParty === 0,
     },
@@ -65,6 +65,7 @@ function render(report: SmokeReport, audit: NetworkAudit): void {
     <p class="mb-4">Todavía no comprime nada. Esta página verifica que el host sirve WebAssembly correctamente y audita sus propias peticiones de red.</p>
     ${rows.map(renderRow).join('')}
     <p class="mt-4">Las peticiones de la CDN son la protección anti-bots de Cloudflare, sobre nuestro mismo origen. No transportan datos de imagen y desaparecen al autoalojar el proyecto.</p>
+    <p class="mt-2">Estas cifras son un piso, no un total: la API que las mide no registra todas las peticiones del navegador. La autoridad es la pestaña Red, y el código que hace estas cuentas es público.</p>
     ${report.error === null ? '' : `<pre class="mt-4 whitespace-pre-wrap">${report.error}</pre>`}
   `
 }
