@@ -28,8 +28,8 @@ npm run lint
 
 ## Estado actual
 
-Fase: 1 — núcleo sin UI
+Fase: 2 — workers y cola
 
-Fase 0 cerrada: build limpio, CI en verde y https://achica.gfcode.dev en vivo, sirviendo `.wasm` como `application/wasm` con `crossOriginIsolated` activo.
+Fase 1 cerrada: `core/` completo y sin React. 147 tests en dos proyectos de Vitest (Node para lógica pura, Chromium para códecs). Detección por firma de bytes, decodificación con orientación EXIF aplicada, redimensionado, búsqueda por presupuesto, pipeline y perfiles.
 
-Siguiente criterio de aceptación: suite de Vitest con imágenes reales de fixture (JPEG de cámara con EXIF rotado, PNG con transparencia, JPEG progresivo, archivo corrupto) que compruebe que el resultado cabe en el presupuesto, que la orientación es correcta, que la transparencia sobrevive y que el archivo corrupto produce un error tipado y no una excepción. Cero React.
+Siguiente criterio de aceptación: pool de workers con concurrencia, cancelación y progreso por archivo, más el store de Zustand. Un script de banco de pruebas debe procesar 200 imágenes sin que la memoria de la pestaña crezca de forma monótona, medido con el perfilador de Chrome y anotado en el README.

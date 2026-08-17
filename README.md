@@ -30,7 +30,7 @@ Los perfiles de trámites solo se agregan con fuente oficial verificable y fecha
 
 ## Estado
 
-**Fase 0 cerrada.** Todavía no comprime nada. Lo que existe hoy es la base: build, tipos estrictos, linting, tests, CI y despliegue verificado en https://achica.gfcode.dev
+**Fase 1 cerrada.** El núcleo ya comprime, pero todavía no hay interfaz. Detección por firma de bytes, orientación EXIF, redimensionado, presupuesto de peso y perfiles, con 147 tests. Desplegado en https://achica.gfcode.dev
 
 El plan completo por fases está en [`docs/spec.md`](docs/spec.md). Las decisiones técnicas y por qué se tomaron, en [`docs/decisiones.md`](docs/decisiones.md).
 
