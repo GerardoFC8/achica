@@ -2,7 +2,9 @@
 
 Comprime y convierte **muchas imágenes a la vez**, en tu navegador. Sin backend, sin cuentas, sin límite de archivos.
 
-Ningún byte sale de tu dispositivo. Es una promesa comprobable: abrí las herramientas de desarrollo, pestaña Red, y comprimí una carpeta entera. No vas a ver una sola petición.
+Ningún byte de tus imágenes sale de tu dispositivo, y no tenés que creernos: abrí las herramientas de desarrollo, pestaña Red, y comprimí una carpeta entera. **La aplicación no hace ninguna petición después de cargar.**
+
+Lo que sí vas a ver en el sitio desplegado son unas pocas peticiones al mismo origen bajo `/cdn-cgi/`. Son de la protección anti-bots de Cloudflare, no las hace nuestro código, no llevan datos de imagen, y desaparecen si autohospedás el proyecto — que es exactamente para lo que la licencia es MIT. La propia página las cuenta y las muestra, separadas de las nuestras, para que no tengas que confiar en este párrafo.
 
 ## El problema
 
