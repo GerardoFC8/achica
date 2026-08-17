@@ -28,5 +28,8 @@ npm run lint
 
 ## Estado actual
 
-Fase: 0
-Siguiente criterio de aceptación: build limpio, CI en verde y URL pública viva sobre repo vacío.
+Fase: 1 — núcleo sin UI
+
+Fase 0 cerrada: build limpio, CI en verde y https://achica.gfcode.dev en vivo, sirviendo `.wasm` como `application/wasm` con `crossOriginIsolated` activo.
+
+Siguiente criterio de aceptación: suite de Vitest con imágenes reales de fixture (JPEG de cámara con EXIF rotado, PNG con transparencia, JPEG progresivo, archivo corrupto) que compruebe que el resultado cabe en el presupuesto, que la orientación es correcta, que la transparencia sobrevive y que el archivo corrupto produce un error tipado y no una excepción. Cero React.
