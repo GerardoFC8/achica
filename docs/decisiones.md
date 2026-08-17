@@ -21,7 +21,7 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 
 **Contexto.** `@jsquash` decodifica a `ImageData`, que no existe en Node — verificado en Node 24: `ImageData`, `ImageBitmap`, `OffscreenCanvas` y `createImageBitmap` son todos `undefined`. Su propia documentación advierte que el soporte para Node es limitado. Pero la mayor parte de `core/` (perfiles, presupuesto, detección de firma) es aritmética y bytes: no necesita navegador.
 
-**Consecuencia.** Dos proyectos de Vitest. El de Node corre rápido y cubre casi todo `core/`; el de navegador, con proveedor Playwright, corre solo los tests que atraviesan un códec real. Refuerza la regla dura de que `core/` sea lógica pura: si un test necesita el proyecto de navegador, es señal de que la función toca el borde.
+**Consecuencia.** Dos proyectos de Vitest, separados por convención de nombre: `*.test.ts` corre en Node, `*.browser-test.ts` corre en Chromium vía Playwright. El de Node cubre casi todo `core/` y corre rápido; el de navegador solo los tests que atraviesan un códec real. Refuerza la regla dura de que `core/` sea lógica pura: si un test necesita el proyecto de navegador, es señal de que la función toca el borde.
 
 ## D4 — TypeScript 6.0.3, no 7
 

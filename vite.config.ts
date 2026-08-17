@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite'
-import { defineConfig } from 'vite'
+import { playwright } from '@vitest/browser-playwright'
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [tailwindcss()],
@@ -23,5 +24,42 @@ export default defineConfig({
       // Never inline wasm. A base64 data URL cannot be streamed by
       // WebAssembly.instantiateStreaming and it defeats HTTP caching.
       filePath.endsWith('.wasm') ? false : undefined,
+  },
+
+  /*
+   * Two projects on purpose (D3).
+   *
+   * Most of core/ is arithmetic and byte inspection, and it runs far faster
+   * in Node. Codecs cannot: @jsquash decodes to ImageData, which does not
+   * exist in Node, so those tests need a real browser.
+   *
+   * The split doubles as a design signal. If a test has to move to the
+   * browser project, the code under test is touching the platform edge, and
+   * that is worth noticing.
+   */
+  test: {
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['{src,test}/**/*.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'browser',
+          include: ['{src,test}/**/*.browser-test.ts'],
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            instances: [{ browser: 'chromium' }],
+          },
+        },
+      },
+    ],
   },
 })
