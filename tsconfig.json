@@ -20,7 +20,11 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
 
-    "types": ["vite/client"]
+    // Node types are needed by test/ and scripts/, which read fixtures from
+    // disk. src/ must not use them: that boundary is enforced by ESLint, not
+    // by the type system, for the same reason as the core/ rule — a rule CI
+    // checks beats a rule people remember.
+    "types": ["vite/client", "node"]
   },
-  "include": ["src", "test", "vite.config.ts"]
+  "include": ["src", "test", "scripts", "vite.config.ts"]
 }
