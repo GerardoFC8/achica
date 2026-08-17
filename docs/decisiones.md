@@ -136,3 +136,15 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** Cuando el presupuesto no se alcanza hay que achicar, y la pregunta es cuánto. Partir a la mitad a ciegas se pasa de largo cuando falta poco y se queda corto cuando falta mucho, y cada ronda cuesta una búsqueda completa de codificaciones.
 
 **Consecuencia.** El peso codificado sigue de cerca la cantidad de píxeles, así que la escala lineal se estima como `sqrt(objetivo / actual)`, con un factor de 0,9 porque la estimación es optimista y acotada entre 0,1 y 0,95 para que toda ronda avance sin colapsar la imagen. Hay un test que contrasta la predicción contra el modelo cuadrático en cuatro distancias distintas. Aparte hay un tope de 16 codificaciones por archivo, no por búsqueda: el spec advierte que AVIF puede tardar segundos por imagen, y cuatro búsquedas de ocho intentos serían treinta y dos codificaciones para una sola foto.
+
+## D23 — La regla de la fuente de los trámites es un error de compilación, no un comentario
+
+**Contexto.** El spec es enfático: un perfil de trámite solo entra con `source` verificable y `verifiedAt`, porque un perfil con un límite equivocado es peor que no tener el perfil — el usuario se entera cuando le rechazan el trámite, y para entonces ya nos había creído. El tipo de la sección 7 declara ambos campos como opcionales, así que tal cual está no impide nada.
+
+**Consecuencia.** El tipo se parte en dos formas. `GenericProfile` lleva un grupo de recomendación nuestra; `TramiteProfile` exige `source` y `verifiedAt` como obligatorios. Un perfil de trámite sin fuente **no compila** — verificado con una sonda deliberada. Es la misma estrategia de D6: la regla que más importa no puede depender de que alguien la recuerde con apuro. `PERFILES_TRAMITES` sale vacío en la v1, que es la respuesta honesta, y `provenanceOf` devuelve `null` para los perfiles genéricos justamente porque nuestras recomendaciones no tienen autoridad externa que citar.
+
+## D24 — El tamaño de origen es un techo: nunca se devuelve un archivo más pesado
+
+**Contexto.** Lo encontró un test de perfiles. Con `correo-adjunto` (máximo 500 KB) sobre una foto de 352 KB, la búsqueda halla la mayor calidad que entra en el presupuesto y devuelve 495 KB — más pesado que la entrada. Cumple el presupuesto al pie de la letra y es absurdo viniendo de una herramienta cuyo propósito es achicar.
+
+**Consecuencia.** El presupuesto efectivo es `min(maxBytes, tamañoDeOrigen)`. Un presupuesto es un techo, no un objetivo. Consecuencia conocida: al convertir a un formato inherentemente más pesado que el origen —por ejemplo una foto a PNG— el tope obligará a reducir dimensiones. Es el comportamiento correcto para esta herramienta, y preferible a entregar en silencio un archivo más grande del que el usuario trajo.

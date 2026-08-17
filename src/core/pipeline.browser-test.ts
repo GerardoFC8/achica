@@ -144,6 +144,23 @@ describe('processImage', () => {
       expect(result.value.width).toBeLessThan(32)
     })
 
+    it('never inflates a file to fill a generous budget', async () => {
+      /*
+       * The bug this guards, found by the profile tests. Asked for "under
+       * 500 KB" with a 352 KB photo, the search found the highest quality that
+       * fit and returned 495 KB — larger than the input. A budget is a
+       * ceiling, not a target, and a compressor that grows files is broken
+       * whatever else it gets right.
+       */
+      const source = await load('Landscape_6.jpg')
+
+      const result = await processImage(source, { format: 'jpeg', maxBytes: 5_000_000 })
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.bytesAfter).toBeLessThanOrEqual(result.value.bytesBefore)
+    })
+
     it('reports honestly when a budget is simply out of reach', async () => {
       const result = await processImage(await load('Landscape_6.jpg'), {
         format: 'jpeg',

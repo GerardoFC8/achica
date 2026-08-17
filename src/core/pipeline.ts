@@ -185,7 +185,16 @@ export async function processImage(
       return ok(describe({ withinBudget: true, output, bytes: output.length, quality }, null))
     }
 
-    const maxBytes = plan.maxBytes
+    /*
+     * The source size is a ceiling of its own.
+     *
+     * A budget is a limit, not a target. Asked for "under 500 KB" with a
+     * 352 KB photo in hand, the search will happily find the highest quality
+     * that fits and hand back 495 KB — bigger than what it was given. That is
+     * absurd from a tool whose entire purpose is to make files smaller, and it
+     * is the kind of absurdity a user only notices after uploading.
+     */
+    const maxBytes = Math.min(plan.maxBytes, bytesBefore)
     let shrunkForBudget: Dimensions | null = null
 
     for (let round = 0; round <= MAX_SHRINK_ROUNDS; round += 1) {
