@@ -1,0 +1,12 @@
+dist/
+coverage/
+playwright-report/
+test-results/
+package-lock.json
+
+# Tooling output, not ours to format.
+.atl/
+
+# The spec is the source document for the whole project. Reformatting it
+# creates diff noise over text nobody asked us to touch.
+docs/spec.md
