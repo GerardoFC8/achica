@@ -50,6 +50,16 @@ function render(report: SmokeReport, audit: NetworkAudit): void {
     },
   ]
 
+  // Only shown when it is not zero. A blind spot is worth naming; a row of
+  // permanent zeroes is just noise.
+  if (audit.blindFrames > 0) {
+    rows.push({
+      label: 'Marcos que no se pudieron auditar',
+      value: String(audit.blindFrames),
+      ok: false,
+    })
+  }
+
   mount.innerHTML = `
     <h1 class="mb-4 text-base font-bold">achica — fase 0</h1>
     <p class="mb-4">Todavía no comprime nada. Esta página verifica que el host sirve WebAssembly correctamente y audita sus propias peticiones de red.</p>
