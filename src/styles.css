@@ -1,0 +1,8 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens live here, and they are deliberately absent for now.
+ * Colour, typography and density are decided in docs/diseno.md before the
+ * first component is written (phase 3). Shipping Tailwind's defaults would
+ * be the exact template look the spec rules out.
+ */

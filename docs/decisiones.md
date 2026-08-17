@@ -41,7 +41,13 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 
 **Consecuencia.** ESLint bloquea, dentro de `src/core/**`, los imports de React y los globales de DOM. Romper la arquitectura falla en CI, no en la revisión.
 
-## D7 — Idioma: documentación y copy en español, código y commits en inglés
+## D7 — Tailwind v4 fija el piso de navegadores del proyecto
+
+**Contexto.** Tailwind v4 depende de `@property` y `color-mix()`, así que exige Safari 16.4+, Chrome 111+ y Firefox 128+. Ese piso es más alto que el de los códecs WASM, o sea que lo impone la capa de estilos, no la de procesamiento.
+
+**Consecuencia.** Ese es el piso soportado de la aplicación y va documentado como limitación conocida. Importa antes de lo que parece: el spec marca Safari como el terreno frágil y pide probarlo temprano, no en la última fase.
+
+## D8 — Idioma: documentación y copy en español, código y commits en inglés
 
 **Contexto.** El spec fija el español como idioma base del producto y toda la documentación existente está en español. El código no tiene precedente en este repo.
 

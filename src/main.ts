@@ -1,3 +1,5 @@
+import './styles.css'
+
 const app = document.querySelector<HTMLElement>('#app')
 
 if (app === null) {

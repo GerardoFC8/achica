@@ -1,6 +1,8 @@
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  plugins: [tailwindcss()],
   optimizeDeps: {
     // The @jsquash packages ship wasm-pack glue. Vite's dependency
     // pre-bundling rewrites the wasm URL and instantiation then fails with
