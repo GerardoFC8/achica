@@ -85,6 +85,48 @@ function insertExif(jpeg, segment) {
   return Buffer.concat([jpeg.subarray(0, at), segment, jpeg.subarray(at)])
 }
 
+/**
+ * Builds an ISO-BMFF `ftyp` box: the first thing in an AVIF, HEIC or MP4.
+ *
+ * Layout: size, the literal "ftyp", a major brand, a minor version, then any
+ * number of compatible brands. Detection only ever reads this box, so a
+ * header alone is enough to test it — and it lets us build the awkward cases
+ * on purpose rather than hoping a downloaded sample happens to contain them.
+ */
+function ftypBox(majorBrand, compatibleBrands) {
+  const size = 16 + compatibleBrands.length * 4
+  const box = Buffer.alloc(size)
+
+  box.writeUInt32BE(size, 0)
+  box.write('ftyp', 4, 'latin1')
+  box.write(majorBrand, 8, 'latin1')
+  box.writeUInt32BE(0, 12) // minor version
+  compatibleBrands.forEach((brand, index) => box.write(brand, 16 + index * 4, 'latin1'))
+
+  return box
+}
+
+async function encodeWebp(page, quadrants) {
+  const bytes = await page.evaluate(async (quads) => {
+    const canvas = new OffscreenCanvas(64, 32)
+    const context = canvas.getContext('2d')
+    if (context === null) throw new Error('2d context unavailable')
+
+    for (const quadrant of quads) {
+      context.fillStyle = quadrant.color
+      context.fillRect(quadrant.x, quadrant.y, 32, 16)
+    }
+
+    const blob = await canvas.convertToBlob({ type: 'image/webp', quality: 0.9 })
+    // Chromium silently returns PNG for formats it cannot encode, so the
+    // resulting type is checked rather than assumed. AVIF fails this way.
+    if (blob.type !== 'image/webp') throw new Error(`expected webp, got ${blob.type}`)
+    return [...new Uint8Array(await blob.arrayBuffer())]
+  }, quadrants)
+
+  return Buffer.from(bytes)
+}
+
 async function encodeBaseJpeg(page, quadrants) {
   const bytes = await page.evaluate(async (quads) => {
     const canvas = new OffscreenCanvas(64, 32)
@@ -106,9 +148,12 @@ async function encodeBaseJpeg(page, quadrants) {
 async function main() {
   await mkdir(OUT, { recursive: true })
 
+  await mkdir(join(OUT, 'headers'), { recursive: true })
+
   const browser = await chromium.launch()
   const page = await browser.newPage()
   const base = await encodeBaseJpeg(page, QUADRANTS)
+  const webp = await encodeWebp(page, QUADRANTS)
   await browser.close()
 
   const written = []
@@ -141,6 +186,33 @@ async function main() {
     join(OUT, 'png-with-jpg-extension.jpg'),
   )
   written.push('png-with-jpg-extension.jpg (copied from vendor/pngsuite/basn6a08.png)')
+
+  await write('sample.webp', webp)
+
+  /*
+   * Container headers, for format detection only. These are not decodable
+   * images and the .bin extension says so — which also means no test can
+   * accidentally lean on the extension while checking that detection ignores
+   * extensions.
+   *
+   * The brand lists are the point. `mif1` appears in AVIF files as well as
+   * HEIF ones, so a detector that checks it before the AVIF brands will call
+   * an AVIF a HEIC. And a real HEIF can carry `mif1` as its major brand with
+   * `heic` only in the compatible list, so reading the major brand alone
+   * misses it. Both traps are represented here.
+   */
+  const headers = [
+    ['avif.bin', ftypBox('avif', ['avif', 'mif1', 'miaf'])],
+    ['heic.bin', ftypBox('heic', ['heic', 'mif1'])],
+    ['heif-mif1-major.bin', ftypBox('mif1', ['mif1', 'heic'])],
+    ['mp4.bin', ftypBox('isom', ['isom', 'iso2', 'avc1', 'mp41'])],
+    ['gif.bin', Buffer.from('GIF89a', 'latin1')],
+  ]
+
+  for (const [name, data] of headers) {
+    await writeFile(join(OUT, 'headers', name), data)
+    written.push(`headers/${name} (${data.length} B)`)
+  }
 
   console.log(`Wrote ${written.length} fixtures to test/fixtures/generated:`)
   for (const entry of written) console.log(`  ${entry}`)

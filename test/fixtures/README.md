@@ -22,6 +22,21 @@ La imagen base es de 64×32 con cuatro cuadrantes planos: rojo arriba a la izqui
 | `truncated.jpg`                           | Cabecera válida, datos de barrido cortados a la mitad. Falla **durante** la decodificación, no en el primer byte, que es el camino de error más difícil de acertar.    |
 | `empty.jpg`                               | Archivo de cero bytes.                                                                                                                                                 |
 | `png-with-jpg-extension.jpg`              | Un PNG con extensión `.jpg`. La sección 6 del spec exige detectar el tipo real por firma de bytes; este es el caso que atrapa a quien confíe en el nombre del archivo. |
+| `sample.webp`                             | WebP real codificado por Chromium. Su etiqueta de formato está en el desplazamiento 8, después del tamaño RIFF, no en el 4.                                            |
+
+### `generated/headers/`
+
+Cabeceras de contenedor **solo para detección**. No son imágenes decodificables, y la extensión `.bin` lo dice — lo que además impide que un test se apoye en la extensión justo mientras comprueba que la detección la ignora.
+
+Las listas de marcas son el punto. Una caja `ftyp` declara una marca principal y varias compatibles, y ahí viven dos trampas reales que ninguna muestra descargada garantiza contener:
+
+| Archivo               | Marca principal | Compatibles                    | Qué trampa cubre                                                                                                          |
+| --------------------- | --------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `avif.bin`            | `avif`          | `avif`, `mif1`, `miaf`         | Los AVIF también declaran `mif1`. Un detector que compruebe HEIF primero llamaría HEIC a todos los AVIF.                  |
+| `heic.bin`            | `heic`          | `heic`, `mif1`                 | Caso directo.                                                                                                             |
+| `heif-mif1-major.bin` | `mif1`          | `mif1`, `heic`                 | Un HEIF real puede llevar `mif1` como marca principal y `heic` solo en la lista compatible. Leer la principal no alcanza. |
+| `mp4.bin`             | `isom`          | `isom`, `iso2`, `avc1`, `mp41` | ISO-BMFF que no es una imagen. Debe rechazarse.                                                                           |
+| `gif.bin`             | —               | —                              | Firma `GIF89a`. Formato real que no soportamos: merece un error distinto de "desconocido".                                |
 
 ### Comportamiento esperado por orientación
 
@@ -87,5 +102,7 @@ Seis modos de fallo distintos en menos de 1 KB. **El defecto de cada archivo se 
 ---
 
 ## Pendiente
+
+**AVIF y HEIC decodificables.** Solo hay cabeceras, suficientes para probar la detección pero no la decodificación. Chromium no sirve como generador: pedirle `image/avif` **devuelve un PNG en silencio**, sin lanzar error y con el tipo MIME cambiado. Por eso el generador comprueba `blob.type` en lugar de confiar en lo que pidió. Los fixtures decodificables entran cuando existan los envoltorios de códec.
 
 **JPEG progresivo.** El spec lo pide como fixture de la Fase 1 y todavía no está. No hay codificador JPEG en el sistema y el lienzo de Chromium solo emite baseline. Se generará con `@jsquash/jpeg` y su opción `progressive` en cuanto exista el envoltorio de códec en `core/`, que es de esta misma fase. Está anotado acá en lugar de omitirse en silencio.

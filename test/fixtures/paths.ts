@@ -24,6 +24,7 @@ export const FIXTURES = Object.freeze({
   truncatedJpeg: generated('truncated.jpg'),
   emptyFile: generated('empty.jpg'),
   pngDisguisedAsJpeg: generated('png-with-jpg-extension.jpg'),
+  sampleWebp: generated('sample.webp'),
 
   rgbaPng: pngsuite('basn6a08.png'),
   truecolorWithTrns: pngsuite('tbrn2c08.png'),
