@@ -1,0 +1,25 @@
+node_modules/
+dist/
+coverage/
+
+# Vite
+.vite/
+*.local
+
+# Playwright / Vitest browser mode
+playwright-report/
+test-results/
+blob-report/
+
+# Editor / OS
+.DS_Store
+.idea/
+*.swp
+
+# Local tooling caches
+.atl/.skill-registry.cache.json
+
+# Env
+.env
+.env.*
+!.env.example
