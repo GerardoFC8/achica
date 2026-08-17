@@ -18,6 +18,15 @@ export default defineConfig({
       '@jsquash/webp',
     ],
   },
+  preview: {
+    // Mirror the headers public/_headers sets on Cloudflare Pages, so a COEP
+    // problem shows up against the local production build instead of after a
+    // deploy.
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+  },
   build: {
     target: 'es2022',
     assetsInlineLimit: (filePath) =>

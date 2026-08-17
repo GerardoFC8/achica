@@ -1,0 +1,18 @@
+# Cloudflare Pages response headers.
+#
+# COOP + COEP together make the page cross-origin isolated, which is what
+# unlocks the multithreaded AVIF encoder later. Without them the app still
+# works, it just encodes AVIF on one thread.
+#
+# Consequence to remember: under require-corp, any cross-origin subresource
+# needs a CORP header or it is blocked. This app loads nothing external by
+# design, so Rocket Loader and Email Obfuscation must stay OFF at the zone
+# level. Rocket Loader injects a script from ajax.cloudflare.com, which would
+# be blocked here and would also break the "no network requests" promise.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+# Vite fingerprints everything under /assets, so it is safe to cache forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

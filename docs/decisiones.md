@@ -47,7 +47,13 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 
 **Consecuencia.** Ese es el piso soportado de la aplicación y va documentado como limitación conocida. Importa antes de lo que parece: el spec marca Safari como el terreno frágil y pide probarlo temprano, no en la última fase.
 
-## D8 — Idioma: documentación y copy en español, código y commits en inglés
+## D8 — La página "vacía" de la Fase 0 decodifica una imagen real
+
+**Contexto.** El spec pide desplegar una página vacía para que los problemas de hosting aparezcan en la Fase 0 y no en la 5. Pero una página realmente vacía no prueba nada: sin ningún `.wasm` en el build no hay tipo MIME que verificar ni instanciación que pueda fallar.
+
+**Consecuencia.** El despliegue decodifica un PNG de 2×2 con `@jsquash/png` y reporta en pantalla si el códec se instanció, si los píxeles salieron correctos, con qué `Content-Type` sirvió el host el `.wasm`, y si la página quedó aislada cross-origin. Vive en `src/smoke/`, que es andamiaje declarado fuera de la arquitectura de la sección 5 y se retira en la Fase 3, cuando reportar `crossOriginIsolated` pasa a ser una función real de la interfaz. `vite preview` replica las cabeceras de `public/_headers` para que un problema de COEP aparezca en local y no después de desplegar.
+
+## D9 — Idioma: documentación y copy en español, código y commits en inglés
 
 **Contexto.** El spec fija el español como idioma base del producto y toda la documentación existente está en español. El código no tiene precedente en este repo.
 
