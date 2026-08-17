@@ -124,3 +124,15 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** `@jsquash/resize` trae ambos en `true`. Sin `premultiply`, el remuestreo promedia el color de los píxeles totalmente transparentes —habitualmente negro— dentro de sus vecinos visibles, y cada borde suave gana un halo oscuro. Sin `linearRGB`, promediar valores sRGB directamente oscurece el resultado, porque sRGB no es lineal en luz.
 
 **Consecuencia.** Se conservan los dos y hay un test A/B que lo demuestra en lugar de darlo por sentado: con `premultiply` el píxel visible más oscuro del borde queda en 254, sin él baja a 248. Ese test necesitó una imagen construida a propósito —mitad blanco opaco, mitad transparente con negro debajo— porque ninguno de los fixtures de PngSuite tiene color lejano bajo la transparencia y con ellos la diferencia era del 0,13%, o sea ruido. Un test que parece evidencia sin serlo es peor que no tenerlo.
+
+## D21 — Un formato sin pérdida con presupuesto de peso reduce dimensiones, no cambia de formato
+
+**Contexto.** Era la pregunta abierta del punto 1.7 de la revisión inicial: el tipo `Profile` permite `format: 'keep'` junto a `maxBytes`, pero si la entrada es PNG el algoritmo de la sección 6 no aplica — oxipng no tiene perilla de calidad, así que no hay nada que bisecar. Quedaban tres salidas: fallar, cambiar de formato en silencio, o reducir dimensiones.
+
+**Consecuencia.** Se reducen dimensiones. Cambiar de formato en silencio está descartado porque el spec prohíbe cambios callados y porque `keep` es una instrucción explícita del usuario. Fallar es peor que la alternativa: pedir 100 KB es una restricción real de un trámite, y un archivo más chico sirve mientras que un error no. El resultado informa `shrunkForBudget` con el tamaño al que se llegó, así que la interfaz puede decir con todas las letras que la imagen se achicó para entrar, en lugar de que el usuario lo descubra al abrirla.
+
+## D22 — El paso de reducción se estima, no se parte a la mitad
+
+**Contexto.** Cuando el presupuesto no se alcanza hay que achicar, y la pregunta es cuánto. Partir a la mitad a ciegas se pasa de largo cuando falta poco y se queda corto cuando falta mucho, y cada ronda cuesta una búsqueda completa de codificaciones.
+
+**Consecuencia.** El peso codificado sigue de cerca la cantidad de píxeles, así que la escala lineal se estima como `sqrt(objetivo / actual)`, con un factor de 0,9 porque la estimación es optimista y acotada entre 0,1 y 0,95 para que toda ronda avance sin colapsar la imagen. Hay un test que contrasta la predicción contra el modelo cuadrático en cuatro distancias distintas. Aparte hay un tope de 16 codificaciones por archivo, no por búsqueda: el spec advierte que AVIF puede tardar segundos por imagen, y cuatro búsquedas de ocho intentos serían treinta y dos codificaciones para una sola foto.
