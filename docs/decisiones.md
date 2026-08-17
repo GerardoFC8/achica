@@ -82,3 +82,15 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** El spec exige que un archivo corrupto produzca un error tipado y no una excepción, y la razón es el lote: una foto rota entre trescientas debe marcar esa fila y dejar que la cola siga. Las excepciones se propagan hacia arriba, y el código que se propaga por defecto termina envuelto en `try/catch` en cada llamada hasta que alguien olvida uno y muere el lote entero.
 
 **Consecuencia.** `core/` devuelve `Result<T, E>`: el fallo es un valor, el compilador obliga a mirarlo y no se puede ignorar en silencio. Los errores llevan un **código** y datos estructurados, nunca una oración: la redacción pertenece a la interfaz. Eso mantiene `core/` libre de presentación y es además lo que permite mostrar el mismo fallo en español o en inglés sin tocar la lógica.
+
+## D14 — La orientación EXIF se aplica al decodificar, y el valor por defecto de jSquash es el equivocado
+
+**Contexto.** `@jsquash/jpeg` acepta `preserveOrientation` y lo trae en `false` por defecto. El nombre se lee al revés: `true` significa "preservar la orientación que el fotógrafo quiso", o sea **aplicar** la rotación a los píxeles; `false` entrega los píxeles tal como están almacenados. Medido contra las ocho orientaciones: con `false`, una foto con orientación 6 sale 64×32 sin rotar; con `true` sale 32×64 y coincide exactamente con lo que hace Chromium. Tomar el valor por defecto publica todas las fotos de celular de costado, que es el bug que la sección 6 del spec señala como el más común de estas herramientas.
+
+**Consecuencia.** El decodificador pasa `preserveOrientation: true` siempre, y la orientación queda resuelta en la entrada en lugar de viajar junto al bitmap. Todo lo que sigue —redimensionar, codificar, la previsualización— puede tratar ancho y alto como lo que el usuario ve, y no queda ninguna bandera que un paso posterior pueda olvidar.
+
+## D15 — Cada códec se carga bajo demanda
+
+**Contexto.** Medido en el build: el wasm de AVIF pesa 1.171 KB (345 KB comprimido), contra 166 KB de MozJPEG, 181 KB de PNG y 138 KB de WebP. Empaquetarlos todos de entrada haría que AVIF fuera el 87% de la carga inicial, para algo que la mayoría de usuarios nunca usa.
+
+**Consecuencia.** Cada envoltorio usa `import()` dinámico, así que Vite emite un asset por códec y el JS de entrada queda en 8 KB. Es el mismo argumento que el spec ya aplica a HEIC, extendido a AVIF porque los números lo piden.
