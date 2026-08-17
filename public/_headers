@@ -1,4 +1,4 @@
-# Cloudflare Pages response headers.
+# Cloudflare response headers, read by Workers static assets from dist/.
 #
 # COOP + COEP together make the page cross-origin isolated, which is what
 # unlocks the multithreaded AVIF encoder later. Without them the app still

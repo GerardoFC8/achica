@@ -58,3 +58,9 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** El spec fija el español como idioma base del producto y toda la documentación existente está en español. El código no tiene precedente en este repo.
 
 **Consecuencia.** README, `docs/`, mensajes de error y textos de interfaz en español. Identificadores, comentarios de código y mensajes de commit en inglés, con Conventional Commits. Un único criterio, sin decidirlo archivo por archivo.
+
+## D10 — Workers con assets estáticos, no Pages. Refina D1
+
+**Contexto.** D1 eligió Cloudflare Pages. Al crear el proyecto apareció que Cloudflare ya dirige los proyectos nuevos a Workers con assets estáticos: el formulario no pide directorio de salida, pide un comando `npx wrangler deploy`. Pages sigue soportado, pero las capacidades nuevas van a Workers.
+
+**Consecuencia.** El host sigue siendo Cloudflare y todo lo que motivó D1 se mantiene: DNS en la misma cuenta, dominio automático, sin cláusula de uso comercial, y `_headers` soportado siempre que viva dentro del directorio de assets, que es donde Vite lo deja al copiar `public/`. Cambia el mecanismo: hace falta `wrangler.jsonc` en el repo, sin campo `main` porque no hay Worker ni lo va a haber. La advertencia de la documentación —que `_headers` no se aplica a respuestas generadas por código de Worker— no nos alcanza justamente porque no generamos ninguna.
