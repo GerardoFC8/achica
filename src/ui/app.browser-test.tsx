@@ -1,3 +1,6 @@
+// The stylesheet, because without it these tests render unstyled markup and
+// anything they claim about layout is about a page nobody will ever see.
+import '../styles.css'
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-react'
@@ -102,6 +105,51 @@ describe('the queue', () => {
     // The cause in words, in the row, with the batch carrying on around it.
     await expect.element(page.getByText(/PNG dañado/), { timeout: 30_000 }).toBeVisible()
     await expect.element(page.getByText(/1 imagen comprimida/)).toBeVisible()
+  })
+})
+
+describe('the comparator', () => {
+  it('puts both pictures in exactly the same box', { timeout: 40_000 }, async () => {
+    render(<App />)
+    queueStore.getState().add([await fixture('Landscape_6.jpg')])
+    await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
+    await expect.element(page.getByText(/imagen comprimida/), { timeout: 30_000 }).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', { name: 'Comparar' }))
+
+    /*
+     * The bug this guards was found by using the thing: the original sat in
+     * the layout at its own size while the result was positioned at another,
+     * so the curtain crossed two pictures at different scales. It looked
+     * like a comparison and compared nothing.
+     *
+     * The result is usually smaller in pixels than the original, so equal
+     * boxes is the whole point rather than a coincidence.
+     */
+    const before = page.getByAltText(/original/).element()
+    const after = page.getByAltText(/comprimida/).element()
+
+    const one = before.getBoundingClientRect()
+    const two = after.getBoundingClientRect()
+
+    expect(one.width).toBeGreaterThan(0)
+    expect(two.width).toBeCloseTo(one.width, 1)
+    expect(two.height).toBeCloseTo(one.height, 1)
+    expect(two.left).toBeCloseTo(one.left, 1)
+    expect(two.top).toBeCloseTo(one.top, 1)
+  })
+
+  it('closes with the keyboard and gives focus back', { timeout: 40_000 }, async () => {
+    render(<App />)
+    queueStore.getState().add([await fixture('Landscape_6.jpg')])
+    await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
+    await expect.element(page.getByText(/imagen comprimida/), { timeout: 30_000 }).toBeVisible()
+    await userEvent.click(page.getByRole('button', { name: 'Comparar' }))
+    await expect.element(page.getByRole('dialog')).toBeVisible()
+
+    await userEvent.keyboard('{Escape}')
+
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
   })
 })
 

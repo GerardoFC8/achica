@@ -30,6 +30,8 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
   const [split, setSplit] = useState(50)
   const [actualSize, setActualSize] = useState(false)
   const [urls, setUrls] = useState<{ before: string; after: string } | null>(null)
+  /** Read off the original once it loads; the queue never stored it. */
+  const [source, setSource] = useState<{ width: number; height: number } | null>(null)
   const surface = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
@@ -142,23 +144,39 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
           className="relative flex-1 cursor-ew-resize overflow-auto border border-rule bg-raised touch-none"
         >
           {urls === null ? null : (
+            /*
+             * One box, and both images fill it. That is the whole fix: before
+             * this the original sat in the layout at its own size while the
+             * result was positioned at another, so the curtain crossed two
+             * pictures at different scales and compared nothing.
+             *
+             * The clip and the curtain line are both percentages of this same
+             * box, which is what keeps them on top of each other.
+             */
             <div
-              className={`relative ${actualSize ? 'inline-block' : 'grid h-full w-full place-items-center'}`}
+              className={actualSize ? 'relative' : 'absolute inset-0'}
+              style={
+                actualSize
+                  ? { width: `${outcome.width}px`, height: `${outcome.height}px` }
+                  : undefined
+              }
             >
               <img
                 src={urls.before}
                 alt={`${item.name}, original`}
-                className={actualSize ? 'block max-w-none' : 'max-h-full max-w-full object-contain'}
+                onLoad={(event) =>
+                  setSource({
+                    width: event.currentTarget.naturalWidth,
+                    height: event.currentTarget.naturalHeight,
+                  })
+                }
+                className="absolute inset-0 size-full object-contain"
               />
               <img
                 src={urls.after}
                 alt={`${item.name}, comprimida`}
                 style={{ clipPath: `inset(0 0 0 ${split}%)` }}
-                className={
-                  actualSize
-                    ? 'absolute inset-0 block max-w-none'
-                    : 'absolute inset-0 m-auto max-h-full max-w-full object-contain'
-                }
+                className="absolute inset-0 size-full object-contain"
               />
               <div
                 className="pointer-events-none absolute inset-y-0 w-0.5 bg-ink"
@@ -169,6 +187,7 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
 
           <p className="tnum pointer-events-none absolute top-3 left-3 bg-ink px-2 py-0.5 text-[11px] text-paper">
             antes · {formatters.bytes(item.bytesBefore)}
+            {source === null ? '' : ` · ${formatters.dimensions(source.width, source.height)}`}
           </p>
           <p
             className={`tnum pointer-events-none absolute top-3 right-3 bg-paper px-2 py-0.5 text-[11px] ${TEXT_TONE[kind]}`}

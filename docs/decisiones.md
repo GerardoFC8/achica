@@ -274,3 +274,15 @@ La interfaz refleja la misma regla: **la marca del presupuesto no se dibuja cuan
 **Contexto.** La Fase 0 auditaba las peticiones desde dentro de la propia página con Resource Timing, y ya entonces quedó documentado que esa cuenta es un **piso y no un registro completo**: el navegador no expone todas las peticiones a esa API, y el borde de Cloudflare carga scripts dentro de un iframe que el documento padre ni ve. La página de humo que mostraba esa cuenta desapareció con la interfaz de la Fase 3, así que el README quedó afirmando algo que la aplicación ya no mostraba.
 
 **Consecuencia.** `npm run smoke` maneja el build de producción —servido con las mismas cabeceras COOP y COEP que manda el host— en Chromium y en Firefox, y registra **todas** las peticiones que hace la página con `page.on('request')`. Falla si alguna sale del origen. Es el instrumento que la promesa siempre necesitó, y corre en cada CI en lugar de vivir en un párrafo. De paso cubre lo que ningún test unitario puede: que las cabeceras realmente lleguen (`crossOriginIsolated`), que el bundle de producción arranque, y que el ZIP que cae en disco sea un archivo que algo pueda abrir. Reemplaza a `verify:download`, que hacía la mitad de esto contra el servidor de desarrollo.
+
+## D45 — Las dos imágenes del comparador viven en la misma caja
+
+**Contexto.** Lo encontró el usuario probando con fotos propias. El comparador ponía el original en el flujo del documento, a su tamaño, y el resultado posicionado en absoluto con otro. Con una foto de 1920 px y un resultado de 1600 px, la cortina cruzaba dos imágenes a escalas distintas: a la izquierda se veía un farol ampliado y a la derecha la escena completa. Parecía una comparación y no comparaba nada.
+
+**Consecuencia.** Una sola caja, y las dos imágenes la llenan con `absolute inset-0 size-full object-contain`. El recorte de la cortina y la línea vertical son porcentajes de esa misma caja, que es lo que los mantiene uno encima del otro. En vista ajustada la caja es el área disponible; en 1:1 es el tamaño en píxeles del resultado, que es la retícula contra la que tiene sentido juzgar los artefactos. La etiqueta «antes» ahora también dice las dimensiones del original, leídas del `naturalWidth` al cargar, porque la cola nunca las guardó.
+
+## D46 — Los tests de navegador cargan la hoja de estilos
+
+**Contexto.** El test de alineación del comparador falló midiendo 1800 contra 1600 px, y la causa no era el arreglo: los tests de navegador importan `App` directamente, y `styles.css` solo entraba por `main.tsx`. **Corrían sin una sola clase de Tailwind aplicada.**
+
+**Consecuencia.** El archivo de test importa la hoja de estilos. Antes de esto, cualquier afirmación sobre disposición en esos tests era sobre una página que nadie va a ver nunca — pasaban por casualidad, no por acierto. El test de alineación no habría podido existir sin el arreglo, y encontrarlo fue el efecto colateral de escribirlo.
