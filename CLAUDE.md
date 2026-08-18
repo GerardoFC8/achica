@@ -28,17 +28,17 @@ npm run lint
 
 ## Estado actual
 
-Fase: 3 — UI
+Fase: 3 — UI (implementada, no cerrada)
 
-Fase 2 cerrada: pool de workers con concurrencia, cancelación real y progreso por archivo, más el store de Zustand. 196 tests en dos proyectos de Vitest. `npm run bench` procesa 200 imágenes por la cola real y mide la memoria residente del árbol de procesos de Chrome; el resultado está en el README, junto con por qué ningún medidor de memoria accesible desde la página sirve.
+La interfaz está construida contra `docs/diseno.md` y la maqueta aprobada: arrastrar carpeta, selector de destino, tabla de la cola con la barra de peso, filtros, orden, selección con recomprimir y quitar, resumen total y comparador antes/después. 261 tests en verde, incluidos seis que manejan la app real en Chromium con códecs reales. Captura reproducible con `npm run screenshot`.
 
-Lo que dejó escrito la Fase 2 y condiciona lo que viene:
+Guardar archivos **no** entra: es la Fase 4 del spec y se decidió respetar una fase a la vez.
 
-- Cancelar es terminar el worker (D25). El pool es dueño del ciclo de vida de los workers; el store solo le pide y espera el evento (D29).
-- La memoria está acotada por la concurrencia, no por el largo de la cola: unos 240 MB por worker (D31).
-- Los resultados viven como `Blob`, nunca como `Uint8Array` (D28). La Fase 4 los necesita así.
-- React todavía no está instalado. Entra con la Fase 3.
+**Falta para cerrar la fase, y es un hallazgo del núcleo, no de la interfaz.** La interfaz hizo visible que con un destino que tiene presupuesto, un archivo que ya entraba se recomprime igual y pierde calidad para no ganar nada: el techo efectivo es `min(maxBytes, tamañoDeOrigen)` (D24), así que la búsqueda maximiza calidad contra el propio tamaño del archivo y devuelve un 1 % de ahorro. En la captura, cuatro de cinco filas quedan en «justos» con ahorros de 0 %, 1 % y 4 %. Aparte, con imágenes diminutas el bucle de presupuesto reduce dimensiones varias veces y aun así devuelve un archivo más pesado, porque el encabezado del formato de salida ya supera al original. Las dos son cuestiones de `core/pipeline.ts` y hay que resolverlas antes de dar la fase por buena.
 
-`docs/diseno.md` está cerrado: paleta verificada contra contraste AA y simulación de daltonismo (D32), tipografía elegida y con presupuesto de bytes (D33), densidad, barra de peso, copy y mapa de errores. Se escribe contra ese documento, no contra el gusto del momento.
+Lo que dejó escrito la Fase 3:
 
-Siguiente criterio de aceptación: flujo completo usable en escritorio y móvil, con foco y teclado correctos, y una captura o GIF que se entienda sin explicación.
+- Los pesos se cuentan de a mil, no de a 1024 (D37), porque los presupuestos de los perfiles son miles redondos.
+- El `display` de las celdas se decide con utilidades de Tailwind; la capa de componentes pierde en silencio (D39).
+- Soltar y comprimir son dos pasos (D38).
+- La página de humo de la Fase 0 ya no se sirve: `src/smoke/` sigue con sus módulos y sus tests, y la auditoría de red vuelve como test de humo en la Fase 5.

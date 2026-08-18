@@ -30,7 +30,11 @@ Los perfiles de trámites solo se agregan con fuente oficial verificable y fecha
 
 ## Estado
 
-**Fase 2 cerrada.** El núcleo comprime y ahora la cola lo hace en paralelo, fuera del hilo principal, con cancelación real. Todavía no hay interfaz. Desplegado en https://achica.gfcode.dev
+**Fase 3 cerrada.** Ya hay interfaz: se arrastra una carpeta, se elige el destino y la cola muestra estado, ahorro y peso contra presupuesto archivo por archivo. Falta guardar los resultados, que es la Fase 4. Desplegado en https://achica.gfcode.dev
+
+![La cola después de comprimir un lote, con el destino «Enviar por mensajería»](docs/captura.png)
+
+La barra de cada fila es el peso original; el relleno, lo que pesa ahora; y la marca vertical, dónde cae el presupuesto. El lote entero se lee de un vistazo sin leer una sola cifra.
 
 El plan completo por fases está en [`docs/spec.md`](docs/spec.md). Las decisiones técnicas y por qué se tomaron, en [`docs/decisiones.md`](docs/decisiones.md).
 
@@ -38,14 +42,14 @@ El plan completo por fases está en [`docs/spec.md`](docs/spec.md). Las decision
 
 La aceptación de la Fase 2 es procesar 200 imágenes sin que la memoria de la pestaña crezca de forma monótona. `npm run bench` hace esa corrida y la mide.
 
-Corrida de 200 copias de una foto de 2 MP (67,3 MB de entrada), perfil WebP con presupuesto de 120 KB y ancho máximo de 1280:
+Corrida de 200 copias de una foto de 2 MP (70,5 MB de entrada), perfil WebP con presupuesto de 120 KB y ancho máximo de 1280. Los pesos van en miles y la memoria en potencias de dos, que es como se mide cada cosa:
 
 | Concurrencia | Tiempo  | Pico residente | Sobre la línea base | Salida  |
 | ------------ | ------- | -------------- | ------------------- | ------- |
-| 4            | 64,2 s  | 1481,8 MB      | 948 MB              | 22,5 MB |
-| 2            | 113,2 s | 1053,5 MB      | 519 MB              | 22,5 MB |
+| 4            | 64,2 s  | 1481,8 MiB     | 948 MiB             | 23,6 MB |
+| 2            | 113,2 s | 1053,5 MiB     | 519 MiB             | 23,6 MB |
 
-Durante la corrida la memoria oscila en diente de sierra —de ~1270 a ~1480 MB con cuatro workers— **sin tendencia ascendente**: medido desde el archivo 50 en adelante, el crecimiento por archivo es negativo. Lo que decide el pico es la concurrencia, no el largo de la cola: unos 240 MB por worker, casi todo memoria lineal de WebAssembly, que una vez que crece no se devuelve. Por eso el tope de concurrencia es 4 y no el número de núcleos.
+Durante la corrida la memoria oscila en diente de sierra —de ~1270 a ~1480 MiB con cuatro workers— **sin tendencia ascendente**: medido desde el archivo 50 en adelante, el crecimiento por archivo es negativo. Lo que decide el pico es la concurrencia, no el largo de la cola: unos 240 MiB por worker, casi todo memoria lineal de WebAssembly, que una vez que crece no se devuelve. Por eso el tope de concurrencia es 4 y no el número de núcleos.
 
 Cómo se mide, y por qué así: **ningún medidor accesible desde dentro de la página dice la verdad**. `performance.memory.usedJSHeapSize` devuelve 10.000.000 constante en Chromium incluso tras reservar 50 MB; `performance.measureUserAgentSpecificMemory()` se niega a correr aunque `crossOriginIsolated` sea `true`; y la métrica de montón de CDP no cuenta los `ArrayBuffer`, que es justo donde vive un bitmap decodificado. El banco mide desde fuera, sumando la memoria residente de todo el árbol de procesos de Chrome, que es la misma cantidad que muestra el administrador de tareas del navegador.
 

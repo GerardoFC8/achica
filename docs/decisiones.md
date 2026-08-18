@@ -226,3 +226,15 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** Un `KB` puede ser 1000 o 1024 bytes y las dos convenciones circulan. Pero los perfiles ya están escritos y sus presupuestos son números decimales redondos: `maxBytes: 500_000` para «Adjunto de correo», `300_000` para mensajería.
 
 **Consecuencia.** Se cuenta de a mil. Dividir por 1024 imprimiría ese mismo límite como «488 KB» justo debajo de la etiqueta que promete 500, y una herramienta cuyo argumento es la honestidad con el peso no puede permitirse esa contradicción en la primera fila. Debajo de diez unidades se muestra un decimal —0,4 KB es un archivo y 0 KB no es nada— y de ahí para arriba se redondea, porque nadie necesita «500,0 KB» y el dígito extra ensancha toda la columna.
+
+## D38 — Soltar y comprimir son dos pasos
+
+**Contexto.** El store encolaba al soltar, así que la cola arrancaba antes de que el usuario tocara el selector de destino. Elegir el destino es la idea central del producto: gastarse el lote entero con el perfil que estaba puesto por defecto es exactamente lo contrario.
+
+**Consecuencia.** `add(files)` agrega filas sin trabajo y `start(plan)` manda a la cola todo lo que sigue esperando. `requeue(ids, plan)` cubre recomprimir una selección con otro destino, conservando la identidad de la fila. Efecto colateral que se aprovecha: la fila conserva su `File`, que es un manejador a disco y no una copia, y eso es lo que permite tanto recomprimir como abrir el comparador sin volver a pedirle el archivo al usuario.
+
+## D39 — El `display` de las celdas se decide con utilidades, no en la capa de componentes
+
+**Contexto.** La fila es una grilla que cambia de forma: tabla en pantalla ancha, cuatro líneas apiladas en angosta. Esa geometría se escribió como CSS propio en `@layer components`, incluido el `display: none` que oculta la línea de números en escritorio. No funcionó, y el modo en que falló es el detalle que importa: la capa de utilidades de Tailwind se emite después, así que `flex` en el elemento le gana a `display: none` en la capa de componentes. El resultado fue una columna de números flotando al costado de la tabla, con toda la grilla desalineada porque esa celda ocupaba un área que el template ancho no define.
+
+**Consecuencia.** En `@layer components` vive solo la geometría —qué celda va en qué área y cómo cambia el template—; mostrar y ocultar se hace con `hidden` y `md:block` sobre el elemento. Regla general que queda: en cuanto una propiedad se declara en las dos capas, gana la utilidad, y el CSS propio pierde en silencio.

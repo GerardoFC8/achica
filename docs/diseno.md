@@ -107,7 +107,8 @@ Consecuencia forzosa de dos reglas del spec: cero peticiones de red después de 
 - Instrument Sans: latin más los signos del español (`á é í ó ú ü ñ Ñ ¿ ¡ «»`), eje `wght` conservado, `wdth` fijado en 100.
 - Martian Mono: solo lo que aparece en un número. Dígitos, `. , % × – / : ( ) +` y las letras de `KB`, `MB`, `ms`, `px`. Unos 25 glifos.
 - **Presupuesto: las dos juntas por debajo de 60 KB en `woff2`.** Hay que medirlo, no estimarlo.
-- Se precargan las dos en el `<head>` con `rel="preload"`, `font-display: swap`, y una pila de reserva declarada para que el reflujo sea corto.
+- `font-display: swap` y una pila de reserva declarada para que el reflujo sea corto.
+- **Corregido al implementar:** no se precargan con `rel="preload"`. Vite las versiona dentro de `/assets`, que `_headers` ya cachea para siempre, y precargarlas exigiría nombres estables fuera de ese versionado. La hoja de estilos se carga en el `<head>` de forma síncrona, así que la petición de la fuente arranca de todos modos apenas se parsea; la precarga ganaba milisegundos en la primera visita y costaba el cacheado inmutable en todas las demás.
 
 ---
 

@@ -36,7 +36,12 @@ const concurrencyParam =
 
 const SAMPLE_INTERVAL_MS = 1_000
 
-const megabytes = (bytes) => `${(bytes / 1_048_576).toFixed(1)} MB`
+/** Files are counted in thousands, the same way the interface counts them. */
+const megabytes = (bytes) => `${(bytes / 1_000_000).toFixed(1)} MB`
+
+/** Memory is not: RAM is powers of two, and calling a mebibyte a megabyte here
+ *  would misreport the one figure this script exists to produce. */
+const mebibytes = (bytes) => `${(bytes / 1_048_576).toFixed(1)} MiB`
 
 /**
  * Every process descending from the one whose command line names our throwaway
@@ -173,7 +178,7 @@ try {
     console.log('')
     console.log('settled  resident')
     for (const sample of samples) {
-      console.log(`${String(sample.settled).padStart(7)}  ${megabytes(sample.bytes)}`)
+      console.log(`${String(sample.settled).padStart(7)}  ${mebibytes(sample.bytes)}`)
     }
   }
 } finally {
