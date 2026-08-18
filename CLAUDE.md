@@ -28,18 +28,19 @@ npm run lint
 
 ## Estado actual
 
-Fase: 4 — salida
+Fase: 5 — presentación y cierre
 
-Fase 3 cerrada: interfaz completa contra `docs/diseno.md` — arrastrar carpeta, selector de destino, tabla con la barra de peso, filtros, orden, selección con recomprimir y quitar, resumen total y comparador antes/después. 265 tests en verde, incluidos seis que manejan la app real en Chromium con códecs reales. Captura reproducible con `npm run screenshot`.
+Fase 4 cerrada: los dos caminos de salida, con los nombres decididos una sola vez fuera de ambos. 299 tests en verde en cuatro proyectos de Vitest (node, chromium, firefox). El ZIP es la acción por defecto y la carpeta queda al lado (D43).
 
-Guardar archivos no entró a propósito: es esta fase.
+Cómo quedó verificada la aceptación, que pedía los dos caminos en Chromium y en Firefox:
 
-Lo que dejó escrito la Fase 3 y condiciona lo que viene:
+- **ZIP**: `npm run verify:download` maneja la app real en los dos navegadores, dispara la descarga y comprueba el archivo que cae en disco — cabecera local, fin de directorio central, una entrada por archivo. Idéntico byte a byte en ambos.
+- **Carpeta**: verificada a mano en Chromium. Ningún test puede abrir `showDirectoryPicker`: exige gesto del usuario y un diálogo nativo. Los casos difíciles —cerrar el diálogo, permiso que se cae a mitad del lote— están cubiertos con dobles en `src/output/save.browser-test.ts`.
+- Firefox corre acotado a `src/output/**` (D42): es donde el ZIP es el único camino.
 
-- **D40 reemplaza a D24.** Un presupuesto que el archivo ya cumple no es un objetivo: se codifica una vez con la calidad del perfil. La interfaz no dibuja la marca cuando el presupuesto nunca limitó a ese archivo.
-- Los pesos se cuentan de a mil (D37), porque los presupuestos de los perfiles son miles redondos. La memoria se sigue midiendo en potencias de dos.
-- El `display` de las celdas se decide con utilidades de Tailwind; la capa `@layer components` pierde en silencio (D39).
-- Soltar y comprimir son dos pasos (D38). La fila conserva su `File`, que es lo que permite recomprimir y abrir el comparador.
-- La página de humo de la Fase 0 ya no se sirve: `src/smoke/` conserva módulos y tests, y la auditoría de red vuelve como test de humo en la Fase 5.
+Lo que dejó escrito la Fase 4:
 
-Siguiente criterio de aceptación: File System Access API con detección de soporte y respaldo a ZIP con `client-zip`, con conflictos de nombre resueltos por sufijo, y los dos caminos verificados en Chromium y en Firefox.
+- Los nombres se deciden en `src/output/names.ts`, fuera de los dos caminos (D41). `jpeg` se escribe `.jpg`. El choque que importa lo creamos nosotros al convertir `foto.jpg` y `foto.png` al mismo formato.
+- Las funciones de guardado reciben su borde de plataforma como argumento. Es lo único que las vuelve testeables.
+
+Siguiente criterio de aceptación: un desconocido entra al link, arrastra una carpeta y obtiene resultados sin leer nada. Incluye README final con GIF, cabeceras verificadas en el host, y test de humo con Playwright en CI — que es donde corresponde llevar `verify:download` y la auditoría de red que la Fase 0 dejó en `src/smoke/`.

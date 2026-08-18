@@ -76,15 +76,21 @@ describe('the queue', () => {
     queueStore.getState().add([await fixture('Landscape_6.jpg')])
 
     // Nothing to save yet: a save button on an empty result is a dead end.
-    await expect.element(page.getByRole('button', { name: /Guardar|ZIP/ })).not.toBeInTheDocument()
+    await expect
+      .element(page.getByRole('button', { name: /Descargar|Guardar en/ }))
+      .not.toBeInTheDocument()
 
     await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
     await expect.element(page.getByText(/imagen comprimida/), { timeout: 30_000 }).toBeVisible()
 
-    // The label says which road this browser takes. It is not clicked here:
-    // the folder picker needs a user gesture and a real dialog, which is why
-    // both paths are tested against fakes in src/output.
-    await expect.element(page.getByRole('button', { name: /Guardar 1 imagen|ZIP/ })).toBeVisible()
+    /*
+     * The default road asks nothing and says what it will do: one image is
+     * handed over as one image, not wrapped in an archive nobody asked for.
+     * Neither button is clicked here — the folder picker needs a user gesture
+     * and a real dialog, which is why both paths are tested against fakes in
+     * src/output.
+     */
+    await expect.element(page.getByRole('button', { name: 'Descargar 1 imagen' })).toBeVisible()
   })
 
   it('blames the file that failed and finishes the rest', { timeout: 40_000 }, async () => {

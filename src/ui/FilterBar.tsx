@@ -86,7 +86,7 @@ export function FilterBar({
               onClick={onSave}
               className="h-6 rounded-sm bg-fits px-2 text-xs whitespace-nowrap text-paper coarse:h-11"
             >
-              Guardar {formatters.count(selectedDone)}
+              Descargar {formatters.count(selectedDone)}
             </button>
           ) : null}
           <button

@@ -13,12 +13,13 @@ type Props = {
   readonly pending: number
   readonly done: number
   readonly running: boolean
-  /** True where the browser can write into a folder; a ZIP everywhere else. */
-  readonly toFolder: boolean
+  /** Whether to offer the folder road at all; only Chromium has it. */
+  readonly canUseFolder: boolean
   readonly onSelectProfile: (profile: Profile) => void
   readonly onStart: () => void
   readonly onCancelAll: () => void
-  readonly onSave: () => void
+  readonly onDownload: () => void
+  readonly onSaveToFolder: () => void
 }
 
 export function Toolbar({
@@ -27,11 +28,12 @@ export function Toolbar({
   pending,
   done,
   running,
-  toFolder,
+  canUseFolder,
   onSelectProfile,
   onStart,
   onCancelAll,
-  onSave,
+  onDownload,
+  onSaveToFolder,
 }: Props) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-rule px-4">
@@ -43,15 +45,29 @@ export function Toolbar({
 
       {/* The button says what happens, and the result uses the same word. */}
       {done > 0 && !running ? (
-        <button
-          type="button"
-          onClick={onSave}
-          className="flex h-8 items-center gap-2 rounded-sm bg-fits px-3.5 text-[13px] leading-4 font-medium text-paper hover:brightness-110 coarse:h-11"
-        >
-          {toFolder
-            ? `Guardar ${formatters.count(done)} ${done === 1 ? 'imagen' : 'imágenes'}`
-            : `Descargar ${formatters.count(done)} en un ZIP`}
-        </button>
+        <>
+          {/*
+            The folder road first in the markup but second in weight: it is
+            the better one for a large batch and the wrong one to force on
+            somebody with five photos, who would rather not answer a dialog.
+          */}
+          {canUseFolder ? (
+            <button
+              type="button"
+              onClick={onSaveToFolder}
+              className="h-8 rounded-sm border border-rule px-3 text-[13px] leading-4 hover:border-ink-soft coarse:h-11"
+            >
+              Guardar en una carpeta
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onDownload}
+            className="h-8 rounded-sm bg-fits px-3.5 text-[13px] leading-4 font-medium text-paper hover:brightness-110 coarse:h-11"
+          >
+            {done === 1 ? 'Descargar 1 imagen' : `Descargar ${formatters.count(done)} en un ZIP`}
+          </button>
+        </>
       ) : null}
 
       {running ? (

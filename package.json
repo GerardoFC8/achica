@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "bench": "node scripts/bench.mjs",
     "screenshot": "node scripts/screenshot.mjs",
+    "verify:download": "node scripts/verify-download.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

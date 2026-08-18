@@ -30,7 +30,7 @@ Los perfiles de trámites solo se agregan con fuente oficial verificable y fecha
 
 ## Estado
 
-**Fase 3 cerrada.** Ya hay interfaz: se arrastra una carpeta, se elige el destino y la cola muestra estado, ahorro y peso contra presupuesto archivo por archivo. Falta guardar los resultados, que es la Fase 4. Desplegado en https://achica.gfcode.dev
+**Fase 4 cerrada.** El flujo está completo: se arrastra una carpeta, se elige el destino, la cola muestra estado, ahorro y peso contra presupuesto archivo por archivo, y los resultados se descargan como ZIP o se escriben directo en una carpeta donde el navegador lo permite. Desplegado en https://achica.gfcode.dev
 
 ![La cola después de comprimir un lote, con el destino «Enviar por mensajería»](docs/captura.png)
 
@@ -65,6 +65,8 @@ npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
 npm run test       # vitest
 npm run bench      # 200 imágenes por la cola real, midiendo memoria
+npm run screenshot # regenera las capturas del README
+npm run verify:download # descarga el ZIP en Chromium y en Firefox y lo revisa
 ```
 
 ## Licencia

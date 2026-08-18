@@ -79,11 +79,12 @@ export function App() {
         pending={pending}
         done={done}
         running={running}
-        toFolder={save.toFolder}
+        canUseFolder={save.canUseFolder}
         onSelectProfile={setProfile}
         onStart={() => queueActions.start(toOutputPlan(profile))}
         onCancelAll={queueActions.cancelAll}
-        onSave={() => void save.saveAll(items)}
+        onDownload={() => void save.download(items)}
+        onSaveToFolder={() => void save.toFolder(items)}
       />
 
       <main className="flex min-h-0 flex-1 flex-col">
@@ -98,7 +99,7 @@ export function App() {
               selectedCount={selectedIds.length}
               selectedDone={selectedDone}
               onFilter={setFilter}
-              onSave={() => void save.saveAll(selectedItems)}
+              onSave={() => void save.download(selectedItems)}
               onRecompress={() => queueActions.requeue(selectedIds, toOutputPlan(profile))}
               onRemove={() => {
                 queueActions.remove(selectedIds)
