@@ -18,9 +18,12 @@ const PROFILE: GenericProfile = {
   stripMetadata: true,
 }
 
+const source = (name: string): File => new File([new Uint8Array(4)], name)
+
 function done(id: string, name: string, before: number, after: number, ms: number): QueueItem {
   return {
     id,
+    file: source(name),
     name,
     bytesBefore: before,
     status: 'done',
@@ -44,10 +47,17 @@ const ITEMS: readonly QueueItem[] = [
   done('1', 'zeta.jpg', 1_000_000, 100_000, 300), // fits
   done('2', 'alfa.jpg', 1_000_000, 470_000, 100), // tight
   done('3', 'beta.jpg', 1_000_000, 700_000, 200), // over
-  { id: '4', name: 'roto.png', bytesBefore: 900, status: 'failed', error: { code: 'empty-file' } },
-  { id: '5', name: 'corta.jpg', bytesBefore: 900, status: 'cancelled' },
-  { id: '6', name: 'espera.jpg', bytesBefore: 900, status: 'pending' },
-  { id: '7', name: 'corre.jpg', bytesBefore: 900, status: 'running' },
+  {
+    id: '4',
+    file: source('roto.png'),
+    name: 'roto.png',
+    bytesBefore: 900,
+    status: 'failed',
+    error: { code: 'empty-file' },
+  },
+  { id: '5', file: source('corta.jpg'), name: 'corta.jpg', bytesBefore: 900, status: 'cancelled' },
+  { id: '6', file: source('espera.jpg'), name: 'espera.jpg', bytesBefore: 900, status: 'pending' },
+  { id: '7', file: source('corre.jpg'), name: 'corre.jpg', bytesBefore: 900, status: 'running' },
 ]
 
 const rows = buildRows(ITEMS, PROFILE)

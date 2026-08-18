@@ -76,6 +76,12 @@ function harness(options: { readonly startImmediately?: boolean } = {}) {
     newId: () => `job-${(nextId += 1)}`,
   })
 
+  /** What the interface does when the user drops files and presses the button. */
+  const drop = (files: readonly File[], plan: OutputPlan = PLAN): void => {
+    store.getState().add(files)
+    store.getState().start(plan)
+  }
+
   const items = (): readonly QueueItem[] => store.getState().items
   const itemAt = (index: number): QueueItem => {
     const item = items()[index]
@@ -85,6 +91,7 @@ function harness(options: { readonly startImmediately?: boolean } = {}) {
 
   return {
     store,
+    drop,
     enqueued,
     cancelled,
     items,
@@ -96,26 +103,50 @@ function harness(options: { readonly startImmediately?: boolean } = {}) {
 
 describe('queue store', () => {
   it('adds one pending row per file, in the order they were dropped', () => {
-    const { store, items } = harness()
+    const { drop, items } = harness()
 
-    store.getState().enqueue([file('a.jpg', 300), file('b.png', 500)], PLAN)
+    drop([file('a.jpg', 300), file('b.png', 500)])
 
     expect(items().map((item) => item.name)).toEqual(['a.jpg', 'b.png'])
     expect(items().map((item) => item.status)).toEqual(['pending', 'pending'])
   })
 
-  it('keeps the original size, because the saving is the number the user came for', () => {
-    const { store, itemAt } = harness()
+  it('adds rows without spending a single encode', () => {
+    const { store, enqueued, itemAt } = harness()
 
-    store.getState().enqueue([file('a.jpg', 300)], PLAN)
+    store.getState().add([file('a.jpg', 300)])
+
+    // Choosing a destination is the second decision and the product's whole
+    // idea. Compressing on the drop would spend the batch before the user has
+    // said where it is going.
+    expect(enqueued).toHaveLength(0)
+    expect(itemAt(0).status).toBe('pending')
+  })
+
+  it('starts only the rows that are still waiting', () => {
+    const { store, drop, enqueued, emit } = harness()
+    drop([file('a.jpg', 300)])
+    emit({ type: 'settled', id: 'job-1', report: done(300, 100) })
+    store.getState().add([file('b.jpg', 300)])
+
+    store.getState().start(PLAN)
+
+    // The finished row is not re-encoded just because a second file arrived.
+    expect(enqueued.map((job) => job.id)).toEqual(['job-1', 'job-2'])
+  })
+
+  it('keeps the original size, because the saving is the number the user came for', () => {
+    const { drop, itemAt } = harness()
+
+    drop([file('a.jpg', 300)])
 
     expect(itemAt(0).bytesBefore).toBe(300)
   })
 
   it('hands the pool one job per file, carrying the plan', () => {
-    const { store, enqueued } = harness()
+    const { drop, enqueued } = harness()
 
-    store.getState().enqueue([file('a.jpg', 300), file('b.png', 500)], PLAN)
+    drop([file('a.jpg', 300), file('b.png', 500)])
 
     expect(enqueued.map((job) => job.file.name)).toEqual(['a.jpg', 'b.png'])
     expect(enqueued.every((job) => job.plan === PLAN)).toBe(true)
@@ -125,16 +156,16 @@ describe('queue store', () => {
     // Rows are added before the pool is told about them on purpose: the pool
     // starts jobs synchronously, and an event that finds no row would leave a
     // file stuck on 'pending' forever.
-    const { store, itemAt } = harness({ startImmediately: true })
+    const { drop, itemAt } = harness({ startImmediately: true })
 
-    store.getState().enqueue([file('a.jpg', 300)], PLAN)
+    drop([file('a.jpg', 300)])
 
     expect(itemAt(0).status).toBe('running')
   })
 
   it('turns a finished job into a blob and drops the raw bytes', () => {
-    const { store, itemAt, emit } = harness()
-    store.getState().enqueue([file('a.jpg', 1_000)], PLAN)
+    const { drop, itemAt, emit } = harness()
+    drop([file('a.jpg', 1_000)])
 
     emit({ type: 'settled', id: 'job-1', report: done(1_000, 250) })
 
@@ -159,8 +190,8 @@ describe('queue store', () => {
   })
 
   it('marks a failed file with its cause and leaves the others alone', () => {
-    const { store, itemAt, emit } = harness()
-    store.getState().enqueue([file('a.heic', 900), file('b.jpg', 900)], PLAN)
+    const { drop, itemAt, emit } = harness()
+    drop([file('a.heic', 900), file('b.jpg', 900)])
 
     emit({ type: 'settled', id: 'job-1', report: failed })
 
@@ -171,8 +202,8 @@ describe('queue store', () => {
   })
 
   it('marks a cancelled file without inventing an error for it', () => {
-    const { store, itemAt, emit } = harness()
-    store.getState().enqueue([file('a.jpg', 900)], PLAN)
+    const { drop, itemAt, emit } = harness()
+    drop([file('a.jpg', 900)])
 
     emit({ type: 'cancelled', id: 'job-1' })
 
@@ -182,8 +213,8 @@ describe('queue store', () => {
   })
 
   it('ignores an event for a row that is no longer listed', () => {
-    const { store, items, emit } = harness()
-    store.getState().enqueue([file('a.jpg', 900)], PLAN)
+    const { store, drop, items, emit } = harness()
+    drop([file('a.jpg', 900)])
     store.getState().clear()
 
     expect(() => emit({ type: 'settled', id: 'job-1', report: done(900, 100) })).not.toThrow()
@@ -191,8 +222,8 @@ describe('queue store', () => {
   })
 
   it('asks the pool to cancel, and waits for the pool to say it happened', () => {
-    const { store, cancelled, itemAt } = harness()
-    store.getState().enqueue([file('a.jpg', 900)], PLAN)
+    const { store, drop, cancelled, itemAt } = harness()
+    drop([file('a.jpg', 900)])
 
     store.getState().cancel('job-1')
 
@@ -203,8 +234,8 @@ describe('queue store', () => {
   })
 
   it('cancels everything through the pool', () => {
-    const { store, cancelledAll } = harness()
-    store.getState().enqueue([file('a.jpg', 900), file('b.jpg', 900)], PLAN)
+    const { store, drop, cancelledAll } = harness()
+    drop([file('a.jpg', 900), file('b.jpg', 900)])
 
     store.getState().cancelAll()
 
@@ -212,8 +243,8 @@ describe('queue store', () => {
   })
 
   it('cancels before emptying the list, so nothing keeps encoding unseen', () => {
-    const { store, items, cancelledAll } = harness()
-    store.getState().enqueue([file('a.jpg', 900)], PLAN)
+    const { store, drop, items, cancelledAll } = harness()
+    drop([file('a.jpg', 900)])
 
     store.getState().clear()
 
@@ -221,11 +252,54 @@ describe('queue store', () => {
     expect(items()).toHaveLength(0)
   })
 
-  it('keeps rows from a second drop alongside the first', () => {
-    const { store, items } = harness()
-    store.getState().enqueue([file('a.jpg', 900)], PLAN)
+  it('keeps the file itself, which the comparator and a recompress both need', () => {
+    const { drop, itemAt } = harness()
+    const dropped = file('a.jpg', 300)
 
-    store.getState().enqueue([file('b.jpg', 900)], PLAN)
+    drop([dropped])
+
+    // A File is a handle to data the browser already has, not a copy of it,
+    // so holding it costs a reference rather than three hundred buffers.
+    expect(itemAt(0).file).toBe(dropped)
+  })
+
+  it('sends a row back through the queue with its identity intact', () => {
+    const { store, drop, itemAt, enqueued, emit } = harness()
+    drop([file('a.jpg', 300)])
+    emit({ type: 'settled', id: 'job-1', report: done(300, 100) })
+
+    store.getState().requeue(['job-1'], { format: 'jpeg', maxBytes: 50_000 })
+
+    expect(itemAt(0).status).toBe('pending')
+    expect(enqueued[1]?.id).toBe('job-1')
+    expect(enqueued[1]?.plan).toEqual({ format: 'jpeg', maxBytes: 50_000 })
+  })
+
+  it('drops a row and stops whatever it was doing', () => {
+    const { store, drop, items, cancelled } = harness()
+    drop([file('a.jpg', 300), file('b.jpg', 300)])
+
+    store.getState().remove(['job-1'])
+
+    // Cancel first: a removed row is still a file a worker is busy encoding,
+    // and nothing would be left watching for it.
+    expect(cancelled).toEqual(['job-1'])
+    expect(items().map((item) => item.name)).toEqual(['b.jpg'])
+  })
+
+  it('ignores a removal for a row that is not there', () => {
+    const { store, drop, items } = harness()
+    drop([file('a.jpg', 300)])
+
+    expect(() => store.getState().remove(['nope'])).not.toThrow()
+    expect(items()).toHaveLength(1)
+  })
+
+  it('keeps rows from a second drop alongside the first', () => {
+    const { drop, items } = harness()
+    drop([file('a.jpg', 900)])
+
+    drop([file('b.jpg', 900)])
 
     expect(items().map((item) => item.name)).toEqual(['a.jpg', 'b.jpg'])
   })
@@ -233,8 +307,8 @@ describe('queue store', () => {
 
 describe('totalsOf', () => {
   function storeWith(reports: readonly JobReport[]): readonly QueueItem[] {
-    const { store, emit } = harness()
-    store.getState().enqueue(
+    const { store, drop, emit } = harness()
+    drop(
       reports.map((_, index) => file(`f${index}.jpg`, 1_000)),
       PLAN,
     )
@@ -251,8 +325,8 @@ describe('totalsOf', () => {
   })
 
   it('counts cancelled rows apart from failed ones', () => {
-    const { store, emit } = harness()
-    store.getState().enqueue([file('a.jpg', 900), file('b.jpg', 900)], PLAN)
+    const { store, drop, emit } = harness()
+    drop([file('a.jpg', 900), file('b.jpg', 900)])
     emit({ type: 'cancelled', id: 'job-1' })
 
     const totals = totalsOf(store.getState().items)

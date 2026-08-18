@@ -62,14 +62,14 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['{src,test}/**/*.test.ts'],
+          include: ['{src,test}/**/*.test.{ts,tsx}'],
         },
       },
       {
         extends: true,
         test: {
           name: 'browser',
-          include: ['{src,test}/**/*.browser-test.ts'],
+          include: ['{src,test}/**/*.browser-test.{ts,tsx}'],
           browser: {
             enabled: true,
             provider: playwright(),

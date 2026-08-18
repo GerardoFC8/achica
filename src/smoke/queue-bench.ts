@@ -118,7 +118,8 @@ export async function runQueueBench(options: BenchOptions): Promise<BenchReport>
   })
 
   sample(0)
-  store.getState().enqueue(options.files, options.plan)
+  store.getState().add(options.files)
+  store.getState().start(options.plan)
   await finished
 
   const ms = Math.round(performance.now() - startedAt)

@@ -19,6 +19,15 @@ export type ItemOutcome = Omit<PipelineOutcome, 'output'>
 
 export type QueueItem = {
   readonly id: JobId
+  /**
+   * The file itself, kept for as long as the row exists.
+   *
+   * A File is a handle to data the browser already holds, not a copy, so this
+   * costs a reference and not a buffer. Both the before/after comparator and
+   * a recompress under a different destination need the original, and neither
+   * can ask the user to drop it again.
+   */
+  readonly file: File
   readonly name: string
   readonly bytesBefore: number
 } & (
@@ -44,9 +53,22 @@ export type QueueItem = {
 
 export type QueueState = {
   readonly items: readonly QueueItem[]
-  enqueue(files: readonly File[], plan: OutputPlan): void
+  /**
+   * Adds rows without starting any work.
+   *
+   * Dropping a folder and choosing a destination are two decisions, and the
+   * second one is the product's whole idea. Compressing on the drop would
+   * spend the batch before the user has said where it is going.
+   */
+  add(files: readonly File[]): void
+  /** Sends every row still waiting to the pool. */
+  start(plan: OutputPlan): void
+  /** Sends specific rows back through the queue, keeping their identity. */
+  requeue(ids: readonly JobId[], plan: OutputPlan): void
   cancel(id: JobId): void
   cancelAll(): void
+  /** Forgets rows entirely. Whatever they were doing is cancelled first. */
+  remove(ids: readonly JobId[]): void
   clear(): void
 }
 
@@ -69,7 +91,12 @@ export type QueueTotals = {
 }
 
 function applied(item: QueueItem, event: JobEvent): QueueItem {
-  const identity = { id: item.id, name: item.name, bytesBefore: item.bytesBefore }
+  const identity = {
+    id: item.id,
+    file: item.file,
+    name: item.name,
+    bytesBefore: item.bytesBefore,
+  }
 
   if (event.type === 'started') return { ...identity, status: 'running' }
   if (event.type === 'cancelled') return { ...identity, status: 'cancelled' }
@@ -95,25 +122,53 @@ export function createQueueStore(deps: QueueDeps): StoreApi<QueueState> {
   const store = createStore<QueueState>()((set, get) => ({
     items: [],
 
-    enqueue(files, plan) {
-      const jobs: EncodeJob[] = files.map((file) => ({ id: deps.newId(), file, plan }))
-
-      /*
-       * Rows first, pool second, and the order is not cosmetic: the pool hands
-       * work to a worker inside `enqueue`, so its first 'started' event fires
-       * before this method returns. Told in the other order, that event would
-       * find no row to update and the file would sit on 'pending' forever.
-       */
+    add(files) {
       set({
         items: [
           ...get().items,
-          ...jobs.map((job): QueueItem => ({
-            id: job.id,
-            name: job.file.name,
-            bytesBefore: job.file.size,
+          ...files.map((file): QueueItem => ({
+            id: deps.newId(),
+            file,
+            name: file.name,
+            bytesBefore: file.size,
             status: 'pending',
           })),
         ],
+      })
+    },
+
+    start(plan) {
+      const waiting = get()
+        .items.filter((item) => item.status === 'pending')
+        .map((item) => item.id)
+
+      get().requeue(waiting, plan)
+    },
+
+    requeue(ids, plan) {
+      const wanted = new Set(ids)
+      const jobs: EncodeJob[] = get()
+        .items.filter((item) => wanted.has(item.id))
+        .map((item) => ({ id: item.id, file: item.file, plan }))
+
+      /*
+       * Rows first, pool second, and the order is not cosmetic: the pool hands
+       * work to a worker inside its own enqueue, so the first 'started' event
+       * fires before this returns. Told the other way round, that event would
+       * find a row still marked done and the file would never show as running.
+       */
+      set({
+        items: get().items.map((item) =>
+          wanted.has(item.id)
+            ? {
+                id: item.id,
+                file: item.file,
+                name: item.name,
+                bytesBefore: item.bytesBefore,
+                status: 'pending',
+              }
+            : item,
+        ),
       })
 
       pool.enqueue(jobs)
@@ -121,6 +176,15 @@ export function createQueueStore(deps: QueueDeps): StoreApi<QueueState> {
 
     cancel(id) {
       pool.cancel(id)
+    },
+
+    remove(ids) {
+      // Cancel before forgetting: a removed row can still be a file a worker
+      // is busy encoding, and nothing would be left watching for it.
+      for (const id of ids) pool.cancel(id)
+
+      const wanted = new Set(ids)
+      set({ items: get().items.filter((item) => !wanted.has(item.id)) })
     },
 
     cancelAll() {

@@ -100,3 +100,75 @@ export function savedRatio(item: QueueItem): number | null {
   if (item.status !== 'done' || item.bytesBefore <= 0) return null
   return 1 - item.outcome.bytesAfter / item.bytesBefore
 }
+
+export type RowDetail = {
+  readonly label: string
+  readonly value: string
+  readonly kind?: RowKind
+}
+
+/**
+ * What the row hides until asked.
+ *
+ * The table shows the numbers a batch is scanned by; this is where the ones
+ * that answer "why" live — which quality it landed on, how many encodes it
+ * cost, how much room was left against the budget. Kept out of the row so
+ * thirty files still fit on a screen.
+ */
+export function rowDetails(
+  item: QueueItem,
+  profile: Profile,
+  formatters: Formatters,
+): readonly RowDetail[] {
+  const budget: RowDetail = {
+    label: 'Presupuesto',
+    value:
+      profile.maxBytes === undefined ? 'sin tope' : `máx. ${formatters.bytes(profile.maxBytes)}`,
+  }
+
+  if (item.status === 'failed') {
+    return [{ label: 'Código', value: item.error.code, kind: 'failed' }, budget]
+  }
+
+  if (item.status !== 'done') {
+    return [
+      { label: 'Origen', value: formatters.bytes(item.bytesBefore) },
+      budget,
+      ...(item.status === 'running'
+        ? [{ label: 'Avance', value: 'no medible dentro de un archivo' }]
+        : []),
+    ]
+  }
+
+  const { outcome } = item
+  const kind = rowKind(item, profile)
+  const ceiling =
+    profile.maxBytes === undefined ? null : Math.min(profile.maxBytes, item.bytesBefore)
+  const margin = ceiling === null ? null : ceiling - outcome.bytesAfter
+
+  return [
+    {
+      label: 'Salida',
+      value:
+        outcome.quality === null
+          ? outcome.format.toUpperCase()
+          : `${outcome.format.toUpperCase()} · calidad ${formatters.count(outcome.quality)}`,
+    },
+    { label: 'Dimensiones', value: formatters.dimensions(outcome.width, outcome.height) },
+    { label: 'Pasadas de codificación', value: formatters.count(outcome.encodes) },
+    budget,
+    margin === null
+      ? { label: 'Resultado', value: 'lo más chico posible', kind }
+      : {
+          label: margin >= 0 ? 'Margen' : 'Exceso',
+          value: formatters.bytes(Math.abs(margin)),
+          kind,
+        },
+    {
+      label: 'Ahorro',
+      value: `${formatters.bytes(item.bytesBefore - outcome.bytesAfter)} · ${formatters.percent(savedRatio(item) ?? 0)}`,
+      kind,
+    },
+    { label: 'Tiempo en el worker', value: formatters.ms(item.ms) },
+  ]
+}

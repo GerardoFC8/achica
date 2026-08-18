@@ -61,6 +61,9 @@
   --radius-sm: 2px;
 }
 
+/* Touch pointers need a 44 px target; a mouse does not. */
+@custom-variant coarse (@media (pointer: coarse));
+
 @layer base {
   html {
     background: var(--color-paper);
@@ -104,5 +107,82 @@
   [data-busy='true'] {
     animation: none !important;
     opacity: 0.55 !important;
+  }
+}
+
+/*
+ * The row's layout is real CSS rather than utilities because it is a grid
+ * template that changes shape, and spelling that out in class names would
+ * bury the one thing worth reading: the row is a table on a wide screen and a
+ * stack of four lines on a narrow one, with the same markup either way. One
+ * DOM means a screen reader is not handed the same file twice.
+ */
+@layer components {
+  /*
+   * Only geometry lives here: which cell goes where, and how the template
+   * changes shape. Showing and hiding is done with utilities on the elements
+   * themselves, because Tailwind's utility layer wins over this one and a
+   * `display` declared here would lose silently — which is exactly how the
+   * narrow-screen number line ended up floating beside the wide table.
+   */
+  .queue-row,
+  .queue-head {
+    display: grid;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 10px 16px;
+    grid-template-columns: 20px 1fr auto;
+    grid-template-areas:
+      'select name name'
+      'numbers numbers numbers'
+      'bar bar bar'
+      'actions actions actions';
+  }
+
+  .cell-select {
+    grid-area: select;
+  }
+  .cell-name {
+    grid-area: name;
+    min-width: 0;
+  }
+  .cell-numbers {
+    grid-area: numbers;
+  }
+  .cell-bar {
+    grid-area: bar;
+  }
+  .cell-actions {
+    grid-area: actions;
+  }
+
+  @media (min-width: 768px) {
+    .queue-row,
+    .queue-head {
+      gap: 12px;
+      height: 28px;
+      padding: 0 16px;
+      grid-template-columns:
+        24px minmax(170px, 1fr) 88px 88px 80px
+        minmax(150px, 1.1fr) 84px 76px;
+      grid-template-areas: 'select name before after saved bar time actions';
+    }
+
+    .cell-before {
+      grid-area: before;
+      text-align: right;
+    }
+    .cell-after {
+      grid-area: after;
+      text-align: right;
+    }
+    .cell-saved {
+      grid-area: saved;
+      text-align: right;
+    }
+    .cell-time {
+      grid-area: time;
+      text-align: right;
+    }
   }
 }

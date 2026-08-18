@@ -28,9 +28,12 @@ const UNBUDGETED: GenericProfile = {
   stripMetadata: true,
 }
 
+const SOURCE = new File([new Uint8Array(8)], 'foto.jpg')
+
 function done(bytesBefore: number, bytesAfter: number, shrunk = false): QueueItem {
   return {
     id: 'a',
+    file: SOURCE,
     name: 'foto.jpg',
     bytesBefore,
     status: 'done',
@@ -50,7 +53,13 @@ function done(bytesBefore: number, bytesAfter: number, shrunk = false): QueueIte
   }
 }
 
-const pending: QueueItem = { id: 'a', name: 'foto.jpg', bytesBefore: 1000, status: 'pending' }
+const pending: QueueItem = {
+  id: 'a',
+  file: SOURCE,
+  name: 'foto.jpg',
+  bytesBefore: 1000,
+  status: 'pending',
+}
 
 describe('rowKind', () => {
   it('is the queue status while the file has not finished', () => {
