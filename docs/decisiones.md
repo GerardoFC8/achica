@@ -148,3 +148,15 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** Lo encontró un test de perfiles. Con `correo-adjunto` (máximo 500 KB) sobre una foto de 352 KB, la búsqueda halla la mayor calidad que entra en el presupuesto y devuelve 495 KB — más pesado que la entrada. Cumple el presupuesto al pie de la letra y es absurdo viniendo de una herramienta cuyo propósito es achicar.
 
 **Consecuencia.** El presupuesto efectivo es `min(maxBytes, tamañoDeOrigen)`. Un presupuesto es un techo, no un objetivo. Consecuencia conocida: al convertir a un formato inherentemente más pesado que el origen —por ejemplo una foto a PNG— el tope obligará a reducir dimensiones. Es el comportamiento correcto para esta herramienta, y preferible a entregar en silencio un archivo más grande del que el usuario trajo.
+
+## D25 — Cancelar es terminar el worker, porque el `AbortController` del spec no puede cruzar
+
+**Contexto.** La sección 6 pide un `AbortController` por trabajo y exige que cancelar detenga los trabajos en vuelo, no que solo deje de encolar. Tal cual está escrito no es implementable: un `AbortSignal` no es clonable por estructura, así que no llega al worker. Chromium responde `DataCloneError` tanto en `structuredClone` como en `postMessage`; Node lo "clona" en silencio a un objeto plano con `aborted: undefined`, que es peor, porque un test en Node pasaría y el navegador fallaría. Y aunque cruzara, la codificación WASM corre de forma síncrona dentro del worker: una bandera cooperativa recién se leería cuando el trabajo ya terminó.
+
+**Consecuencia.** Queda un solo mecanismo que cumple el requisito: `worker.terminate()`. Por eso el pool es dueño del ciclo de vida de los workers — los crea, los mata al cancelar y levanta reemplazos para los archivos que siguen esperando. El costo es reinstanciar el WASM del worker terminado, y se paga solo cuando el usuario cancela. El pool ignora la respuesta tardía de un trabajo que ya cerró, para que ningún archivo reporte dos veces.
+
+## D26 — El pool recibe el `File`, no sus bytes, y no guarda ningún resultado
+
+**Contexto.** La sección 6 avisa que la memoria es donde se cae la mayoría de estas herramientas, con una cola de 300 fotos de 12 MP como piso. Leer cada archivo a `ArrayBuffer` en el hilo principal para pasárselo al worker pondría la cola entera en memoria antes de comprimir el primer archivo.
+
+**Consecuencia.** El trabajo lleva el `File`, que es un manejador a datos que el navegador ya tiene en disco y se clona sin copiar; cada worker lee el suyo cuando le toca. El pool tampoco acumula salidas: entrega cada informe por `onEvent` y lo suelta, así el planificador nunca sostiene 300 búferes. La concurrencia refuerza lo mismo — se deja un núcleo al hilo principal y el tope es 4 por memoria, no por velocidad: un bitmap de 12 MP son unos 48 MB en RGBA, y cuatro en vuelo ya son unos 200 MB de pico. Si el navegador no informa núcleos se usa 2, que mueve la cola sin apostar memoria en una máquina desconocida.
