@@ -139,6 +139,48 @@ describe('the comparator', () => {
     expect(two.top).toBeCloseTo(one.top, 1)
   })
 
+  it('moves the curtain only when the curtain is grabbed', { timeout: 40_000 }, async () => {
+    render(<App />)
+    queueStore.getState().add([await fixture('Landscape_6.jpg')])
+    await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
+    await expect.element(page.getByText(/imagen comprimida/), { timeout: 30_000 }).toBeVisible()
+    await userEvent.click(page.getByRole('button', { name: 'Comparar' }))
+
+    const curtain = page.getByRole('slider')
+    await expect.element(curtain).toBeVisible()
+    const before = curtain.element().getAttribute('aria-valuenow')
+
+    /*
+     * Dispatched rather than clicked: the pictures are stacked, so a real
+     * click lands on whichever is on top and Playwright refuses to aim at the
+     * one underneath. What is being checked is the listener that used to sit
+     * on the whole surface — a pointerdown on the picture would teleport the
+     * divider there, which reads as a glitch and not as a control.
+     */
+    page
+      .getByAltText(/comprimida/)
+      .element()
+      .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 40, clientY: 200 }))
+
+    expect(curtain.element().getAttribute('aria-valuenow')).toBe(before)
+  })
+
+  it('lets the keyboard move the curtain', { timeout: 40_000 }, async () => {
+    render(<App />)
+    queueStore.getState().add([await fixture('Landscape_6.jpg')])
+    await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
+    await expect.element(page.getByText(/imagen comprimida/), { timeout: 30_000 }).toBeVisible()
+    await userEvent.click(page.getByRole('button', { name: 'Comparar' }))
+
+    const curtain = page.getByRole('slider')
+    curtain.element().focus()
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+
+    // Without this the comparison is mouse-only, which the design's quality
+    // floor rules out.
+    expect(Number(curtain.element().getAttribute('aria-valuenow'))).toBe(52)
+  })
+
   it('closes with the keyboard and gives focus back', { timeout: 40_000 }, async () => {
     render(<App />)
     queueStore.getState().add([await fixture('Landscape_6.jpg')])

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
 import type { Formatters } from './format'
@@ -32,8 +32,10 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
   const [urls, setUrls] = useState<{ before: string; after: string } | null>(null)
   /** Read off the original once it loads; the queue never stored it. */
   const [source, setSource] = useState<{ width: number; height: number } | null>(null)
-  const surface = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
+  /** The box the images fill: the curtain is a percentage of this, not of the
+   *  scrolling area around it, which is what the drag has to measure against. */
+  const frame = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
 
   useEffect(() => {
@@ -64,24 +66,25 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
     }
   }, [onClose])
 
-  useEffect(() => {
-    const move = (event: PointerEvent): void => {
-      if (!dragging.current) return
-      const box = surface.current?.getBoundingClientRect()
-      if (box === undefined) return
-      setSplit(Math.max(0, Math.min(100, ((event.clientX - box.left) / box.width) * 100)))
-    }
-    const up = (): void => {
-      dragging.current = false
-    }
+  const clamp = (value: number): number => Math.max(0, Math.min(100, value))
 
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-    return () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-  }, [])
+  const splitAt = (clientX: number): void => {
+    const box = frame.current?.getBoundingClientRect()
+    if (box === undefined || box.width === 0) return
+    setSplit(clamp(((clientX - box.left) / box.width) * 100))
+  }
+
+  const nudge = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const step = event.shiftKey ? 10 : 1
+
+    if (event.key === 'ArrowLeft') setSplit((value) => clamp(value - step))
+    else if (event.key === 'ArrowRight') setSplit((value) => clamp(value + step))
+    else if (event.key === 'Home') setSplit(0)
+    else if (event.key === 'End') setSplit(100)
+    else return
+
+    event.preventDefault()
+  }
 
   const kind = rowKind(item, profile)
   const { outcome } = item
@@ -132,17 +135,12 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
       </header>
 
       <div className="flex min-h-0 flex-1 p-4">
-        <div
-          ref={surface}
-          onPointerDown={(event) => {
-            dragging.current = true
-            const box = surface.current?.getBoundingClientRect()
-            if (box !== undefined) {
-              setSplit(Math.max(0, Math.min(100, ((event.clientX - box.left) / box.width) * 100)))
-            }
-          }}
-          className="relative flex-1 cursor-ew-resize overflow-auto border border-rule bg-raised touch-none"
-        >
+        {/*
+          Not a drag target. A click anywhere used to teleport the curtain,
+          which reads as a glitch rather than a control — and it also stole
+          the scroll from the 1:1 view on a touch screen.
+        */}
+        <div className="relative flex-1 overflow-auto border border-rule bg-raised">
           {urls === null ? null : (
             /*
              * One box, and both images fill it. That is the whole fix: before
@@ -154,6 +152,7 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
              * box, which is what keeps them on top of each other.
              */
             <div
+              ref={frame}
               className={actualSize ? 'relative' : 'absolute inset-0'}
               style={
                 actualSize
@@ -178,10 +177,39 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
                 style={{ clipPath: `inset(0 0 0 ${split}%)` }}
                 className="absolute inset-0 size-full object-contain"
               />
+              {/*
+                The curtain is a control, so it looks like one and behaves like
+                one: it is grabbed, not aimed at, and the arrow keys move it for
+                anyone not using a pointer.
+              */}
               <div
-                className="pointer-events-none absolute inset-y-0 w-0.5 bg-ink"
+                role="slider"
+                tabIndex={0}
+                aria-label="Cortina de comparación"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(split)}
+                aria-valuetext={`${Math.round(split)} % del ancho`}
+                onKeyDown={nudge}
+                onPointerDown={(event) => {
+                  event.currentTarget.setPointerCapture(event.pointerId)
+                  dragging.current = true
+                }}
+                onPointerMove={(event) => {
+                  if (dragging.current) splitAt(event.clientX)
+                }}
+                onPointerUp={(event) => {
+                  dragging.current = false
+                  event.currentTarget.releasePointerCapture(event.pointerId)
+                }}
+                className="absolute inset-y-0 w-6 -translate-x-1/2 cursor-ew-resize touch-none coarse:w-11"
                 style={{ left: `${split}%` }}
-              />
+              >
+                <div className="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-ink" />
+                <div className="pointer-events-none absolute top-1/2 left-1/2 grid size-7 -translate-x-1/2 -translate-y-1/2 place-content-center rounded-sm bg-ink text-[11px] text-paper">
+                  ‹›
+                </div>
+              </div>
             </div>
           )}
 
@@ -199,8 +227,8 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
       </div>
 
       <p className="shrink-0 border-t border-rule px-4 py-2.5 text-xs leading-4 text-pretty text-ink-soft">
-        Arrastra la cortina para cruzar el antes y el después. Los artefactos de compresión solo se
-        ven a 1:1.
+        Arrastra la cortina para cruzar el antes y el después, o muévela con las flechas. Los
+        artefactos de compresión solo se ven a 1:1.
       </p>
     </div>
   )
