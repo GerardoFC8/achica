@@ -190,3 +190,27 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** El tope de 4 workers venía del spec sin número que lo respaldara. La corrida del banco lo puso a prueba con 200 imágenes.
 
 **Consecuencia.** Con concurrencia 4 el pico son 948 MB sobre la línea base; con concurrencia 2, 519 MB. Unos 240 MB por worker, y plano respecto de la cantidad de archivos: la memoria oscila en diente de sierra sin tendencia ascendente entre el archivo 50 y el 200. La mayor parte de esos 240 MB es memoria lineal de WebAssembly, que crece para decodificar y **no se devuelve**; por eso el costo es por worker vivo y no por archivo procesado. Consecuencia práctica: subir el tope de concurrencia se paga en memoria de forma lineal e inmediata, y la única vía para bajar el pico sin perder paralelismo sería reciclar workers, que costaría reinstanciar el WASM. Queda anotado, no implementado.
+
+## D32 — La tercera señal es violeta, porque verde/ámbar/rojo está medido y falla
+
+**Contexto.** El spec exige que los tres estados por archivo se distingan también para daltónicos. La combinación obvia —verde, ámbar, rojo— es justamente la que no cumple, y se comprobó en lugar de suponerlo: con la simulación de Machado, Oliveira y Fernandes (2009) al 100 % de severidad y distancia CIEDE2000, un trío teal/ámbar/carmesí cae a **ΔE 8,8 entre "entró justo" y "no entró" en deuteranopía**. Dos estados opuestos, prácticamente el mismo color. Un trío azul/ámbar/magenta cae a ΔE 9,6 en protanopía.
+
+**Consecuencia.** La paleta es teal `#0D5C52`, ámbar `#955D00` y violeta `#6D2FA8`, que no baja de **ΔE 21,8** en visión normal, protanopía, deuteranopía ni tritanopía, y donde las tres señales cumplen AA sobre el fondo (4,83:1 la peor). El ámbar tuvo que oscurecerse desde `#A86A00`, que se veía mejor pero daba 3,93:1 y no llegaba a AA. La herramienta de medición se validó antes de creerle: CIEDE2000 contra los datos de prueba de Sharma, y el contraste contra el 21:1 exacto de negro sobre blanco.
+
+## D33 — Dos familias con eje de ancho, auto-hospedadas y subseteadas
+
+**Contexto.** Hacía falta una monoespaciada para los números y una de interfaz con carácter. Y hay dos reglas del spec que fuerzan la mano: cero peticiones de red después de la carga inicial, y `require-corp`, que bloquea cualquier recurso externo sin cabecera CORP. Google Fonts queda descartado, así que cada byte de fuente es carga inicial.
+
+**Consecuencia.** Instrument Sans para la interfaz y Martian Mono para los números, ambas OFL y ambas con eje `wdth` variable —verificado en la metadata de Google Fonts—, que es lo que permite condensar en una tabla densa sin deformar con `scaleX`. Se subsetean una vez con `pyftsubset` y el `.woff2` se commitea, como los fixtures: sin dependencia de build ni de ejecución. La monoespaciada se recorta a los ~25 glifos que aparecen en un número, lo que vuelve casi gratis una familia que de otro modo sería cara. Presupuesto: las dos por debajo de 60 KB, a medir y no a estimar.
+
+## D34 — Los números se formatean con `es-419` de reserva, no con `es`
+
+**Contexto.** Verificado con `Intl.NumberFormat`: `es` produce `1.234.567,89` y `66 %`, mientras que `es-419`, `es-PE` y `es-MX` producen `1,234,567.89` y `66%`. El público de los perfiles de trámites es latinoamericano.
+
+**Consecuencia.** El formateo respeta el idioma del navegador, y cuando no hay uno utilizable usa `es-419`. Vive en un módulo puro que recibe el idioma como argumento, así que los tests son deterministas en lugar de depender de la máquina que los corre. En una app que es una tabla de cifras, el separador equivocado se nota en cada fila.
+
+## D35 — Sin miniaturas por fila; el comparador abre de a un archivo
+
+**Contexto.** Una tabla con previsualización por fila es lo que cualquiera dibujaría. Con 200 archivos son 200 decodificaciones vivas, y la Fase 2 se fue entera en demostrar que la memoria está acotada por la concurrencia y no por el largo de la cola (D31, ~240 MB por worker).
+
+**Consecuencia.** La fila muestra cifras y la barra de peso, nunca una imagen. El comparador antes/después se abre desde una fila, muestra un archivo por vez y revoca sus `URL.createObjectURL` al cerrar. Es una decisión de arquitectura disfrazada de decisión visual: es la que decide si la herramienta sobrevive a una carpeta grande.

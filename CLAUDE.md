@@ -39,4 +39,6 @@ Lo que dejó escrito la Fase 2 y condiciona lo que viene:
 - Los resultados viven como `Blob`, nunca como `Uint8Array` (D28). La Fase 4 los necesita así.
 - React todavía no está instalado. Entra con la Fase 3.
 
-Siguiente criterio de aceptación: flujo completo usable en escritorio y móvil, con foco y teclado correctos, y una captura o GIF que se entienda sin explicación. Antes de escribir componentes hay que cerrar los tokens de color y tipografía en `docs/diseno.md`, como exige la sección 8 del spec.
+`docs/diseno.md` está cerrado: paleta verificada contra contraste AA y simulación de daltonismo (D32), tipografía elegida y con presupuesto de bytes (D33), densidad, barra de peso, copy y mapa de errores. Se escribe contra ese documento, no contra el gusto del momento.
+
+Siguiente criterio de aceptación: flujo completo usable en escritorio y móvil, con foco y teclado correctos, y una captura o GIF que se entienda sin explicación.
