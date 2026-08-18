@@ -1,0 +1,274 @@
+import { describe, expect, it } from 'vitest'
+import type { OutputPlan, PipelineOutcome } from '../core/pipeline'
+import type { Pool } from '../workers/pool'
+import type { EncodeJob, JobEvent, JobId, JobReport } from '../workers/protocol'
+import { createQueueStore, totalsOf, type QueueItem } from './queue'
+
+/**
+ * The store's job is translation: pool events in, rows a table can render out.
+ * The pool is faked because its own behaviour is tested next door, and because
+ * the case that matters most here — the pool starting a job synchronously,
+ * before enqueue has even returned — is trivial to stage with a fake and
+ * awkward with the real thing.
+ */
+
+const PLAN: OutputPlan = { format: 'webp', maxBytes: 100_000 }
+
+function outcome(bytesBefore: number, bytesAfter: number): PipelineOutcome {
+  return {
+    output: new Uint8Array(bytesAfter),
+    format: 'webp',
+    bytesBefore,
+    bytesAfter,
+    width: 800,
+    height: 600,
+    quality: 70,
+    withinBudget: true,
+    shrunkForBudget: null,
+    encodes: 3,
+  }
+}
+
+const done = (bytesBefore: number, bytesAfter: number): JobReport => ({
+  ok: true,
+  value: { outcome: outcome(bytesBefore, bytesAfter), ms: 42 },
+})
+
+const failed: JobReport = {
+  ok: false,
+  error: { code: 'unsupported-format', format: 'heic' },
+}
+
+function file(name: string, bytes: number): File {
+  return new File([new Uint8Array(bytes)], name)
+}
+
+function harness(options: { readonly startImmediately?: boolean } = {}) {
+  const enqueued: EncodeJob[] = []
+  const cancelled: JobId[] = []
+  let cancelledAll = 0
+  let emit: (event: JobEvent) => void = () => {}
+
+  const pool: Pool = {
+    enqueue(jobs) {
+      enqueued.push(...jobs)
+      // The real pool hands work to a worker inside enqueue, so the first
+      // 'started' arrives before the caller gets control back.
+      if (options.startImmediately === true) {
+        for (const job of jobs) emit({ type: 'started', id: job.id })
+      }
+    },
+    cancel: (id) => cancelled.push(id),
+    cancelAll: () => {
+      cancelledAll += 1
+    },
+    whenIdle: () => Promise.resolve(),
+    stats: () => ({ running: 0, queued: 0 }),
+    dispose: () => {},
+  }
+
+  let nextId = 0
+  const store = createQueueStore({
+    createPool: (onEvent) => {
+      emit = onEvent
+      return pool
+    },
+    newId: () => `job-${(nextId += 1)}`,
+  })
+
+  const items = (): readonly QueueItem[] => store.getState().items
+  const itemAt = (index: number): QueueItem => {
+    const item = items()[index]
+    if (item === undefined) throw new Error(`no row at ${index}`)
+    return item
+  }
+
+  return {
+    store,
+    enqueued,
+    cancelled,
+    items,
+    itemAt,
+    emit: (event: JobEvent) => emit(event),
+    cancelledAll: () => cancelledAll,
+  }
+}
+
+describe('queue store', () => {
+  it('adds one pending row per file, in the order they were dropped', () => {
+    const { store, items } = harness()
+
+    store.getState().enqueue([file('a.jpg', 300), file('b.png', 500)], PLAN)
+
+    expect(items().map((item) => item.name)).toEqual(['a.jpg', 'b.png'])
+    expect(items().map((item) => item.status)).toEqual(['pending', 'pending'])
+  })
+
+  it('keeps the original size, because the saving is the number the user came for', () => {
+    const { store, itemAt } = harness()
+
+    store.getState().enqueue([file('a.jpg', 300)], PLAN)
+
+    expect(itemAt(0).bytesBefore).toBe(300)
+  })
+
+  it('hands the pool one job per file, carrying the plan', () => {
+    const { store, enqueued } = harness()
+
+    store.getState().enqueue([file('a.jpg', 300), file('b.png', 500)], PLAN)
+
+    expect(enqueued.map((job) => job.file.name)).toEqual(['a.jpg', 'b.png'])
+    expect(enqueued.every((job) => job.plan === PLAN)).toBe(true)
+  })
+
+  it('has the rows in place before the pool starts anything', () => {
+    // Rows are added before the pool is told about them on purpose: the pool
+    // starts jobs synchronously, and an event that finds no row would leave a
+    // file stuck on 'pending' forever.
+    const { store, itemAt } = harness({ startImmediately: true })
+
+    store.getState().enqueue([file('a.jpg', 300)], PLAN)
+
+    expect(itemAt(0).status).toBe('running')
+  })
+
+  it('turns a finished job into a blob and drops the raw bytes', () => {
+    const { store, itemAt, emit } = harness()
+    store.getState().enqueue([file('a.jpg', 1_000)], PLAN)
+
+    emit({ type: 'settled', id: 'job-1', report: done(1_000, 250) })
+
+    const item = itemAt(0)
+    expect(item.status).toBe('done')
+    if (item.status !== 'done') return
+
+    /*
+     * A Blob rather than the Uint8Array the worker sent.
+     *
+     * A typed array is pinned in the tab's heap; a Blob is a handle the
+     * browser is free to keep on disk. With two hundred results waiting to be
+     * saved, that is the difference between a queue that finishes and a tab
+     * the browser kills.
+     */
+    expect(item.blob).toBeInstanceOf(Blob)
+    expect(item.blob.size).toBe(250)
+    expect(item.blob.type).toBe('image/webp')
+    expect(item.ms).toBe(42)
+    expect(item.outcome.bytesAfter).toBe(250)
+    expect('output' in item.outcome).toBe(false)
+  })
+
+  it('marks a failed file with its cause and leaves the others alone', () => {
+    const { store, itemAt, emit } = harness()
+    store.getState().enqueue([file('a.heic', 900), file('b.jpg', 900)], PLAN)
+
+    emit({ type: 'settled', id: 'job-1', report: failed })
+
+    const item = itemAt(0)
+    expect(item.status).toBe('failed')
+    if (item.status === 'failed') expect(item.error.code).toBe('unsupported-format')
+    expect(itemAt(1).status).toBe('pending')
+  })
+
+  it('marks a cancelled file without inventing an error for it', () => {
+    const { store, itemAt, emit } = harness()
+    store.getState().enqueue([file('a.jpg', 900)], PLAN)
+
+    emit({ type: 'cancelled', id: 'job-1' })
+
+    // Cancelling is the user's own doing. Showing it as a failure would be
+    // blaming the file for a decision the user made.
+    expect(itemAt(0).status).toBe('cancelled')
+  })
+
+  it('ignores an event for a row that is no longer listed', () => {
+    const { store, items, emit } = harness()
+    store.getState().enqueue([file('a.jpg', 900)], PLAN)
+    store.getState().clear()
+
+    expect(() => emit({ type: 'settled', id: 'job-1', report: done(900, 100) })).not.toThrow()
+    expect(items()).toHaveLength(0)
+  })
+
+  it('asks the pool to cancel, and waits for the pool to say it happened', () => {
+    const { store, cancelled, itemAt } = harness()
+    store.getState().enqueue([file('a.jpg', 900)], PLAN)
+
+    store.getState().cancel('job-1')
+
+    expect(cancelled).toEqual(['job-1'])
+    // Still pending: the pool owns the truth about what actually stopped, and
+    // guessing here is how a row ends up in a state the queue never reached.
+    expect(itemAt(0).status).toBe('pending')
+  })
+
+  it('cancels everything through the pool', () => {
+    const { store, cancelledAll } = harness()
+    store.getState().enqueue([file('a.jpg', 900), file('b.jpg', 900)], PLAN)
+
+    store.getState().cancelAll()
+
+    expect(cancelledAll()).toBe(1)
+  })
+
+  it('cancels before emptying the list, so nothing keeps encoding unseen', () => {
+    const { store, items, cancelledAll } = harness()
+    store.getState().enqueue([file('a.jpg', 900)], PLAN)
+
+    store.getState().clear()
+
+    expect(cancelledAll()).toBe(1)
+    expect(items()).toHaveLength(0)
+  })
+
+  it('keeps rows from a second drop alongside the first', () => {
+    const { store, items } = harness()
+    store.getState().enqueue([file('a.jpg', 900)], PLAN)
+
+    store.getState().enqueue([file('b.jpg', 900)], PLAN)
+
+    expect(items().map((item) => item.name)).toEqual(['a.jpg', 'b.jpg'])
+  })
+})
+
+describe('totalsOf', () => {
+  function storeWith(reports: readonly JobReport[]): readonly QueueItem[] {
+    const { store, emit } = harness()
+    store.getState().enqueue(
+      reports.map((_, index) => file(`f${index}.jpg`, 1_000)),
+      PLAN,
+    )
+    reports.forEach((report, index) => {
+      emit({ type: 'settled', id: `job-${index + 1}`, report })
+    })
+    return store.getState().items
+  }
+
+  it('counts what finished, what failed and what is still waiting', () => {
+    const totals = totalsOf(storeWith([done(1_000, 200), failed]))
+
+    expect(totals).toMatchObject({ done: 1, failed: 1, pending: 0 })
+  })
+
+  it('adds up the saving over the files that actually finished', () => {
+    const totals = totalsOf(storeWith([done(1_000, 200), done(1_000, 400)]))
+
+    expect(totals.bytesBefore).toBe(2_000)
+    expect(totals.bytesAfter).toBe(600)
+    expect(totals.savedBytes).toBe(1_400)
+    expect(totals.savedRatio).toBeCloseTo(0.7)
+  })
+
+  it('does not count a failed file as a saving of its whole weight', () => {
+    // Counting the original bytes of a file that produced nothing would report
+    // a batch that failed as a spectacular success.
+    const totals = totalsOf(storeWith([failed]))
+
+    expect(totals.bytesBefore).toBe(0)
+    expect(totals.savedRatio).toBe(0)
+  })
+
+  it('reports nothing rather than dividing by zero on an empty queue', () => {
+    expect(totalsOf([])).toMatchObject({ done: 0, savedBytes: 0, savedRatio: 0 })
+  })
+})

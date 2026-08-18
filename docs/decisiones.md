@@ -166,3 +166,15 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** Comlink clona por estructura todo lo que devuelve. Para un lote eso significa una segunda copia de cada imagen ya comprimida cruzando el límite, justo en la fase cuya aceptación es no hacer crecer la memoria. Aparte, Comlink no tiene tiempo de espera: si el worker muere de verdad —el WASM no carga, el navegador niega una reserva de memoria— la promesa queda pendiente para siempre y la fila muestra un archivo comprimiendo eternamente, que es peor que un error.
 
 **Consecuencia.** El worker devuelve el informe con `Comlink.transfer` sobre el búfer de salida: ya no lo necesita, así que entregarlo sale gratis. Y `createWorkerRunner` escucha `error` y `messageerror` del worker para rechazar el trabajo en vuelo; el pool lo traduce a `worker-crashed`, que no es un `PipelineError` porque la imagen no tuvo la culpa. El worker mide los milisegundos desde la lectura del archivo, no desde la decodificación: esperar el disco también es parte de lo que costó ese archivo.
+
+## D28 — La fila guarda un `Blob`, no el `Uint8Array` que produjo el worker
+
+**Contexto.** El store tiene que conservar cada resultado hasta que el usuario lo guarde, y la aceptación de la fase es procesar 200 imágenes sin que la memoria de la pestaña crezca sin control. Un `Uint8Array` vive clavado en el montón de JavaScript mientras exista la fila.
+
+**Consecuencia.** Al llegar el informe, el store envuelve la salida en un `Blob` con su tipo MIME y suelta el arreglo tipado. Un `Blob` es un manejador que el navegador puede respaldar en disco, así que doscientos resultados esperando a ser guardados dejan de ser doscientos búferes en el montón. Efecto colateral que se aprovecha en la Fase 4: un `Blob` es lo que la File System Access API y `client-zip` esperan recibir. Para que esto compile sin aserciones, `EncodedBytes` declara en `core/` que los bytes codificados están respaldados por un `ArrayBuffer` común y no por uno compartido — solo esos se pueden transferir entre hilos o envolver en un `Blob`.
+
+## D29 — El store traduce, el pool decide
+
+**Contexto.** Al cancelar, el store podría marcar la fila como cancelada de inmediato y quedar más "reactivo". Pero el pool ya resuelve carreras que el store no ve: un trabajo que estaba contestando cuando llegó la orden, un worker que murió, un archivo que ya había terminado.
+
+**Consecuencia.** `cancel` y `cancelAll` solo le piden al pool; la fila cambia recién cuando llega el evento. Dos lugares decidiendo el mismo estado se contradicen en la primera carrera, y el que ve la verdad es el pool. Por la misma razón el store agrega las filas **antes** de encolar: el pool arranca trabajos de forma síncrona dentro de `enqueue`, así que el primer evento `started` llega antes de que `enqueue` devuelva el control, y en el orden inverso ese evento no encontraría fila que actualizar.

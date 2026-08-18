@@ -21,6 +21,16 @@ export type EncodeError = {
   readonly detail: string
 }
 
+/**
+ * Bytes backed by a plain ArrayBuffer rather than by `ArrayBufferLike`.
+ *
+ * The distinction is not pedantry: only a non-shared buffer can be handed to
+ * a Blob or transferred to another thread, and both are things the layers
+ * above do with every encode. Stating it here means they do not have to
+ * assert it later.
+ */
+export type EncodedBytes = Uint8Array<ArrayBuffer>
+
 export const MIN_QUALITY = 0
 export const MAX_QUALITY = 100
 
@@ -62,7 +72,7 @@ export async function encodeImage(
   format: OutputFormat,
   image: ImageData,
   quality: number = 75,
-): Promise<Result<Uint8Array, EncodeError>> {
+): Promise<Result<EncodedBytes, EncodeError>> {
   try {
     const q = clampQuality(quality)
     const buffer =
@@ -87,4 +97,21 @@ export async function encodeImage(
 /** Whether adjusting quality can change the output size at all. */
 export function isLossy(format: OutputFormat): format is LossyFormat {
   return format !== 'png'
+}
+
+const MIME_TYPES: Readonly<Record<OutputFormat, string>> = Object.freeze({
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  avif: 'image/avif',
+})
+
+/**
+ * The type a Blob of this format should carry.
+ *
+ * A blob without a type downloads as `application/octet-stream`, which makes
+ * the operating system treat a finished photo as an unknown binary.
+ */
+export function mimeTypeOf(format: OutputFormat): string {
+  return MIME_TYPES[format]
 }

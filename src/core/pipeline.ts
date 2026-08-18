@@ -1,6 +1,12 @@
 import { searchQualityForBudget } from './budget'
 import { decodeImage, type DecodeError } from './codecs/decode'
-import { encodeImage, isLossy, type EncodeError, type OutputFormat } from './codecs/encode'
+import {
+  encodeImage,
+  isLossy,
+  type EncodedBytes,
+  type EncodeError,
+  type OutputFormat,
+} from './codecs/encode'
 import { detectSupportedFormat, type DetectionError } from './detect'
 import { fitWithin, isSameSize, resampleImage, scaleBy, type Dimensions } from './resize'
 import { err, ok, type Result } from './result'
@@ -29,7 +35,7 @@ export type OutputPlan = {
 }
 
 export type PipelineOutcome = {
-  readonly output: Uint8Array
+  readonly output: EncodedBytes
   readonly format: OutputFormat
   readonly bytesBefore: number
   readonly bytesAfter: number
@@ -78,12 +84,12 @@ export function nextScaleForBudget(currentBytes: number, maxBytes: number): numb
 
 type SizedAttempt = {
   readonly withinBudget: boolean
-  readonly output: Uint8Array
+  readonly output: EncodedBytes
   readonly bytes: number
   readonly quality: number
 }
 
-type Encoder = (image: ImageData, quality: number) => Promise<Uint8Array>
+type Encoder = (image: ImageData, quality: number) => Promise<EncodedBytes>
 
 /**
  * The best this image can do at its current dimensions.
