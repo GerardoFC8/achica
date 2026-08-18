@@ -28,8 +28,15 @@ npm run lint
 
 ## Estado actual
 
-Fase: 2 — workers y cola
+Fase: 3 — UI
 
-Fase 1 cerrada: `core/` completo y sin React. 147 tests en dos proyectos de Vitest (Node para lógica pura, Chromium para códecs). Detección por firma de bytes, decodificación con orientación EXIF aplicada, redimensionado, búsqueda por presupuesto, pipeline y perfiles.
+Fase 2 cerrada: pool de workers con concurrencia, cancelación real y progreso por archivo, más el store de Zustand. 196 tests en dos proyectos de Vitest. `npm run bench` procesa 200 imágenes por la cola real y mide la memoria residente del árbol de procesos de Chrome; el resultado está en el README, junto con por qué ningún medidor de memoria accesible desde la página sirve.
 
-Siguiente criterio de aceptación: pool de workers con concurrencia, cancelación y progreso por archivo, más el store de Zustand. Un script de banco de pruebas debe procesar 200 imágenes sin que la memoria de la pestaña crezca de forma monótona, medido con el perfilador de Chrome y anotado en el README.
+Lo que dejó escrito la Fase 2 y condiciona lo que viene:
+
+- Cancelar es terminar el worker (D25). El pool es dueño del ciclo de vida de los workers; el store solo le pide y espera el evento (D29).
+- La memoria está acotada por la concurrencia, no por el largo de la cola: unos 240 MB por worker (D31).
+- Los resultados viven como `Blob`, nunca como `Uint8Array` (D28). La Fase 4 los necesita así.
+- React todavía no está instalado. Entra con la Fase 3.
+
+Siguiente criterio de aceptación: flujo completo usable en escritorio y móvil, con foco y teclado correctos, y una captura o GIF que se entienda sin explicación. Antes de escribir componentes hay que cerrar los tokens de color y tipografía en `docs/diseno.md`, como exige la sección 8 del spec.
