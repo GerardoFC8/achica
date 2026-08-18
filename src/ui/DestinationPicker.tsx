@@ -1,11 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import {
-  isTramite,
-  PERFILES,
-  provenanceOf,
-  type Profile,
-  type ProfileGroup,
-} from '../core/profiles'
+import { PERFILES, profilesByGroup, type Profile } from '../core/profiles'
 import type { Formatters } from './format'
 
 /**
@@ -13,22 +7,13 @@ import type { Formatters } from './format'
  *
  * It is called "Destino" and not "Perfil" or "Calidad" because that is the
  * whole idea: the user says where the image is going and the app works out the
- * format, the weight and the dimensions.
- */
-
-/**
- * Listed in full, including the group with nothing in it.
+ * format, the bound and the quality.
  *
- * "Trámites" ships empty in the v1 and that is shown rather than hidden. A
- * requirement only enters with an official source and a date it was checked,
- * because a profile with the wrong limit is worse than no profile — the user
- * finds out when the submission is rejected, and by then they trusted us. Said
- * out loud, an empty list is a reason to trust the tool rather than a hole.
+ * The groups come from the catalogue rather than from a list written here. An
+ * earlier version hardcoded them so that "Trámites" could be listed while
+ * empty; with that group gone (D48) a hardcoded list could only drift from the
+ * data it describes.
  */
-const GROUPS: readonly ProfileGroup[] = ['Trámites', 'Web', 'Correo', 'Mensajería', 'Miniatura']
-
-const EMPTY_NOTE =
-  'Vacío por ahora. Un requisito de trámite solo entra con fuente oficial y fecha de verificación: un límite equivocado se descubre cuando rechazan el trámite.'
 
 type Props = {
   readonly selected: Profile
@@ -36,13 +21,21 @@ type Props = {
   readonly onSelect: (profile: Profile) => void
 }
 
-const limitOf = (profile: Profile, formatters: Formatters): string =>
-  profile.maxBytes === undefined ? 'sin tope' : `máx. ${formatters.bytes(profile.maxBytes)}`
+/**
+ * The one line of numbers a destination is scanned by.
+ *
+ * The format appears only when the profile changes it, because that is the
+ * surprising part — the other three hand back what they were given, and saying
+ * so on every row would be noise. A weight ceiling wins the line when a profile
+ * sets one, since it is the harder promise.
+ */
+function summaryOf(profile: Profile, formatters: Formatters): string {
+  if (profile.maxBytes !== undefined) return `máx. ${formatters.bytes(profile.maxBytes)}`
 
-function provenanceLine(profile: Profile): string {
-  const source = provenanceOf(profile)
-  if (source === null) return 'Recomendación nuestra'
-  return `Requisito de ${source.source}, verificado el ${source.verifiedAt}`
+  const bound = profile.maxWidth ?? profile.maxHeight
+  const size = bound === undefined ? 'tamaño original' : `${bound} px`
+
+  return profile.format === 'keep' ? size : `WebP · ${size}`
 }
 
 export function DestinationPicker({ selected, formatters, onSelect }: Props) {
@@ -79,7 +72,7 @@ export function DestinationPicker({ selected, formatters, onSelect }: Props) {
       >
         <span className="text-ink-soft">Destino</span>
         <span className="font-medium">{selected.label}</span>
-        <span className="tnum text-[11px] text-ink-soft">{limitOf(selected, formatters)}</span>
+        <span className="tnum text-[11px] text-ink-soft">{summaryOf(selected, formatters)}</span>
       </button>
 
       {open ? (
@@ -87,53 +80,39 @@ export function DestinationPicker({ selected, formatters, onSelect }: Props) {
           id={panelId}
           className="absolute top-9 left-0 z-40 w-80 border border-rule bg-paper shadow-[0_8px_24px_rgba(22,24,26,0.12)]"
         >
-          {GROUPS.map((group) => {
-            const members = PERFILES.filter((profile) => profile.group === group)
-
-            return (
-              <div key={group} className="border-b border-rule last:border-b-0">
-                <div className="px-3 pt-2 pb-1 text-[11px] leading-4 tracking-wider text-ink-soft uppercase">
-                  {group}
-                </div>
-
-                {members.length === 0 ? (
-                  <p className="max-w-[38ch] px-3 pb-2.5 text-xs leading-4 text-pretty text-ink-soft">
-                    {EMPTY_NOTE}
-                  </p>
-                ) : (
-                  members.map((profile) => (
-                    <button
-                      key={profile.id}
-                      type="button"
-                      onClick={() => {
-                        onSelect(profile)
-                        setOpen(false)
-                      }}
-                      aria-current={profile.id === selected.id}
-                      className={`grid w-full gap-0.5 px-3 py-2 text-left hover:bg-raised ${
-                        profile.id === selected.id ? 'bg-raised' : ''
-                      }`}
-                    >
-                      <span className="flex items-baseline justify-between gap-3">
-                        <span className="text-[13px] leading-4 font-medium">{profile.label}</span>
-                        <span className="tnum text-[11px] text-ink-soft">
-                          {limitOf(profile, formatters)}
-                        </span>
-                      </span>
-                      <span className="text-xs leading-4 text-pretty text-ink-soft">
-                        {provenanceLine(profile)}
-                        {isTramite(profile)
-                          ? ''
-                          : profile.note === undefined
-                            ? ''
-                            : `. ${profile.note}`}
-                      </span>
-                    </button>
-                  ))
-                )}
+          {[...profilesByGroup(PERFILES)].map(([group, members]) => (
+            <div key={group} className="border-b border-rule last:border-b-0">
+              <div className="px-3 pt-2 pb-1 text-[11px] leading-4 tracking-wider text-ink-soft uppercase">
+                {group}
               </div>
-            )
-          })}
+
+              {members.map((profile) => (
+                <button
+                  key={profile.id}
+                  type="button"
+                  onClick={() => {
+                    onSelect(profile)
+                    setOpen(false)
+                  }}
+                  aria-current={profile.id === selected.id}
+                  className={`grid w-full gap-0.5 px-3 py-2 text-left hover:bg-raised ${
+                    profile.id === selected.id ? 'bg-raised' : ''
+                  }`}
+                >
+                  <span className="flex items-baseline justify-between gap-3">
+                    <span className="text-[13px] leading-4 font-medium">{profile.label}</span>
+                    <span className="tnum text-[11px] text-ink-soft">
+                      {summaryOf(profile, formatters)}
+                    </span>
+                  </span>
+                  <span className="text-xs leading-4 text-pretty text-ink-soft">
+                    Recomendación nuestra
+                    {profile.note === undefined ? '' : `. ${profile.note}`}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
       ) : null}
     </div>

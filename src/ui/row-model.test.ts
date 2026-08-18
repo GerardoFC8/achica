@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GenericProfile } from '../core/profiles'
+import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
 import { createFormatters, DEFAULT_LOCALE } from './format'
 import { rowKind, rowNote, weightBar } from './row-model'
@@ -10,7 +10,7 @@ import { rowKind, rowNote, weightBar } from './row-model'
  * a component works out while rendering.
  */
 
-const BUDGETED: GenericProfile = {
+const BUDGETED: Profile = {
   id: 'correo-adjunto',
   label: 'Adjunto de correo',
   group: 'Correo',
@@ -19,7 +19,7 @@ const BUDGETED: GenericProfile = {
   stripMetadata: true,
 }
 
-const UNBUDGETED: GenericProfile = {
+const UNBUDGETED: Profile = {
   id: 'web-articulo',
   label: 'Imagen para artículo web',
   group: 'Web',

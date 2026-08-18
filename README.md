@@ -12,7 +12,7 @@ Contra el sitio desplegado la misma comprobación se corre así: `node scripts/s
 
 ## El problema
 
-Un trámite pide fotos "de menos de 500 KB". Tienes 40 fotos de 4 MB salidas del celular. Las herramientas disponibles o cobran pasadas las 20 imágenes, o suben los archivos a un servidor ajeno, o exigen elegir "calidad 75" sin explicar qué significa eso para el límite que hay que cumplir.
+Tienes 40 fotos de 4 MB salidas del celular y hacen falta livianas: para un artículo, para un correo, para mandarlas por mensajería. Las herramientas disponibles o cobran pasadas las 20 imágenes, o suben los archivos a un servidor ajeno, o exigen elegir "calidad 75" sin explicar qué significa eso para lo que vas a hacer con la foto.
 
 ## Tres ejes
 
@@ -24,13 +24,15 @@ Licencia MIT, autohospedable, sin límite de archivos, sin cuentas, sin telemetr
 
 ### 2. Perfiles por destino, no por calidad
 
-No eliges "calidad 75". Eliges a dónde va la imagen — "Mesa de Partes", "foto para ficha", "adjunto de correo" — y la app resuelve formato, peso máximo y dimensiones.
+No eliges "calidad 75". Eliges a dónde va la imagen — "imagen para artículo web", "adjunto de correo", "enviar por mensajería", "miniatura" — y la app resuelve formato, dimensiones y calidad.
 
-Los perfiles de trámites solo se agregan con fuente oficial verificable y fecha de verificación. Un perfil con un límite equivocado es peor que no tener el perfil: el usuario descubre el error recién cuando le rechazan el trámite.
+Los cuatro son recomendaciones nuestras y cada fila del selector lo dice. Ninguno cita una autoridad externa porque ninguno la tiene, y disfrazarlo sería la deshonestidad exacta que la regla de la fuente existe para impedir. El grupo de perfiles por trámite salió del producto (D48): existió con la lista vacía durante toda la v1 y nunca recibió un perfil.
+
+**Solo el perfil web cambia la extensión** (D49), porque ahí convertir a WebP es lo que se está pidiendo. Los otros tres devuelven el formato que recibieron: un `.png` que vuelve `.jpg` cambia el nombre que vas a buscar y pierde la transparencia sin avisar.
 
 ### 3. Presupuesto de peso de primera clase
 
-"Déjalas todas bajo 100 KB" es la operación principal, no una casilla escondida.
+"Déjalas todas bajo 100 KB" es la operación principal, no una casilla escondida. Está implementado y probado en el núcleo, pero desde D49 ningún perfil lo usa, así que hoy no se alcanza desde la interfaz. Es el eje que queda pendiente.
 
 ## Estado
 
@@ -86,7 +88,7 @@ Las 43 decisiones, con su contexto y su consecuencia, están en [`docs/decisione
 - **Cancelar es terminar el worker.** El `AbortController` que pedía el spec no puede cruzar al worker — `AbortSignal` no es clonable por estructura, comprobado con `DataCloneError` en Chromium — y una codificación WASM es síncrona, así que ninguna bandera cooperativa la interrumpe. El pool es dueño del ciclo de vida de los workers por eso.
 - **La memoria está acotada por la concurrencia, no por el largo de la cola.** Unos 240 MiB por worker, medidos. Los resultados viven como `Blob`, que el navegador puede respaldar en disco, y nunca como arreglos tipados.
 - **Un presupuesto que el archivo ya cumple no es un objetivo.** Si ya entra, se codifica una vez con la calidad del perfil en lugar de buscar contra su propio tamaño y devolver un 1 % de ahorro.
-- **Un perfil de trámite sin fuente no compila.** La regla más importante del producto es un tipo, no un comentario.
+- **Un perfil de trámite sin fuente no compilaba.** La regla más importante del producto era un tipo y no un comentario. El grupo salió en D48; la regla quedó escrita en `types.ts` por si vuelve.
 - **Las tres señales de color están medidas** contra simulación de daltonismo: ninguna combinación baja de ΔE 21,8, y verde/ámbar/rojo se descartó con el número que lo condena.
 
 ## Limitaciones conocidas
@@ -95,7 +97,7 @@ Escritas acá porque descubrirlas usando la herramienta es peor que leerlas ante
 
 - **HEIC no entra en esta versión.** Las fotos de iPhone se detectan y se rechazan con un mensaje que dice qué hacer, en lugar de fallar de forma rara. Las dos librerías disponibles son LGPL-3.0 y chocan con el eje MIT del producto.
 - **Los metadatos siempre se eliminan.** Los códecs de este stack no escriben metadatos, así que `stripMetadata: false` no es entregable. La orientación EXIF ya está aplicada a los píxeles antes de codificar, así que no se pierde nada visible.
-- **La lista de trámites sale vacía.** Es la respuesta honesta hasta que cada requisito se verifique contra su fuente oficial. La interfaz lo dice en lugar de esconder el grupo.
+- **Un PNG que ya cabe en el límite de dimensiones de su perfil sale igual de pesado.** PNG no tiene perilla de calidad, así que si tampoco hay que achicarlo no queda ninguna palanca. Medido en D49: «Adjunto de correo» sobre un PNG de 1800x1200 ahorra 0,0 %. La interfaz lo marca como fallo en lugar de esconderlo, pero el arreglo real es instalar `@jsquash/oxipng`, que está en el stack acordado y nunca se instaló.
 - **El ZIP se arma entero antes de entregarse.** En un lote grande hay una segunda copia de todo lo comprimido, respaldada en disco por el navegador. Guardar en una carpeta escribe archivo por archivo y no acumula: es el camino que conviene con cientos de fotos, y por eso sigue estando.
 - **Guardar en una carpeta solo existe en Chromium.** Firefox y Safari no tienen File System Access API; ahí el ZIP es el único camino, y funciona.
 - **El caso de 300 fotos de 12 MP no está verificado de forma automática.** El banco usa una foto de 2 MP. Lo que escala con los megapíxeles es el costo por worker, no el de la cola, pero eso es un razonamiento y no una medición.

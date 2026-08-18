@@ -185,14 +185,11 @@ Tres zonas, sin nada más.
 
 El selector se llama **«Destino»**, no «Perfil» ni «Calidad». El usuario elige a dónde va la imagen y la app resuelve el resto: ese es el diferenciador y el nombre tiene que decirlo.
 
-Perfiles genéricos de la v1: «Imagen para artículo web», «Adjunto de correo», «Enviar por mensajería», «Miniatura», agrupados por Web, Correo, Mensajería y Miniatura.
+Los cuatro destinos: «Imagen para artículo web», «Adjunto de correo», «Enviar por mensajería», «Miniatura», agrupados por Web, Correo, Mensajería y Miniatura. Los grupos se derivan del catálogo, no de una lista escrita en la vista.
 
-**Cada destino muestra de dónde sale su límite**, y la interfaz distingue dos cosas que no son lo mismo:
+**Cada destino dice de dónde sale su límite**, y hoy la respuesta es la misma para los cuatro: `Recomendación nuestra`, más su `note`. Ninguno tiene autoridad externa que citar y disfrazarlo de requisito sería la deshonestidad exacta que la regla de la fuente existe para impedir. El grupo «Trámites» salió del producto en D48; si vuelve, vuelve mostrando `Requisito de {source}, verificado el {verifiedAt}` con enlace a la fuente.
 
-- Perfil de trámite: `Requisito de {source}, verificado el {verifiedAt}`, con enlace a la fuente.
-- Perfil genérico: `Recomendación nuestra`, más su `note`. No tiene autoridad externa que citar y disfrazarlo de requisito sería la deshonestidad exacta que la regla de la fuente existe para impedir.
-
-**El grupo «Trámites» sale vacío en la v1**, y eso hay que mostrarlo como lo que es. No un estado triste ni un grupo escondido: una línea que dice que un requisito solo entra con fuente oficial y fecha de verificación, porque un perfil con el límite equivocado es peor que no tener el perfil —el usuario se entera cuando le rechazan el trámite. Una lista vacía explicada así es una señal de que se puede confiar en la herramienta, no un hueco.
+**La línea de números de cada fila nombra el formato solo cuando el perfil lo cambia** (D49). Tres de los cuatro devuelven el que recibieron, y decirlo en cada fila sería ruido; el que convierte es el que tiene que anunciarlo.
 
 ---
 

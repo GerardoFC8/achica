@@ -20,8 +20,8 @@ Una aplicación web estática que comprime y convierte **múltiples imágenes a 
 Existen competidores (Asset Melt, PicsSizer, GetCompress, TinyPNG). El proyecto NO compite en funcionalidad genérica. Se diferencia en tres ejes, y toda decisión de producto debe justificarse contra al menos uno:
 
 1. **Abierto y sin topes.** Licencia MIT, autohospedable, sin límite de archivos, sin cuentas, sin telemetría. La competencia es freemium cerrada con topes artificiales de 20 a 100 imágenes.
-2. **Perfiles por trámite, no por calidad.** El usuario no elige "calidad 75". Elige el destino ("Mesa de Partes", "foto para ficha", "adjunto de correo") y la app resuelve formato, peso máximo y dimensiones. Este es el diferenciador central.
-3. **Presupuesto de peso como ciudadano de primera clase.** "Déjalas todas bajo 100 KB" es la operación principal, no una casilla escondida.
+2. **Perfiles por destino, no por calidad.** El usuario no elige "calidad 75". Elige el destino ("imagen para artículo web", "adjunto de correo") y la app resuelve formato, dimensiones y calidad. Nació como "perfiles por trámite" y ese grupo salió del producto en D48: la lista siguió vacía después del despliegue y el usuario no tenía un trámite que resolver. La regla que lo gobernaba sigue escrita en `types.ts` por si vuelve.
+3. **Presupuesto de peso como ciudadano de primera clase.** "Déjalas todas bajo 100 KB" es la operación principal, no una casilla escondida. Está implementado y probado en el núcleo, pero desde D49 ningún perfil del catálogo lo usa, así que hoy no se alcanza desde la interfaz. Eje pendiente, no eje cumplido.
 
 **Nombre de trabajo:** `achica`. Verbo imperativo en español ("hazlo más pequeño"), tres sílabas, se escribe correctamente al oírlo una sola vez. Confirmar disponibilidad de dominio y de organización en GitHub antes de fijarlo. Alternativas: `pesojusto`, `encoge`. Se despliega en un subdominio de `gfcode.dev`.
 
@@ -134,25 +134,26 @@ El diferenciador vive aquí. Un perfil es data, no código:
 ```ts
 type Profile = {
   id: string
-  label: string            // "Mesa de Partes"
-  group: string            // "Trámites", "Web", "Correo"
+  label: string            // "Adjunto de correo"
+  group: 'Web' | 'Correo' | 'Mensajería' | 'Miniatura'
   format: 'jpeg' | 'webp' | 'png' | 'avif' | 'keep'
-  maxBytes?: number
+  maxBytes?: number        // ningún perfil del catálogo lo usa hoy (D49)
   maxWidth?: number
   maxHeight?: number
   minQuality?: number
+  quality?: number
   stripMetadata: boolean
-  note?: string            // qué exige el destino y por qué
-  source?: string          // URL de la fuente oficial
-  verifiedAt?: string      // ISO date
+  note?: string            // qué hace este perfil y por qué
 }
 ```
 
-**Instrucción crítica sobre los perfiles de trámites:**
+`keep` es la postura por defecto (D49): solo el perfil web cambia la extensión, porque ahí convertir a WebP es lo que se está pidiendo. Devolver un `.jpg` a quien entregó un `.png` cambia el nombre que va a buscar y le quita la transparencia sin decirlo.
 
-No inventes ni estimes valores de requisitos de portales del Estado peruano. Cada perfil de trámite se agrega únicamente con `source` (URL o documento oficial) y `verifiedAt`. Si el requisito no se puede verificar, el perfil no entra. Un perfil con un límite equivocado es peor que no tener el perfil, porque el usuario descubre el error recién cuando le rechazan el trámite.
+**Los perfiles de trámite salieron del producto (D48).** El grupo existió con la lista vacía durante toda la v1 y nunca recibió un perfil. Hoy los cuatro perfiles del catálogo son recomendaciones propias, y el selector lo dice en cada fila: ninguno cita una autoridad externa porque ninguno la tiene.
 
-La v1 puede salir con los perfiles genéricos (web, correo, WhatsApp, miniatura) y una lista vacía de trámites. Los perfiles de trámite se agregan uno por uno conforme se verifiquen, y el archivo `profiles/tramites.ts` debe llevar comentario con la fecha de verificación de cada uno.
+**Instrucción crítica, vigente si el grupo vuelve:**
+
+No inventes ni estimes valores de requisitos de portales del Estado. Un perfil de trámite se agrega únicamente con `source` (URL o documento oficial) y `verifiedAt`, y esa obligación va en el tipo, no en un comentario. Si el requisito no se puede verificar, el perfil no entra. Un perfil con un límite equivocado es peor que no tener el perfil, porque el usuario descubre el error recién cuando le rechazan el trámite.
 
 La UI debe mostrar de dónde sale cada requisito. Eso es lo que hace confiable la herramienta.
 
@@ -259,7 +260,7 @@ Despliegue de producción bajo subdominio de gfcode.dev. Cabeceras verificadas s
 - [ ] Errores por archivo sin romper el lote
 - [ ] Cancelación real
 - [ ] Escritura a carpeta y descarga ZIP
-- [ ] Perfiles genéricos funcionando; estructura lista para perfiles de trámite verificados
+- [ ] Perfiles de destino funcionando, cada uno diciendo que es recomendación propia (los de trámite salieron en D48)
 - [ ] Cero peticiones de red después de la carga inicial (verificable en DevTools, y dicho en el README como promesa comprobable)
 - [ ] Desplegado y accesible
 - [ ] README con GIF, arquitectura, limitaciones y `docs/decisiones.md`
@@ -271,7 +272,7 @@ Despliegue de producción bajo subdominio de gfcode.dev. Cabeceras verificadas s
 - **AVIF es lento de codificar.** Puede tardar segundos por imagen. Advertirlo en la UI antes de que el usuario encole 200 archivos, no después.
 - **HEIC infla el bundle.** Cargar el módulo solo cuando aparece un HEIC en la cola.
 - **Safari es el terreno frágil.** Probar temprano, no en la fase 5. Si algo no funciona ahí, documentarlo en vez de pelear.
-- **Requisitos de trámites que cambian.** Por eso cada perfil lleva fecha de verificación. Asumir que se desactualizan.
+- **Un formato sin pérdida no tiene palanca de compresión.** Medido en D49: un PNG que ya cabe en el límite de dimensiones del perfil sale igual de pesado, porque PNG ignora la calidad. `@jsquash/oxipng` está en la sección 4 y no se instaló.
 - **Alcance.** Cada función fuera de la sección 3 es una semana que no acerca el proyecto al despliegue. El proyecto solo vale desplegado.
 
 ---

@@ -196,14 +196,18 @@ describe('the comparator', () => {
 })
 
 describe('the destination picker', () => {
-  it('shows where each limit comes from, and admits when nothing is verified', async () => {
+  it('offers only our own advice, and names the one profile that converts', async () => {
     render(<App />)
 
     await userEvent.click(page.getByRole('button', { name: /Destino/ }))
 
     await expect.element(page.getByText('Adjunto de correo')).toBeVisible()
-    // An empty paperwork list is the honest answer, and it says why.
-    await expect.element(page.getByText(/Un requisito de trámite solo entra/)).toBeVisible()
+    // The paperwork group is gone, not hidden: nothing in this panel quotes an
+    // outside authority any more (D48).
+    await expect.element(page.getByText('Trámites')).not.toBeInTheDocument()
+    // Exactly one profile changes the extension, and it is the one that says so
+    // in its own note (D49).
+    await expect.element(page.getByText(/Es el único perfil que cambia el formato/)).toBeVisible()
   })
 
   it('closes with the keyboard', async () => {

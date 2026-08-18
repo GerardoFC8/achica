@@ -111,6 +111,25 @@ export type RowDetail = {
 }
 
 /**
+ * What the destination asked for, in the profile's own terms.
+ *
+ * This row used to read "Presupuesto: sin tope" whenever a profile set no
+ * weight ceiling — true, and it said nothing. Since no shipped profile sets one
+ * any more (D49) that would be every file in the batch, so the row now carries
+ * the bound the profile actually imposes.
+ */
+function describeTarget(profile: Profile, formatters: Formatters): string {
+  if (profile.maxBytes !== undefined) return `máx. ${formatters.bytes(profile.maxBytes)}`
+
+  const bound = profile.maxWidth ?? profile.maxHeight
+  const size = bound === undefined ? 'cualquier tamaño' : `máx. ${bound} px`
+
+  return profile.format === 'keep'
+    ? `${size}, formato original`
+    : `${size}, ${profile.format.toUpperCase()}`
+}
+
+/**
  * What the row hides until asked.
  *
  * The table shows the numbers a batch is scanned by; this is where the ones
@@ -123,11 +142,7 @@ export function rowDetails(
   profile: Profile,
   formatters: Formatters,
 ): readonly RowDetail[] {
-  const budget: RowDetail = {
-    label: 'Presupuesto',
-    value:
-      profile.maxBytes === undefined ? 'sin tope' : `máx. ${formatters.bytes(profile.maxBytes)}`,
-  }
+  const target: RowDetail = { label: 'Destino pide', value: describeTarget(profile, formatters) }
 
   if (item.status === 'failed') {
     // The message in full, because the row truncates it and it is the only
@@ -142,7 +157,7 @@ export function rowDetails(
   if (item.status !== 'done') {
     return [
       { label: 'Origen', value: formatters.bytes(item.bytesBefore) },
-      budget,
+      target,
       ...(item.status === 'running'
         ? [{ label: 'Avance', value: 'no medible dentro de un archivo' }]
         : []),
@@ -165,14 +180,16 @@ export function rowDetails(
     },
     { label: 'Dimensiones', value: formatters.dimensions(outcome.width, outcome.height) },
     { label: 'Pasadas de codificación', value: formatters.count(outcome.encodes) },
-    budget,
-    margin === null
-      ? { label: 'Resultado', value: 'lo más chico posible', kind }
-      : {
-          label: margin >= 0 ? 'Margen' : 'Exceso',
-          value: formatters.bytes(Math.abs(margin)),
-          kind,
-        },
+    target,
+    ...(margin === null
+      ? []
+      : [
+          {
+            label: margin >= 0 ? 'Margen' : 'Exceso',
+            value: formatters.bytes(Math.abs(margin)),
+            kind,
+          },
+        ]),
     {
       label: 'Ahorro',
       value: `${formatters.bytes(item.bytesBefore - outcome.bytesAfter)} · ${formatters.percent(savedRatio(item) ?? 0)}`,

@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  PERFILES,
-  PERFILES_GENERICOS,
-  PERFILES_TRAMITES,
-  findProfile,
-  isTramite,
-  profilesByGroup,
-  provenanceOf,
-  toOutputPlan,
-} from './index'
+import { PERFILES, findProfile, profilesByGroup, toOutputPlan } from './index'
 
 describe('the profile catalogue', () => {
   it('has unique ids', () => {
@@ -20,8 +11,8 @@ describe('the profile catalogue', () => {
   it('gives every profile a label and an explanation', () => {
     for (const profile of PERFILES) {
       expect(profile.label.length, profile.id).toBeGreaterThan(0)
-      // The note is what lets a user disagree with our advice, or understand
-      // an office's demand. A profile without one is a number with no story.
+      // The note is what lets a user disagree with our advice. A profile
+      // without one is a number with no story.
       expect(profile.note?.length ?? 0, profile.id).toBeGreaterThan(0)
     }
   })
@@ -32,38 +23,38 @@ describe('the profile catalogue', () => {
     }
   })
 
-  it('ships no paperwork profiles until they are verified', () => {
-    // An empty list is honest. Profiles arrive one at a time, each with the
-    // document it came from.
-    expect(PERFILES_TRAMITES).toHaveLength(0)
-  })
-
-  it('ships the generic profiles the v1 promised', () => {
-    const groups = new Set(PERFILES_GENERICOS.map((profile) => profile.group))
+  it('ships the four groups the v1 promised', () => {
+    const groups = new Set(PERFILES.map((profile) => profile.group))
 
     expect(groups).toEqual(new Set(['Web', 'Correo', 'Mensajería', 'Miniatura']))
   })
-})
 
-describe('the source rule', () => {
-  it('carries source and date on every paperwork profile', () => {
+  it('changes the format only where converting is the point', () => {
     /*
-     * The type makes this unrepresentable — a TramiteProfile without a source
-     * does not compile — so this is the belt to that braces. It also fails
-     * loudly if somebody ever widens the type to make an exception.
+     * D49. Handing back a different extension than the one that came in is a
+     * decision the user did not ask for, so only the web profile does it —
+     * there the WebP is the thing being requested. This is the catalogue-level
+     * half of the promise; profiles.browser-test.ts proves it on real bytes.
      */
-    for (const profile of PERFILES.filter(isTramite)) {
-      expect(profile.source.length, profile.id).toBeGreaterThan(0)
-      expect(profile.verifiedAt, profile.id).toMatch(/^\d{4}-\d{2}-\d{2}/)
-      expect(Number.isNaN(Date.parse(profile.verifiedAt)), profile.id).toBe(false)
-    }
+    const converting = PERFILES.filter((profile) => profile.format !== 'keep')
+
+    expect(converting.map((profile) => profile.id)).toEqual(['web-articulo'])
+    expect(converting[0]?.format).toBe('webp')
   })
 
-  it('reports provenance only where there is an external authority to cite', () => {
-    for (const profile of PERFILES_GENERICOS) {
-      // Our own advice has no source, and pretending otherwise would be the
-      // dishonesty the rule exists to prevent.
-      expect(provenanceOf(profile), profile.id).toBeNull()
+  it('sets no weight ceiling, because none of these is somebody else’s rule', () => {
+    /*
+     * D49. A byte budget was there for the paperwork profiles that never
+     * arrived — "under 500 KB" was a number a portal put in a form. Without
+     * them, a ceiling buys nothing and costs the only lever a lossless format
+     * has: with PNG the quality knob does nothing, so the pipeline would hit
+     * the budget by quietly shrinking the picture instead.
+     *
+     * The support stays in core and is tested there. This asserts the shipped
+     * catalogue does not use it.
+     */
+    for (const profile of PERFILES) {
+      expect(profile.maxBytes, profile.id).toBeUndefined()
     }
   })
 })
@@ -74,19 +65,24 @@ describe('lookup', () => {
   })
 
   it('returns null for an id nobody defined', () => {
-    expect(findProfile('mesa-de-partes-inventada')).toBeNull()
+    expect(findProfile('perfil-inventado')).toBeNull()
   })
 
-  it('groups profiles for display', () => {
+  it('groups profiles for display, in the order the groups first appear', () => {
     const grouped = profilesByGroup()
 
+    expect([...grouped.keys()]).toEqual(['Web', 'Correo', 'Mensajería', 'Miniatura'])
     expect(grouped.get('Web')?.map((profile) => profile.id)).toEqual(['web-articulo'])
-    expect(grouped.get('Trámites')).toBeUndefined()
   })
 })
 
 describe('toOutputPlan', () => {
   it('passes the limits through and drops everything presentational', () => {
+    /*
+     * Built here rather than taken from the catalogue: this is the bridge to
+     * the pipeline, and it has to carry a weight ceiling even though no shipped
+     * profile currently sets one.
+     */
     const plan = toOutputPlan({
       id: 'x',
       label: 'X',

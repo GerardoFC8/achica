@@ -13,7 +13,7 @@ Compresor de imágenes por lotes, 100% client-side, sin backend ni cuentas.
 - **Sin `any` sin comentario que lo justifique.** TypeScript en modo estricto.
 - **Antes de agregar una dependencia, justifícala en el mismo commit.**
 - **Cada decisión no obvia va a `docs/decisiones.md`**: una línea de contexto, una de consecuencia.
-- **Nunca inventes requisitos de trámites.** Los perfiles del grupo "Trámites" solo entran con `source` verificable y `verifiedAt`. Sin fuente, no entra el perfil.
+- **Nunca inventes requisitos de trámites.** El grupo "Trámites" salió del producto en D48, pero la regla no caduca: si vuelve, un perfil solo entra con `source` verificable y `verifiedAt`, y esa obligación va en el tipo. Sin fuente, no entra el perfil.
 - **Cero peticiones de red después de la carga inicial.** Es la promesa central del producto y debe ser verificable en DevTools.
 
 ## Comandos
@@ -30,7 +30,7 @@ npm run lint
 
 **v1 terminada y desplegada** en https://achica.gfcode.dev
 
-Las cinco fases cerradas. 299 tests en verde en cuatro proyectos de Vitest (node, chromium, firefox), CI corriendo typecheck, lint, format, tests, build y el test de humo contra el build de producción.
+Las cinco fases cerradas. 307 tests en verde en cuatro proyectos de Vitest (node, chromium, firefox), CI corriendo typecheck, lint, format, tests, build y el test de humo contra el build de producción.
 
 Contra la definición de terminado del spec (sección 10): **diez de doce puntos**. Los dos que faltan son decisiones con evidencia, no deuda:
 
@@ -43,7 +43,8 @@ Verificado contra el host en vivo con `node scripts/smoke.mjs https://achica.gfc
 
 Nada de esto está empezado y ninguno es deuda; son las puertas que la v1 dejó abiertas a propósito:
 
-- **Perfiles de trámite reales**, uno por uno, cada uno con `source` y `verifiedAt`. Es el diferenciador del producto y hoy la lista está vacía. La estructura ya obliga a que un perfil sin fuente no compile.
+- **`@jsquash/oxipng`**, que está en la sección 4 del spec y nunca se instaló. Es el hueco que D49 dejó medido: un PNG que ya cabe en el límite de dimensiones de su perfil sale igual de pesado, porque PNG no tiene perilla de calidad. Hoy "Adjunto de correo" sobre un PNG de 1800x1200 ahorra 0,0 %.
+- **Volver a ofrecer el presupuesto de peso**, que es el eje 3 del spec y desde D49 no se alcanza desde la interfaz. El soporte está en el núcleo y probado; falta la manera de pedirlo.
 - **Inglés.** La estructura del copy lo permite; el formateo de números ya recibe el idioma como argumento.
 - **Reciclar workers** para bajar el pico de memoria (anotado en D31, no implementado).
 - **Verificar el caso de 300 fotos de 12 MP** con una medición y no con un razonamiento.

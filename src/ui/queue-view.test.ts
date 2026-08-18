@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GenericProfile } from '../core/profiles'
+import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
 import { buildRows, countsOf, visibleRows } from './queue-view'
 
@@ -9,7 +9,7 @@ import { buildRows, countsOf, visibleRows } from './queue-view'
  * array, so it is decided here rather than inside a component.
  */
 
-const PROFILE: GenericProfile = {
+const PROFILE: Profile = {
   id: 'correo-adjunto',
   label: 'Adjunto de correo',
   group: 'Correo',
