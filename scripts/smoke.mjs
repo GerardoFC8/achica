@@ -17,6 +17,11 @@
  * gesture and opens a native dialog no automation can drive. It is covered by
  * fakes in src/output/save.browser-test.ts and verified by hand.
  *
+ * Given a URL it tests that instead, which is how a deploy gets checked
+ * against the real host: `node scripts/smoke.mjs https://achica.gfcode.dev`.
+ * There it also lists any same-origin request the page did not make itself —
+ * the edge injects its own, and naming them is the point of the audit.
+ *
  * Run: npm run build && npm run smoke
  */
 
@@ -42,16 +47,23 @@ const LOCAL_HEADER = '504b0304'
 const CENTRAL_ENTRY = 'PK\x01\x02'
 const END_OF_DIRECTORY = 'PK\x05\x06'
 
-try {
-  await stat(join(ROOT, 'dist', 'index.html'))
-} catch {
-  console.error('No dist/ to test. Run npm run build first.')
-  process.exit(1)
+const target = process.argv[2]
+
+if (target === undefined) {
+  try {
+    await stat(join(ROOT, 'dist', 'index.html'))
+  } catch {
+    console.error('No dist/ to test. Run npm run build first.')
+    process.exit(1)
+  }
 }
 
-const server = await preview({ logLevel: 'error', preview: { port: 0 } })
-const base = server.resolvedUrls?.local?.[0]
+const server =
+  target === undefined ? await preview({ logLevel: 'error', preview: { port: 0 } }) : null
+const base = target ?? server?.resolvedUrls?.local?.[0]
 if (base === undefined) throw new Error('vite preview did not report a local url')
+
+console.log(`Testing ${base}`)
 
 const origin = new URL(base).origin
 let failed = false
@@ -79,10 +91,13 @@ try {
        * URL never touches the network, so only real schemes are recorded.
        */
       const foreign = []
+      /** Same-origin requests nothing in our bundle asks for: the edge's own. */
+      const injected = []
       page.on('request', (request) => {
         const url = request.url()
         if (!/^https?:/.test(url)) return
         if (!url.startsWith(origin)) foreign.push(url)
+        else if (url.includes('/cdn-cgi/')) injected.push(url)
       })
 
       const errors = []
@@ -149,13 +164,21 @@ try {
         foreign.length === 0,
         foreign.length === 0 ? '' : foreign.join(', '),
       )
+
+      if (injected.length > 0) {
+        // Not a failure: same origin, no image data, and gone the moment the
+        // project is self-hosted. Named rather than hidden.
+        console.log(
+          `  note the host injected ${injected.length} request(s): ${injected.join(', ')}`,
+        )
+      }
     } finally {
       await browser.close()
       await rm(downloads, { recursive: true, force: true })
     }
   }
 } finally {
-  await server.close()
+  await server?.close()
 }
 
 if (failed) process.exitCode = 1

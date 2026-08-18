@@ -8,7 +8,7 @@ Ningún byte de tus imágenes sale de tu dispositivo, y no hace falta creernos: 
 
 Eso está verificado en cada corrida de CI, no solo afirmado acá. `npm run smoke` maneja la aplicación construida en Chromium y en Firefox, registra **todas** las peticiones que hace la página y falla si alguna sale del origen. Es el instrumento que esta promesa siempre necesitó: la Fase 0 medía desde dentro de la página con Resource Timing, que es un piso y no un registro completo, y así quedó documentado en su momento.
 
-En el sitio desplegado sí pueden aparecer unas pocas peticiones al mismo origen bajo `/cdn-cgi/`: son de la protección anti-bots de Cloudflare, no las hace nuestro código, no llevan datos de imagen, y desaparecen al autohospedar el proyecto — que es exactamente para lo que la licencia es MIT.
+Contra el sitio desplegado la misma comprobación se corre así: `node scripts/smoke.mjs https://achica.gfcode.dev`. Ahí aparecen **tres peticiones al mismo origen** bajo `/cdn-cgi/challenge-platform/`, y el comando las nombra una por una en lugar de esconderlas. Son de la protección anti-bots de Cloudflare, no las hace nuestro código, no llevan datos de imagen, y desaparecen al autohospedar el proyecto — que es exactamente para lo que la licencia es MIT.
 
 ## El problema
 
@@ -39,6 +39,8 @@ Los perfiles de trámites solo se agregan con fuente oficial verificable y fecha
 ![La cola después de comprimir un lote, con el destino «Enviar por mensajería»](docs/captura.png)
 
 La barra de cada fila es el peso original; el relleno, lo que pesa ahora; y la marca vertical, dónde cae el presupuesto. Solo aparece en los archivos a los que el presupuesto de verdad limita: en la captura, únicamente el primero. El lote entero se lee de un vistazo sin leer una sola cifra.
+
+Contra la definición de terminado de la v1 ([`docs/spec.md`](docs/spec.md), sección 10): **diez de doce puntos completos**. Los dos que faltan no son deuda pendiente sino decisiones tomadas con evidencia — HEIC de entrada y la opción de conservar metadatos — y están explicadas en [limitaciones conocidas](#limitaciones-conocidas).
 
 El plan completo por fases está en [`docs/spec.md`](docs/spec.md). Las decisiones técnicas y por qué se tomaron, en [`docs/decisiones.md`](docs/decisiones.md).
 
@@ -74,7 +76,7 @@ npm run screenshot # regenera las capturas del README
 npm run gif        # regenera la animación del README
 ```
 
-`npm run smoke` necesita `npm run build` antes: corre contra `dist/`, servido con las mismas cabeceras que manda el host, para que un problema de cabeceras o de empaquetado falle acá y no después de desplegar.
+`npm run smoke` necesita `npm run build` antes: corre contra `dist/`, servido con las mismas cabeceras que manda el host, para que un problema de cabeceras o de empaquetado falle acá y no después de desplegar. Pasándole una URL comprueba un despliegue en vivo: `node scripts/smoke.mjs https://achica.gfcode.dev`.
 
 ## Decisiones de arquitectura
 

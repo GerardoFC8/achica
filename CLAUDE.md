@@ -28,14 +28,22 @@ npm run lint
 
 ## Estado actual
 
-Fase: 5 — presentación y cierre (en curso)
+**v1 terminada y desplegada** en https://achica.gfcode.dev
 
-Hecho: test de humo con Playwright en CI (`npm run smoke`), README final con GIF, decisiones de arquitectura y limitaciones conocidas.
+Las cinco fases cerradas. 299 tests en verde en cuatro proyectos de Vitest (node, chromium, firefox), CI corriendo typecheck, lint, format, tests, build y el test de humo contra el build de producción.
 
-Falta: desplegar el build de producción a https://achica.gfcode.dev y verificar las cabeceras contra el host en vivo. El despliegue es manual con `npx wrangler deploy` y necesita las credenciales de Cloudflare del usuario.
+Contra la definición de terminado del spec (sección 10): **diez de doce puntos**. Los dos que faltan son decisiones con evidencia, no deuda:
 
-Lo que dejó escrito la Fase 5:
+- **HEIC de entrada**: fuera de la v1 (D2). Las dos librerías disponibles son LGPL-3.0 y chocan con el eje MIT. Se detecta y se rechaza con un mensaje que dice qué hacer.
+- **Opción de conservar metadatos**: no es entregable con el stack cerrado. Los códecs de @jsquash no escriben metadatos, y conservarlos tras hornear la rotación haría que los visores roten dos veces.
 
-- El test de humo corre contra `dist/` servido con las cabeceras del host, en Chromium y en Firefox. Verifica el aislamiento cross-origin, el flujo completo, el ZIP que cae en disco, y **que ninguna petición salga del origen** — que es la promesa central del producto y hasta ahora solo se medía desde dentro de la página, donde Resource Timing es un piso.
-- `scripts/make-gif.mjs` decodifica sus propios cuadros dentro del navegador que los sacó, porque Node no trae decodificador de PNG y agregar uno para leer capturas propias sería una dependencia de más. `gifenc` es CommonJS: los exports nombrados salen del default.
-- La auditoría de red de la Fase 0 (`src/smoke/network-audit.ts`) sigue con sus tests pero ya no se sirve en la página; el test de humo la reemplazó con un instrumento mejor.
+Verificado contra el host en vivo con `node scripts/smoke.mjs https://achica.gfcode.dev`, en Chromium y en Firefox: aislamiento cross-origin, flujo completo, ZIP válido en disco, y ninguna petición fuera del origen. Las tres peticiones que aparecen bajo `/cdn-cgi/` son de la protección anti-bots de Cloudflare, del mismo origen, y el comando las nombra.
+
+## Si el trabajo continúa
+
+Nada de esto está empezado y ninguno es deuda; son las puertas que la v1 dejó abiertas a propósito:
+
+- **Perfiles de trámite reales**, uno por uno, cada uno con `source` y `verifiedAt`. Es el diferenciador del producto y hoy la lista está vacía. La estructura ya obliga a que un perfil sin fuente no compile.
+- **Inglés.** La estructura del copy lo permite; el formateo de números ya recibe el idioma como argumento.
+- **Reciclar workers** para bajar el pico de memoria (anotado en D31, no implementado).
+- **Verificar el caso de 300 fotos de 12 MP** con una medición y no con un razonamiento.
