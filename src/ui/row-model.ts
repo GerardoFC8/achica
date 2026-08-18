@@ -130,7 +130,13 @@ export function rowDetails(
   }
 
   if (item.status === 'failed') {
-    return [{ label: 'Código', value: item.error.code, kind: 'failed' }, budget]
+    // The message in full, because the row truncates it and it is the only
+    // content a failed row has. The code goes with it for a bug report.
+    return [
+      { label: 'Qué pasó', value: describeJobError(item.error), kind: 'failed' },
+      { label: 'Código', value: item.error.code },
+      { label: 'Origen', value: formatters.bytes(item.bytesBefore) },
+    ]
   }
 
   if (item.status !== 'done') {

@@ -162,9 +162,11 @@
       gap: 12px;
       height: 28px;
       padding: 0 16px;
+      /* The last column holds two words, not an icon: docs/diseno.md rules
+         out a glyph where a word says more, so it has to be paid for. */
       grid-template-columns:
         24px minmax(170px, 1fr) 88px 88px 80px
-        minmax(150px, 1.1fr) 84px 76px;
+        minmax(150px, 1.1fr) 84px 164px;
       grid-template-areas: 'select name before after saved bar time actions';
     }
 

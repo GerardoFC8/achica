@@ -82,6 +82,7 @@ export function QueueRow({
             {item.name}
           </button>
           <span
+            title={rowNote(item, formatters)}
             className={`min-w-0 shrink truncate text-[13px] leading-4 md:text-xs ${
               item.status === 'failed' ? 'text-over' : 'text-ink-soft'
             }`}
