@@ -247,7 +247,17 @@ describe('totalsOf', () => {
   it('counts what finished, what failed and what is still waiting', () => {
     const totals = totalsOf(storeWith([done(1_000, 200), failed]))
 
-    expect(totals).toMatchObject({ done: 1, failed: 1, pending: 0 })
+    expect(totals).toMatchObject({ done: 1, failed: 1, cancelled: 0, pending: 0 })
+  })
+
+  it('counts cancelled rows apart from failed ones', () => {
+    const { store, emit } = harness()
+    store.getState().enqueue([file('a.jpg', 900), file('b.jpg', 900)], PLAN)
+    emit({ type: 'cancelled', id: 'job-1' })
+
+    const totals = totalsOf(store.getState().items)
+
+    expect(totals).toMatchObject({ cancelled: 1, failed: 0, pending: 1 })
   })
 
   it('adds up the saving over the files that actually finished', () => {

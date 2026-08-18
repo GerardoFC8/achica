@@ -30,9 +30,26 @@ Los perfiles de trámites solo se agregan con fuente oficial verificable y fecha
 
 ## Estado
 
-**Fase 1 cerrada.** El núcleo ya comprime, pero todavía no hay interfaz. Detección por firma de bytes, orientación EXIF, redimensionado, presupuesto de peso y perfiles, con 147 tests. Desplegado en https://achica.gfcode.dev
+**Fase 2 cerrada.** El núcleo comprime y ahora la cola lo hace en paralelo, fuera del hilo principal, con cancelación real. Todavía no hay interfaz. Desplegado en https://achica.gfcode.dev
 
 El plan completo por fases está en [`docs/spec.md`](docs/spec.md). Las decisiones técnicas y por qué se tomaron, en [`docs/decisiones.md`](docs/decisiones.md).
+
+## Memoria de la cola
+
+La aceptación de la Fase 2 es procesar 200 imágenes sin que la memoria de la pestaña crezca de forma monótona. `npm run bench` hace esa corrida y la mide.
+
+Corrida de 200 copias de una foto de 2 MP (67,3 MB de entrada), perfil WebP con presupuesto de 120 KB y ancho máximo de 1280:
+
+| Concurrencia | Tiempo  | Pico residente | Sobre la línea base | Salida  |
+| ------------ | ------- | -------------- | ------------------- | ------- |
+| 4            | 64,2 s  | 1481,8 MB      | 948 MB              | 22,5 MB |
+| 2            | 113,2 s | 1053,5 MB      | 519 MB              | 22,5 MB |
+
+Durante la corrida la memoria oscila en diente de sierra —de ~1270 a ~1480 MB con cuatro workers— **sin tendencia ascendente**: medido desde el archivo 50 en adelante, el crecimiento por archivo es negativo. Lo que decide el pico es la concurrencia, no el largo de la cola: unos 240 MB por worker, casi todo memoria lineal de WebAssembly, que una vez que crece no se devuelve. Por eso el tope de concurrencia es 4 y no el número de núcleos.
+
+Cómo se mide, y por qué así: **ningún medidor accesible desde dentro de la página dice la verdad**. `performance.memory.usedJSHeapSize` devuelve 10.000.000 constante en Chromium incluso tras reservar 50 MB; `performance.measureUserAgentSpecificMemory()` se niega a correr aunque `crossOriginIsolated` sea `true`; y la métrica de montón de CDP no cuenta los `ArrayBuffer`, que es justo donde vive un bitmap decodificado. El banco mide desde fuera, sumando la memoria residente de todo el árbol de procesos de Chrome, que es la misma cantidad que muestra el administrador de tareas del navegador.
+
+Lo que esta corrida **no** cubre: el spec pone como piso una cola de 300 fotos de 12 MP, y el banco automático usa una foto de 2 MP. El costo que escala con los megapíxeles es el de cada worker, no el de la cola. Para verificar el caso grande, abre `bench.html` con `npm run dev`, arrastra una carpeta con tus propias fotos y graba con el perfilador de memoria de Chrome; los archivos reales están respaldados en disco, que es el escenario que importa.
 
 ## Desarrollo
 
@@ -43,6 +60,7 @@ npm run build      # build estático a dist/
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
 npm run test       # vitest
+npm run bench      # 200 imágenes por la cola real, midiendo memoria
 ```
 
 ## Licencia

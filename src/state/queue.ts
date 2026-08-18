@@ -58,6 +58,8 @@ export type QueueDeps = {
 export type QueueTotals = {
   readonly done: number
   readonly failed: number
+  readonly cancelled: number
+  /** Queued or encoding: the rows that have not reached an end yet. */
   readonly pending: number
   readonly bytesBefore: number
   readonly bytesAfter: number
@@ -145,6 +147,7 @@ export function createQueueStore(deps: QueueDeps): StoreApi<QueueState> {
 export function totalsOf(items: readonly QueueItem[]): QueueTotals {
   let done = 0
   let failed = 0
+  let cancelled = 0
   let pending = 0
   let bytesBefore = 0
   let bytesAfter = 0
@@ -160,7 +163,8 @@ export function totalsOf(items: readonly QueueItem[]): QueueTotals {
     }
 
     if (item.status === 'failed') failed += 1
-    else if (item.status !== 'cancelled') pending += 1
+    else if (item.status === 'cancelled') cancelled += 1
+    else pending += 1
   }
 
   const savedBytes = bytesBefore - bytesAfter
@@ -168,6 +172,7 @@ export function totalsOf(items: readonly QueueItem[]): QueueTotals {
   return {
     done,
     failed,
+    cancelled,
     pending,
     bytesBefore,
     bytesAfter,
