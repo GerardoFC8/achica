@@ -33,7 +33,12 @@ const OUTER_LAYERS = {
     'core/ is the innermost layer and must not depend on the layers above it. Invert the dependency: have the caller pass what core/ needs.',
 }
 
-const TEST_FILES = ['**/*.test.ts', '**/*.browser-test.ts']
+const TEST_FILES = [
+  '**/*.test.ts',
+  '**/*.test.tsx',
+  '**/*.browser-test.ts',
+  '**/*.browser-test.tsx',
+]
 
 const restrictImports = (...patterns) => ['error', { patterns }]
 
@@ -46,7 +51,7 @@ export default tseslint.config(
   tseslint.configs.recommended,
 
   {
-    files: ['**/*.{ts,js,mjs}'],
+    files: ['**/*.{ts,tsx,js,mjs}'],
     linterOptions: { reportUnusedDisableDirectives: 'error' },
     languageOptions: {
       ecmaVersion: 2023,
@@ -59,7 +64,7 @@ export default tseslint.config(
     // Tooling: fixture generation and tests read from disk, so Node globals
     // are legitimate here. Browser globals too, because the bodies passed to
     // page.evaluate() are written in these files but run inside Chromium.
-    files: ['scripts/**/*.{ts,js,mjs}', 'test/**/*.ts', 'src/**/*.test.ts'],
+    files: ['scripts/**/*.{ts,js,mjs}', 'test/**/*.ts', 'src/**/*.test.{ts,tsx}'],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
     },
@@ -72,7 +77,7 @@ export default tseslint.config(
     // Test files are exempt: they load fixtures from disk and never reach the
     // bundle, so the boundary they would protect does not exist for them. The
     // rules themselves stay guarded by test/architecture.test.ts.
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.{ts,tsx}'],
     ignores: TEST_FILES,
     rules: {
       'no-restricted-imports': restrictImports(NODE_BUILTINS),

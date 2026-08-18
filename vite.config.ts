@@ -1,9 +1,10 @@
 import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
 import { playwright } from '@vitest/browser-playwright'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
-  plugins: [tailwindcss()],
+  plugins: [react(), tailwindcss()],
   optimizeDeps: {
     // The @jsquash packages ship wasm-pack glue. Vite's dependency
     // pre-bundling rewrites the wasm URL and instantiation then fails with
@@ -30,9 +31,17 @@ export default defineConfig({
   build: {
     target: 'es2022',
     assetsInlineLimit: (filePath) =>
-      // Never inline wasm. A base64 data URL cannot be streamed by
-      // WebAssembly.instantiateStreaming and it defeats HTTP caching.
-      filePath.endsWith('.wasm') ? false : undefined,
+      /*
+       * Never inline wasm: a base64 data URL cannot be streamed by
+       * WebAssembly.instantiateStreaming and it defeats HTTP caching.
+       *
+       * Never inline fonts either, and that one is not obvious — the mono
+       * subset is 3.6 KB, well under Vite's threshold, so it was being baked
+       * into the stylesheet. A font is immutable and cached forever under
+       * /assets; a stylesheet changes with every style edit. Inlining ties the
+       * stable asset to the volatile one and pays 33% for base64 on top.
+       */
+      filePath.endsWith('.wasm') || filePath.endsWith('.woff2') ? false : undefined,
   },
 
   /*

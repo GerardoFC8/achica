@@ -214,3 +214,15 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** Una tabla con previsualización por fila es lo que cualquiera dibujaría. Con 200 archivos son 200 decodificaciones vivas, y la Fase 2 se fue entera en demostrar que la memoria está acotada por la concurrencia y no por el largo de la cola (D31, ~240 MB por worker).
 
 **Consecuencia.** La fila muestra cifras y la barra de peso, nunca una imagen. El comparador antes/después se abre desde una fila, muestra un archivo por vez y revoca sus `URL.createObjectURL` al cerrar. Es una decisión de arquitectura disfrazada de decisión visual: es la que decide si la herramienta sobrevive a una carpeta grande.
+
+## D36 — Las dos fuentes se subsetean de forma asimétrica, y ninguna se inlinea
+
+**Contexto.** D33 fijó un presupuesto de 60 KB para las dos familias sin saber el número real. Los subsets por rango Unicode de Google pesan 93,6 KB, así que no alcanzaba con descargarlos. Además hay una asimetría que importa: Instrument Sans dibuja **nombres de archivo**, que vienen del usuario y no son nuestros para adivinar, mientras que Martian Mono solo dibuja números que formateamos nosotros.
+
+**Consecuencia.** Instrument Sans conserva todo Latin-1 —195 glifos, 25,8 KB— y Martian Mono se recorta a los 36 glifos que puede contener un número: 3,6 KB. Total **29,3 KB**, menos de la mitad del presupuesto. Las dos se instancian antes de subsetear, con el eje `wdth` fijado (100 la interfaz, 87,5 los números) y el `wght` conservado como rango, verificado leyendo la tabla `fvar` del archivo resultante. Un descubrimiento del camino: **ninguna de las dos fuentes tiene `≤` (U+2264)**, así que los límites se escriben «máx. 500 KB» y no «≤ 500 KB» — un símbolo que ninguna de nuestras familias puede dibujar caería a una fuente del sistema en medio de una columna de números propios. Y ningún `.woff2` se inlinea: el subset de números pesa menos que el umbral de Vite y estaba quedando incrustado en la hoja de estilos, que cambia con cada edición, mientras que una fuente es inmutable y se cachea para siempre.
+
+## D37 — Los pesos se cuentan de a mil, no de a 1024
+
+**Contexto.** Un `KB` puede ser 1000 o 1024 bytes y las dos convenciones circulan. Pero los perfiles ya están escritos y sus presupuestos son números decimales redondos: `maxBytes: 500_000` para «Adjunto de correo», `300_000` para mensajería.
+
+**Consecuencia.** Se cuenta de a mil. Dividir por 1024 imprimiría ese mismo límite como «488 KB» justo debajo de la etiqueta que promete 500, y una herramienta cuyo argumento es la honestidad con el peso no puede permitirse esa contradicción en la primera fila. Debajo de diez unidades se muestra un decimal —0,4 KB es un archivo y 0 KB no es nada— y de ahí para arriba se redondea, porque nadie necesita «500,0 KB» y el dígito extra ensancha toda la columna.

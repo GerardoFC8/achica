@@ -1,8 +1,108 @@
 @import 'tailwindcss';
 
 /*
- * Design tokens live here, and they are deliberately absent for now.
- * Colour, typography and density are decided in docs/diseno.md before the
- * first component is written (phase 3). Shipping Tailwind's defaults would
- * be the exact template look the spec rules out.
+ * Self-hosted, subsetted, and fingerprinted by Vite into /assets, which
+ * _headers already caches forever. Google Fonts is not an option here: the
+ * app promises zero network requests after load, and require-corp would block
+ * the request anyway.
+ *
+ * The width axis is baked in (scripts/make-fonts.mjs), so nothing in the
+ * interface has to carry font-variation-settings.
  */
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('./fonts/instrument-sans.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Martian Mono';
+  src: url('./fonts/martian-mono.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+ * The design tokens, and only the design tokens.
+ *
+ * Resetting each namespace to `initial` deletes Tailwind's defaults instead of
+ * merely shadowing them: `bg-gray-50`, `text-blue-500` and `font-sans` as
+ * Inter stop existing. docs/diseno.md forbids the default palette, and a rule
+ * the build enforces beats a rule a reviewer has to remember.
+ *
+ * Six colours, each with a job. Rules and bar tracks are not among them: they
+ * are the ink at 12% over paper, derived rather than named, which keeps the
+ * palette at six and guarantees they harmonise.
+ */
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --radius-*: initial;
+
+  --color-paper: #f2f1ec;
+  --color-ink: #16181a;
+  --color-ink-soft: #5b6165;
+  --color-fits: #0d5c52;
+  --color-tight: #955d00;
+  --color-over: #6d2fa8;
+
+  /* Derived, not decided: ink at 12% and at 8% over paper. */
+  --color-rule: #d8d7d3;
+  --color-raised: #e7e6e0;
+
+  --font-sans:
+    'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: 'Martian Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* One radius. A tool has corners, not pillows. */
+  --radius-sm: 2px;
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Every number in this app is tabular and right-aligned. Saying it once
+   * here means no component can forget it.
+   */
+  .tnum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+}
+
+/*
+ * A file being compressed has no measurable progress: the worker reports
+ * started and then settled, nothing in between. So the track breathes to say
+ * "busy" instead of filling to fake a percentage.
+ */
+@keyframes track-busy {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-busy='true'] {
+    animation: none !important;
+    opacity: 0.55 !important;
+  }
+}
