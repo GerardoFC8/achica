@@ -122,3 +122,39 @@ describe('the extension promise', () => {
     expect(result.value.format).toBe('webp')
   })
 })
+
+/**
+ * The compression promise on a lossless format (D50).
+ *
+ * A profile that keeps the format has no quality to lower, so the only
+ * compression it can offer is a better-packed PNG. The source here is written
+ * by `@jsquash/png/encode` on purpose: that is what an ordinary PNG from a
+ * screenshot tool or an export dialog looks like, and it is the file the user
+ * actually drops in.
+ */
+describe('a PNG through a profile that keeps the format', () => {
+  async function ordinaryPngBytes(): Promise<ArrayBuffer> {
+    const { default: naiveEncode } = await import('@jsquash/png/encode')
+    const { decodeImage } = await import('../codecs/decode')
+
+    const decoded = await decodeImage('jpeg', await photoBytes())
+    if (!decoded.ok) throw new Error('fixture failed to decode')
+    return naiveEncode(decoded.value)
+  }
+
+  it.each(
+    PERFILES.filter((profile) => profile.format === 'keep').map(
+      (profile) => [profile.id, profile] as const,
+    ),
+  )('comes out smaller than it went in through %s', async (_id, profile) => {
+    const source = await ordinaryPngBytes()
+
+    const result = await processImage(source, toOutputPlan(profile))
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.value.format).toBe('png')
+    expect(result.value.bytesAfter).toBeLessThan(result.value.bytesBefore)
+  })
+})

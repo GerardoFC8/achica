@@ -89,6 +89,8 @@ Las 43 decisiones, con su contexto y su consecuencia, están en [`docs/decisione
 - **La memoria está acotada por la concurrencia, no por el largo de la cola.** Unos 240 MiB por worker, medidos. Los resultados viven como `Blob`, que el navegador puede respaldar en disco, y nunca como arreglos tipados.
 - **Un presupuesto que el archivo ya cumple no es un objetivo.** Si ya entra, se codifica una vez con la calidad del perfil en lugar de buscar contra su propio tamaño y devolver un 1 % de ahorro.
 - **Un perfil de trámite sin fuente no compilaba.** La regla más importante del producto era un tipo y no un comentario. El grupo salió en D48; la regla quedó escrita en `types.ts` por si vuelve.
+- **El PNG lo empaqueta oxipng, no el codificador por defecto.** PNG no tiene perilla de calidad, así que un empaquetado sin pérdida es la única compresión que puede recibir. Sin eso, un perfil que conserva el formato devolvía el archivo del mismo tamaño (D50). Contra los mismos píxeles, oxipng vuelve 39% más chico en una foto y 96% en una página de color plano.
+- **En una captura, conservar el PNG le gana a convertir a WebP por 3,4 veces.** Medido: 1749 bytes contra 5866. El perfil web es la elección equivocada para imágenes de color plano.
 - **Las tres señales de color están medidas** contra simulación de daltonismo: ninguna combinación baja de ΔE 21,8, y verde/ámbar/rojo se descartó con el número que lo condena.
 
 ## Limitaciones conocidas
@@ -97,11 +99,11 @@ Escritas acá porque descubrirlas usando la herramienta es peor que leerlas ante
 
 - **HEIC no entra en esta versión.** Las fotos de iPhone se detectan y se rechazan con un mensaje que dice qué hacer, en lugar de fallar de forma rara. Las dos librerías disponibles son LGPL-3.0 y chocan con el eje MIT del producto.
 - **Los metadatos siempre se eliminan.** Los códecs de este stack no escriben metadatos, así que `stripMetadata: false` no es entregable. La orientación EXIF ya está aplicada a los píxeles antes de codificar, así que no se pierde nada visible.
-- **Un PNG que ya cabe en el límite de dimensiones de su perfil sale igual de pesado.** PNG no tiene perilla de calidad, así que si tampoco hay que achicarlo no queda ninguna palanca. Medido en D49: «Adjunto de correo» sobre un PNG de 1800x1200 ahorra 0,0 %. La interfaz lo marca como fallo en lugar de esconderlo, pero el arreglo real es instalar `@jsquash/oxipng`, que está en el stack acordado y nunca se instaló.
+- **Empaquetar un PNG cuesta tiempo.** oxipng tarda unos 2,2 s en una foto de 2 MP y 0,16 s en una captura, y sube el pico de memoria un 23,5 % frente a un lote WebP porque abre un pool de hilos dentro de cada worker (D50). Está acotado y medido, no crece con el lote, pero un lote grande de PNG es la corrida más cara que hace la herramienta.
 - **El ZIP se arma entero antes de entregarse.** En un lote grande hay una segunda copia de todo lo comprimido, respaldada en disco por el navegador. Guardar en una carpeta escribe archivo por archivo y no acumula: es el camino que conviene con cientos de fotos, y por eso sigue estando.
 - **Guardar en una carpeta solo existe en Chromium.** Firefox y Safari no tienen File System Access API; ahí el ZIP es el único camino, y funciona.
 - **El caso de 300 fotos de 12 MP no está verificado de forma automática.** El banco usa una foto de 2 MP. Lo que escala con los megapíxeles es el costo por worker, no el de la cola, pero eso es un razonamiento y no una medición.
-- **El pico de memoria es alto.** Con cuatro workers, unos 950 MiB sobre la línea base. Está acotado y no crece con el lote, pero una máquina con poca RAM va a sentirlo. La concurrencia baja sola en máquinas con menos núcleos.
+- **El pico de memoria es alto.** Con cuatro workers, unos 950 MiB sobre la línea base en un lote WebP y unos 1300 MiB en uno de PNG (D50). Está acotado y no crece con el lote, pero una máquina con poca RAM va a sentirlo. La concurrencia baja sola en máquinas con menos núcleos.
 
 ## Licencia
 

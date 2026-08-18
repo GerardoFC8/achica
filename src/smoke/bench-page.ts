@@ -12,9 +12,6 @@ import { benchFiles, runQueueBench, type BenchReport } from './queue-bench'
  * hundred photos that differ in size, format and orientation.
  */
 
-/** The realistic path: a weight budget, which re-encodes to find its quality. */
-const PLAN: OutputPlan = { format: 'webp', maxBytes: 120_000, maxWidth: 1280 }
-
 const FIXTURE_URLS = import.meta.glob('../../test/fixtures/**/*.jpg', {
   query: '?url',
   import: 'default',
@@ -41,6 +38,23 @@ const requested = Number(params.get('files') ?? '200')
 const fileCount = Number.isFinite(requested) && requested > 0 ? Math.floor(requested) : 200
 
 /** Overridable so a run can show what the concurrency cap actually buys. */
+/**
+ * `webp` is the realistic path: a weight budget, which re-encodes to find its
+ * quality. `png` is the one worth measuring separately (D50) — there the cost
+ * is not a quality search but oxipng, which starts a rayon thread pool inside
+ * every worker, so it is the shape that can move the memory figure.
+ */
+const PLANS: Readonly<Record<string, OutputPlan>> = {
+  webp: { format: 'webp', maxBytes: 120_000, maxWidth: 1280 },
+  png: { format: 'png', maxWidth: 1280 },
+}
+
+const PLAN: OutputPlan = PLANS[params.get('plan') ?? 'webp'] ?? {
+  format: 'webp',
+  maxBytes: 120_000,
+  maxWidth: 1280,
+}
+
 const askedConcurrency = Number(params.get('concurrency') ?? '')
 const concurrency =
   Number.isFinite(askedConcurrency) && askedConcurrency > 0

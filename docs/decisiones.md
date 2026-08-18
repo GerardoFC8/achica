@@ -306,3 +306,24 @@ La interfaz refleja la misma regla: **la marca del presupuesto no se dibuja cuan
 **Consecuencia.** Los tres pasan a `format: 'keep'` con calidad, y ninguno lleva `maxBytes`. Solo «Imagen para artículo web» convierte, porque ahí el WebP es lo que se está pidiendo. El tope de peso existía por los trámites que nunca llegaron —«bajo 500 KB» era un número que un portal ponía en un formulario— y sin ellos costaba más de lo que compraba. El soporte sigue en el núcleo, probado, y `Profile` mantiene el campo: es la única vía por la que un perfil puede alcanzar la búsqueda por presupuesto. En la interfaz, la fila de detalle que decía «Presupuesto: sin tope» pasa a decir qué pide el destino, porque sin ningún perfil con tope habría sido todas las filas del lote.
 
 **Lo que esto deja abierto, medido y no razonado.** Con un PNG de 1800x1200 y 4,5 MB: «Imagen para artículo web» ahorra 94,8 % porque convierte, «Miniatura» 94,7 % y «Enviar por mensajería» 19,6 % —esas dos solo porque achican dimensiones—, y **«Adjunto de correo» ahorra 0,0 %**: 1800 px ya cabe en su tope de 2000, y recodificar un PNG sin pérdida devuelve el mismo tamaño. Para un formato sin pérdida que no hay que achicar no queda ninguna palanca. La interfaz no lo esconde —`rowKind` marca como fallo un resultado que no encogió— pero el perfil no sirve. La salida está en la sección 4 del spec y nunca se instaló: `@jsquash/oxipng`.
+
+## D50 — El PNG lo empaqueta oxipng, que estaba en el stack y nunca se instaló
+
+**Contexto.** D49 dejó un hueco medido: «Adjunto de correo» sobre un PNG de 1800x1200 ahorraba **0,0 %**. PNG no tiene perilla de calidad, así que si tampoco hay que achicarlo no queda ninguna palanca, y el perfil devolvía el archivo intacto. Al buscar la salida apareció que `@jsquash/oxipng` estaba en la sección 4 del spec —el stack cerrado, con licencia Apache-2.0— y en la lista `optimizeDeps.exclude` de `vite.config.ts`, pero **no en `package.json`**. Nunca se instaló. Instalarlo no era agregar una dependencia: era terminar de armar lo ya acordado.
+
+**Consecuencia.** `encodePng` deja de usar `@jsquash/png/encode` y le pasa los píxeles a `optimise` de oxipng, que acepta `ImageData` directo: una pasada en lugar de codificar y volver a empaquetar. `@jsquash/png` se queda porque sigue siendo el decodificador. Nivel 2, y esa elección está medida contra los mismos 1800x1200: nivel 1 ahorra 37,9 % en 1,2 s, nivel 2 ahorra 39,1 % en 2,0 s, nivel 4 ahorra 40,6 % en 6,8 s y **nivel 6 ahorra exactamente lo mismo que el 4** en 15,0 s. Pasado el 4 no queda nada que comprar, y pasado el 2 el precio son tres a cinco veces el tiempo por un punto y medio.
+
+**Lo que el cambio arregla, medido con un PNG escrito por `@jsquash/png/encode` —que es la pinta que tiene un PNG de cualquier herramienta:**
+
+|                          | foto como PNG (4,5 MB) | captura como PNG (39 KB) |
+| ------------------------ | ---------------------- | ------------------------ |
+| Imagen para artículo web | −94,8 %                | −85,1 %                  |
+| **Adjunto de correo**    | **0,0 % → −39,1 %**    | **−95,5 %**              |
+| Enviar por mensajería    | −19,6 % → −45,9 %      | −95,5 %                  |
+| Miniatura                | −94,7 % → −95,8 %      | −96,5 %                  |
+
+**Hallazgo que no buscábamos: en una captura, conservar el PNG le gana a convertir a WebP por 3,4 veces** —1749 bytes contra 5866. El perfil web es la elección equivocada para imágenes de color plano, y eso le da la razón al instinto de no cambiar la extensión (D49).
+
+**El precio, también medido.** Empaquetar una foto de 2 MP cuesta 2,2 s; una captura, 0,16 s. En memoria, con `node scripts/bench.mjs 40 4` en los dos planes: pico de 1847 MB con PNG contra 1495 MB con WebP, un 23,5 % más, porque oxipng abre un pool de hilos de rayon dentro de cada worker. **No es una fuga**: con 40 archivos el estado estable daba +7242 KB por archivo, pero es artefacto de un lote corto — con 120 archivos da −8805 KB por archivo y termina en 1018 MB desde un pico de 1946 MB. El banco ahora acepta el plan como tercer argumento, porque una cifra de memoria sin decir qué plan la produjo no significa nada.
+
+**Y el camino que se estaba por dejar sin probar.** oxipng solo arranca su pool de hilos cuando se encuentra dentro de un Worker en una máquina con más de un núcleo; en cualquier otro lugar cae al build de un solo hilo. Todos los tests unitarios corren en el hilo principal, así que la configuración que se despliega habría quedado siendo la única sin probar. `runner.browser-test.ts` la cubre con un worker real. El test de presupuesto de PNG también se recalibró: fijaba 200 bytes para forzar un achique y oxipng empezó a entrar por debajo de eso, así que **el test seguía pasando sin probar nada**; ahora calibra el tope contra la mejor codificación a tamaño completo.

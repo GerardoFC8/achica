@@ -272,7 +272,7 @@ Despliegue de producción bajo subdominio de gfcode.dev. Cabeceras verificadas s
 - **AVIF es lento de codificar.** Puede tardar segundos por imagen. Advertirlo en la UI antes de que el usuario encole 200 archivos, no después.
 - **HEIC infla el bundle.** Cargar el módulo solo cuando aparece un HEIC en la cola.
 - **Safari es el terreno frágil.** Probar temprano, no en la fase 5. Si algo no funciona ahí, documentarlo en vez de pelear.
-- **Un formato sin pérdida no tiene palanca de compresión.** Medido en D49: un PNG que ya cabe en el límite de dimensiones del perfil sale igual de pesado, porque PNG ignora la calidad. `@jsquash/oxipng` está en la sección 4 y no se instaló.
+- **Empaquetar PNG es la corrida más cara.** Resuelto en D50 con oxipng, que es la única compresión que un formato sin pérdida puede recibir, pero cuesta 2,2 s por foto de 2 MP y sube el pico de memoria un 23,5 % porque abre un pool de hilos dentro de cada worker. Medido, acotado, y sin crecimiento por archivo.
 - **Alcance.** Cada función fuera de la sección 3 es una semana que no acerca el proyecto al despliegue. El proyecto solo vale desplegado.
 
 ---

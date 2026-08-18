@@ -30,7 +30,7 @@ npm run lint
 
 **v1 terminada y desplegada** en https://achica.gfcode.dev
 
-Las cinco fases cerradas. 307 tests en verde en cuatro proyectos de Vitest (node, chromium, firefox), CI corriendo typecheck, lint, format, tests, build y el test de humo contra el build de producción.
+Las cinco fases cerradas. 312 tests en verde en cuatro proyectos de Vitest (node, chromium, firefox), CI corriendo typecheck, lint, format, tests, build y el test de humo contra el build de producción.
 
 Contra la definición de terminado del spec (sección 10): **diez de doce puntos**. Los dos que faltan son decisiones con evidencia, no deuda:
 
@@ -43,7 +43,6 @@ Verificado contra el host en vivo con `node scripts/smoke.mjs https://achica.gfc
 
 Nada de esto está empezado y ninguno es deuda; son las puertas que la v1 dejó abiertas a propósito:
 
-- **`@jsquash/oxipng`**, que está en la sección 4 del spec y nunca se instaló. Es el hueco que D49 dejó medido: un PNG que ya cabe en el límite de dimensiones de su perfil sale igual de pesado, porque PNG no tiene perilla de calidad. Hoy "Adjunto de correo" sobre un PNG de 1800x1200 ahorra 0,0 %.
 - **Volver a ofrecer el presupuesto de peso**, que es el eje 3 del spec y desde D49 no se alcanza desde la interfaz. El soporte está en el núcleo y probado; falta la manera de pedirlo.
 - **Inglés.** La estructura del copy lo permite; el formateo de números ya recibe el idioma como argumento.
 - **Reciclar workers** para bajar el pico de memoria (anotado en D31, no implementado).

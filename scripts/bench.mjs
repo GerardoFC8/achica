@@ -27,6 +27,14 @@ import { createServer } from 'vite'
 const requested = Number(process.argv[2] ?? '200')
 const files = Number.isFinite(requested) && requested > 0 ? Math.floor(requested) : 200
 
+/**
+ * Third argument picks the output plan: `webp` (default) or `png`. They cost
+ * different things — webp pays a quality search, png pays oxipng and its thread
+ * pool inside every worker — so the memory figure has to be quoted per plan.
+ */
+const plan = process.argv[4] === 'png' ? 'png' : 'webp'
+const planParam = `&plan=${plan}`
+
 /** Second argument overrides the pool's own concurrency, for comparison runs. */
 const askedConcurrency = Number(process.argv[3] ?? '')
 const concurrencyParam =
@@ -111,7 +119,7 @@ try {
   })
 
   console.log(`Running ${files} files in ${base}bench.html …`)
-  await page.goto(`${base}bench.html?files=${files}&auto=1${concurrencyParam}`)
+  await page.goto(`${base}bench.html?files=${files}&auto=1${concurrencyParam}${planParam}`)
 
   const samples = []
   const takeSample = async () => {

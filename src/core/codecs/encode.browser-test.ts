@@ -102,6 +102,38 @@ describe('encoding', () => {
     expect(transparent).toBeGreaterThan(0)
   })
 
+  it('optimises PNG losslessly instead of writing whatever the encoder emitted', async () => {
+    /*
+     * PNG has no quality knob, so this optimisation is the only compression a
+     * PNG output ever gets. Without it a profile that keeps the format hands
+     * back a file the same size it received (D50).
+     *
+     * The comparison is against `@jsquash/png/encode`, which writes a valid PNG
+     * and a wasteful one — and is exactly the kind of PNG that real tools
+     * produce, so the gap here is the gap a user sees.
+     */
+    const { default: naiveEncode } = await import('@jsquash/png/encode')
+
+    const source = await decodeImage('png', await load('basn6a08.png'))
+    expect(source.ok).toBe(true)
+    if (!source.ok) return
+
+    const naive = await naiveEncode(source.value)
+    const ours = await encodeImage('png', source.value)
+
+    expect(ours.ok).toBe(true)
+    if (!ours.ok) return
+
+    expect(ours.value.byteLength).toBeLessThan(naive.byteLength)
+    // Both must still decode to the same pixels: the optimisation is lossless
+    // or it is a bug, and a smaller file that changed the image is worse than a
+    // big one.
+    const roundTrip = await decodeImage('png', ours.value.buffer as ArrayBuffer)
+    expect(roundTrip.ok).toBe(true)
+    if (!roundTrip.ok) return
+    expect([...roundTrip.value.data]).toEqual([...source.value.data])
+  })
+
   it('reports a failure rather than throwing', async () => {
     const broken = { data: new Uint8ClampedArray(4), width: 0, height: 0 } as ImageData
 

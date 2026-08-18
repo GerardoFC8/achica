@@ -42,7 +42,51 @@ const settledIn = async (ms: number, promise: Promise<JobReport>): Promise<boole
     new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms)),
   ])
 
+/**
+ * A PNG written the ordinary way: valid and badly packed.
+ *
+ * `@jsquash/png/encode` is what most tools' output looks like, and it is the
+ * file a user actually drops in. Built here rather than kept as a fixture
+ * because the point is the packing, not the picture.
+ */
+async function wastefulPngFile(): Promise<File> {
+  const { default: naiveEncode } = await import('@jsquash/png/encode')
+  const { decodeImage } = await import('../core/codecs/decode')
+
+  const source = await fixtureFile('Landscape_6.jpg')
+  const decoded = await decodeImage('jpeg', await source.arrayBuffer())
+  if (!decoded.ok) throw new Error('fixture failed to decode')
+
+  return new File([await naiveEncode(decoded.value)], 'wasteful.png')
+}
+
 describe('worker runner', () => {
+  it('packs a PNG losslessly inside the worker, where oxipng runs multi-threaded', async () => {
+    /*
+     * The configuration production actually ships, and the one no other test
+     * reaches. oxipng only starts its rayon thread pool when it finds itself in
+     * a Worker on a machine with more than one core; everywhere else it falls
+     * back to the single-threaded build. Every unit test runs on the main
+     * thread, so without this the shipped path would be the untested one (D50).
+     */
+    const runner = createWorkerRunner()
+
+    const report = await runner.run({
+      id: 'png',
+      file: await wastefulPngFile(),
+      plan: { format: 'keep', maxWidth: 2000 },
+    })
+    runner.terminate()
+
+    expect(report.ok).toBe(true)
+    if (!report.ok) return
+
+    // Kept as a PNG, and genuinely smaller: the only compression a lossless
+    // format can offer.
+    expect(report.value.outcome.format).toBe('png')
+    expect(report.value.outcome.bytesAfter).toBeLessThan(report.value.outcome.bytesBefore)
+  })
+
   it('compresses a real photo off the main thread', async () => {
     const runner = createWorkerRunner()
 

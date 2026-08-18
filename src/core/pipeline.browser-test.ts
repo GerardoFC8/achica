@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { processImage } from './pipeline'
+import { decodeImage } from './codecs/decode'
+import { encodeImage } from './codecs/encode'
 
 /**
  * The whole flow on real files: detect, decode, orient, resize, encode.
@@ -135,7 +137,26 @@ describe('processImage', () => {
        * interface can say plainly that the image was made smaller to fit.
        */
       const source = await load('basn6a08.png')
-      const result = await processImage(source, { format: 'png', maxBytes: 200 })
+
+      /*
+       * The budget is calibrated against what the codec can actually reach at
+       * full size instead of being a fixed number. A fixed 200 bytes used to
+       * force a shrink and silently stopped doing so the day oxipng arrived and
+       * packed the same 32x32 image under that (D50) — the test kept passing
+       * while testing nothing. One byte under the best full-size encode is a
+       * budget only a smaller picture can meet, whatever the codec learns next.
+       */
+      const decoded = await decodeImage('png', source)
+      expect(decoded.ok).toBe(true)
+      if (!decoded.ok) return
+      const atFullSize = await encodeImage('png', decoded.value)
+      expect(atFullSize.ok).toBe(true)
+      if (!atFullSize.ok) return
+
+      const result = await processImage(source, {
+        format: 'png',
+        maxBytes: atFullSize.value.byteLength - 1,
+      })
 
       expect(result.ok).toBe(true)
       if (!result.ok) return

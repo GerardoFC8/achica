@@ -55,9 +55,34 @@ async function encodeAvif(image: ImageData, quality: number): Promise<ArrayBuffe
   return encode(image, { quality })
 }
 
+/**
+ * How hard oxipng is allowed to look for a smaller packing.
+ *
+ * Level 2 is the library's default and the measured sweet spot (D50). Against
+ * the same 1800x1200 photo: level 1 saves 37.9% in 1.2 s, level 2 saves 39.1%
+ * in 2.0 s, level 4 saves 40.6% in 6.8 s, and level 6 saves **exactly what
+ * level 4 saved** while taking 15.0 s. Past level 4 there is nothing left to
+ * buy, and past level 2 the price is three to five times the time for a point
+ * and a half.
+ */
+const OXIPNG_LEVEL = 2
+
+/**
+ * PNG, packed by oxipng rather than by whatever `@jsquash/png/encode` emits.
+ *
+ * This is not a nicety. PNG has no quality knob, so a lossless repack is the
+ * only compression a PNG output can ever get: before this, a profile that kept
+ * the format handed back a file byte-for-byte the size it received (D50).
+ * Measured against `@jsquash/png/encode` on the same pixels, oxipng at level 2
+ * comes back 39% smaller on a photo and 96% smaller on a flat-colour page —
+ * the naive writer was not slightly wasteful, it was very.
+ *
+ * It is handed the pixels rather than bytes we just wrote, so this is one pass
+ * instead of encode-then-repack.
+ */
 async function encodePng(image: ImageData): Promise<ArrayBuffer> {
-  const { default: encode } = await import('@jsquash/png/encode')
-  return encode(image)
+  const { default: optimise } = await import('@jsquash/oxipng/optimise')
+  return optimise(image, { level: OXIPNG_LEVEL })
 }
 
 /**
