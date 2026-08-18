@@ -145,6 +145,8 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 
 ## D24 — El tamaño de origen es un techo: nunca se devuelve un archivo más pesado
 
+> **Reemplazada por D40.** El mecanismo de esta decisión —usar el tamaño de origen como techo de la búsqueda— resolvía el síntoma creando uno peor: recomprimía archivos que ya entraban. Se conserva escrita porque el problema que describe es real y D40 lo resuelve de otra forma.
+
 **Contexto.** Lo encontró un test de perfiles. Con `correo-adjunto` (máximo 500 KB) sobre una foto de 352 KB, la búsqueda halla la mayor calidad que entra en el presupuesto y devuelve 495 KB — más pesado que la entrada. Cumple el presupuesto al pie de la letra y es absurdo viniendo de una herramienta cuyo propósito es achicar.
 
 **Consecuencia.** El presupuesto efectivo es `min(maxBytes, tamañoDeOrigen)`. Un presupuesto es un techo, no un objetivo. Consecuencia conocida: al convertir a un formato inherentemente más pesado que el origen —por ejemplo una foto a PNG— el tope obligará a reducir dimensiones. Es el comportamiento correcto para esta herramienta, y preferible a entregar en silencio un archivo más grande del que el usuario trajo.
@@ -238,3 +240,13 @@ Las decisiones se agregan, no se reescriben. Si una se revierte, se agrega la nu
 **Contexto.** La fila es una grilla que cambia de forma: tabla en pantalla ancha, cuatro líneas apiladas en angosta. Esa geometría se escribió como CSS propio en `@layer components`, incluido el `display: none` que oculta la línea de números en escritorio. No funcionó, y el modo en que falló es el detalle que importa: la capa de utilidades de Tailwind se emite después, así que `flex` en el elemento le gana a `display: none` en la capa de componentes. El resultado fue una columna de números flotando al costado de la tabla, con toda la grilla desalineada porque esa celda ocupaba un área que el template ancho no define.
 
 **Consecuencia.** En `@layer components` vive solo la geometría —qué celda va en qué área y cómo cambia el template—; mostrar y ocultar se hace con `hidden` y `md:block` sobre el elemento. Regla general que queda: en cuanto una propiedad se declara en las dos capas, gana la utilidad, y el CSS propio pierde en silencio.
+
+## D40 — Un presupuesto que el archivo ya cumple no es un objetivo
+
+**Contexto.** Lo hizo visible la interfaz de la Fase 3, y es el defecto que D24 introdujo al arreglar otro. La búsqueda por presupuesto maximiza calidad contra su techo, así que apuntarla a un techo que el origen ya cumple devuelve el tamaño del origen: con «Enviar por mensajería» (máx. 300 KB) sobre una foto de 252 KB devolvía 249 KB. Un ahorro del 1 % pagado con una pasada completa de pérdida de calidad. En la captura del lote, cuatro de cinco filas quedaban en «justos» ahorrando entre 0 % y 4 %.
+
+Peor con imágenes chicas: para un PNG de 32×32 el techo efectivo pasaba a ser sus propios 167 bytes, dentro de los cuales no entra ni el encabezado de un JPEG, así que el bucle de reducción molía la imagen hasta 9×9 y **aun así devolvía un archivo más pesado**. Destruía la foto persiguiendo un límite que nunca estuvo en el camino.
+
+**Consecuencia.** Cuando `bytesBefore <= maxBytes`, el objetivo deja de ser el presupuesto y pasa a ser la calidad del perfil —que es para lo que el usuario eligió un destino—: una sola codificación, sin búsqueda. Si esa codificación se pasa del presupuesto, cosa posible al convertir a un formato más pesado, recién ahí entra la búsqueda. El techo de la búsqueda vuelve a ser `maxBytes` a secas: el tope contra el tamaño de origen solo se activaba en el caso que ahora se atiende aparte.
+
+La interfaz refleja la misma regla: **la marca del presupuesto no se dibuja cuando el presupuesto nunca limitó a ese archivo**. Fijarla al borde derecho invitaba a leer «entró justo» en una fila donde el límite jamás estuvo en juego. Verificado con dos corridas que comparan calidad 40 contra calidad 90, porque una calidad reportada no prueba nada por sí sola y un umbral de tamaño solo habría descrito el contenido de ese fixture.

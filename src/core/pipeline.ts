@@ -191,16 +191,34 @@ export async function processImage(
       return ok(describe({ withinBudget: true, output, bytes: output.length, quality }, null))
     }
 
+    const maxBytes = plan.maxBytes
+
     /*
-     * The source size is a ceiling of its own.
+     * A budget the file already meets is not a target.
      *
-     * A budget is a limit, not a target. Asked for "under 500 KB" with a
-     * 352 KB photo in hand, the search will happily find the highest quality
-     * that fits and hand back 495 KB — bigger than what it was given. That is
-     * absurd from a tool whose entire purpose is to make files smaller, and it
-     * is the kind of absurdity a user only notices after uploading.
+     * The search maximises quality against its ceiling, so pointing it at a
+     * budget the source already fits returns the source size back: asked for
+     * "under 300 KB" with a 252 KB photo, it handed back 249 KB — a 1% saving
+     * paid for with a full quality pass. Worse for a small image, where the
+     * ceiling became the file's own 167 bytes, no JPEG header fits inside
+     * that, and the shrink loop ground a 32x32 picture down to 9x9 chasing a
+     * limit that was never in the way.
+     *
+     * So when the budget is already met, the target is the profile's quality —
+     * which is what the user chose a destination for. One encode, no search,
+     * and a real saving instead of a rounding error.
      */
-    const maxBytes = Math.min(plan.maxBytes, bytesBefore)
+    if (bytesBefore <= maxBytes) {
+      const quality = plan.quality ?? DEFAULT_QUALITY
+      const output = await encode(image, quality)
+
+      if (output.length <= maxBytes) {
+        return ok(describe({ withinBudget: true, output, bytes: output.length, quality }, null))
+      }
+      // Converting to a heavier format can overshoot a budget the source met.
+      // That is a real budget problem, so it goes to the search below.
+    }
+
     let shrunkForBudget: Dimensions | null = null
 
     for (let round = 0; round <= MAX_SHRINK_ROUNDS; round += 1) {

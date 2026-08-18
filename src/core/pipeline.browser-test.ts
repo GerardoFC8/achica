@@ -161,6 +161,62 @@ describe('processImage', () => {
       expect(result.value.bytesAfter).toBeLessThanOrEqual(result.value.bytesBefore)
     })
 
+    it('compresses a file that already fits instead of nudging it under its own size', async () => {
+      /*
+       * The defect the interface made visible. Asked for "under 300 KB" with a
+       * 252 KB photo, the search maximised quality against the photo's own
+       * size and returned 249 KB: a 1% saving paid for with a quality pass.
+       *
+       * A budget that the source already meets is not the target. The target
+       * is the profile's quality, which is what the user chose a destination
+       * for in the first place.
+       */
+      const source = await load('Landscape_6.jpg')
+
+      const result = await processImage(source, { format: 'jpeg', maxBytes: 5_000_000 })
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.withinBudget).toBe(true)
+      // Before the fix this came back at 95% of the source. The number that
+      // matters is the next assertion, though: one encode means the ceiling
+      // is not being searched against at all.
+      expect(result.value.bytesAfter).toBeLessThan(result.value.bytesBefore * 0.9)
+      expect(result.value.encodes).toBe(1)
+    })
+
+    it('uses the quality the plan asked for when the budget is already met', async () => {
+      const source = await load('Landscape_6.jpg')
+
+      const result = await processImage(source, {
+        format: 'jpeg',
+        maxBytes: 5_000_000,
+        quality: 40,
+      })
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.quality).toBe(40)
+    })
+
+    it('leaves the dimensions alone when the budget was never the problem', async () => {
+      /*
+       * The other half of the same defect. A 32x32 PNG is 167 bytes, so the
+       * effective ceiling became 167 bytes, which no JPEG header fits inside.
+       * The shrink loop ground the image down to 9x9 and still handed back
+       * something larger — destroying the picture to chase a limit that was
+       * never in the way.
+       */
+      const source = await load('basn6a08.png')
+
+      const result = await processImage(source, { format: 'jpeg', maxBytes: 5_000_000 })
+
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.width).toBe(32)
+      expect(result.value.shrunkForBudget).toBeNull()
+    })
+
     it('reports honestly when a budget is simply out of reach', async () => {
       const result = await processImage(await load('Landscape_6.jpg'), {
         format: 'jpeg',

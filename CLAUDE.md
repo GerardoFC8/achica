@@ -28,17 +28,18 @@ npm run lint
 
 ## Estado actual
 
-Fase: 3 — UI (implementada, no cerrada)
+Fase: 4 — salida
 
-La interfaz está construida contra `docs/diseno.md` y la maqueta aprobada: arrastrar carpeta, selector de destino, tabla de la cola con la barra de peso, filtros, orden, selección con recomprimir y quitar, resumen total y comparador antes/después. 261 tests en verde, incluidos seis que manejan la app real en Chromium con códecs reales. Captura reproducible con `npm run screenshot`.
+Fase 3 cerrada: interfaz completa contra `docs/diseno.md` — arrastrar carpeta, selector de destino, tabla con la barra de peso, filtros, orden, selección con recomprimir y quitar, resumen total y comparador antes/después. 265 tests en verde, incluidos seis que manejan la app real en Chromium con códecs reales. Captura reproducible con `npm run screenshot`.
 
-Guardar archivos **no** entra: es la Fase 4 del spec y se decidió respetar una fase a la vez.
+Guardar archivos no entró a propósito: es esta fase.
 
-**Falta para cerrar la fase, y es un hallazgo del núcleo, no de la interfaz.** La interfaz hizo visible que con un destino que tiene presupuesto, un archivo que ya entraba se recomprime igual y pierde calidad para no ganar nada: el techo efectivo es `min(maxBytes, tamañoDeOrigen)` (D24), así que la búsqueda maximiza calidad contra el propio tamaño del archivo y devuelve un 1 % de ahorro. En la captura, cuatro de cinco filas quedan en «justos» con ahorros de 0 %, 1 % y 4 %. Aparte, con imágenes diminutas el bucle de presupuesto reduce dimensiones varias veces y aun así devuelve un archivo más pesado, porque el encabezado del formato de salida ya supera al original. Las dos son cuestiones de `core/pipeline.ts` y hay que resolverlas antes de dar la fase por buena.
+Lo que dejó escrito la Fase 3 y condiciona lo que viene:
 
-Lo que dejó escrito la Fase 3:
+- **D40 reemplaza a D24.** Un presupuesto que el archivo ya cumple no es un objetivo: se codifica una vez con la calidad del perfil. La interfaz no dibuja la marca cuando el presupuesto nunca limitó a ese archivo.
+- Los pesos se cuentan de a mil (D37), porque los presupuestos de los perfiles son miles redondos. La memoria se sigue midiendo en potencias de dos.
+- El `display` de las celdas se decide con utilidades de Tailwind; la capa `@layer components` pierde en silencio (D39).
+- Soltar y comprimir son dos pasos (D38). La fila conserva su `File`, que es lo que permite recomprimir y abrir el comparador.
+- La página de humo de la Fase 0 ya no se sirve: `src/smoke/` conserva módulos y tests, y la auditoría de red vuelve como test de humo en la Fase 5.
 
-- Los pesos se cuentan de a mil, no de a 1024 (D37), porque los presupuestos de los perfiles son miles redondos.
-- El `display` de las celdas se decide con utilidades de Tailwind; la capa de componentes pierde en silencio (D39).
-- Soltar y comprimir son dos pasos (D38).
-- La página de humo de la Fase 0 ya no se sirve: `src/smoke/` sigue con sus módulos y sus tests, y la auditoría de red vuelve como test de humo en la Fase 5.
+Siguiente criterio de aceptación: File System Access API con detección de soporte y respaldo a ZIP con `client-zip`, con conflictos de nombre resueltos por sufijo, y los dos caminos verificados en Chromium y en Firefox.

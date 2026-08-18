@@ -27,15 +27,18 @@ export type WeightBar = {
 const TIGHT_FRACTION = 0.9
 
 /**
- * The budget as a fraction of the original file.
+ * The budget as a fraction of the original file, or nothing when the budget
+ * never constrained this file at all.
  *
- * Capped at the whole file because a budget is a ceiling and never a target
- * (D24): asked for 500 KB with a 300 KB photo in hand, the effective limit is
- * the photo, and the mark belongs at the right edge rather than off the track.
+ * A limit the file already met is not a limit it met narrowly. Pinning the
+ * mark to the right edge in that case invites reading "only just made it" from
+ * a row where the budget was never in play — and the pipeline treats that case
+ * as a plain quality encode for the same reason.
  */
 function budgetMark(item: QueueItem, profile: Profile): number | null {
   if (profile.maxBytes === undefined || item.bytesBefore <= 0) return null
-  return Math.min(profile.maxBytes, item.bytesBefore) / item.bytesBefore
+  if (profile.maxBytes >= item.bytesBefore) return null
+  return profile.maxBytes / item.bytesBefore
 }
 
 export function rowKind(item: QueueItem, profile: Profile): RowKind {

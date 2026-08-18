@@ -95,6 +95,12 @@ describe('rowKind', () => {
     expect(rowKind(done(1_000_000, 300_000), UNBUDGETED)).toBe('fits')
   })
 
+  it('says it did not fit when a result grew under a budget it never touched', () => {
+    // 300 KB source, 500 KB budget, and a conversion to a heavier format that
+    // came back at 900 KB. It satisfies the budget and still failed the point.
+    expect(rowKind(done(300_000, 900_000), BUDGETED)).toBe('over')
+  })
+
   it('says it did not fit when a budgetless result grew', () => {
     // No budget to miss, but the tool exists to make files smaller. A result
     // that grew failed at the only thing it was asked to do.
@@ -111,12 +117,13 @@ describe('weightBar', () => {
     expect(bar?.overflow).toBeNull()
   })
 
-  it('caps the mark at the original size, because a budget is a ceiling', () => {
-    // D24: asked for 500 KB with a 300 KB photo, the effective budget is the
-    // photo. The mark belongs at the right edge, not off the track.
+  it('draws no mark when the budget never constrained the file', () => {
+    // A 300 KB photo against a 500 KB budget. Pinning the mark to the right
+    // edge would read as "only just made it" on a row where the limit was
+    // never in play.
     const bar = weightBar(done(300_000, 120_000), BUDGETED)
 
-    expect(bar?.mark).toBe(1)
+    expect(bar?.mark).toBeNull()
   })
 
   it('has no mark at all when the profile sets no budget', () => {

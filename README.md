@@ -34,7 +34,7 @@ Los perfiles de trámites solo se agregan con fuente oficial verificable y fecha
 
 ![La cola después de comprimir un lote, con el destino «Enviar por mensajería»](docs/captura.png)
 
-La barra de cada fila es el peso original; el relleno, lo que pesa ahora; y la marca vertical, dónde cae el presupuesto. El lote entero se lee de un vistazo sin leer una sola cifra.
+La barra de cada fila es el peso original; el relleno, lo que pesa ahora; y la marca vertical, dónde cae el presupuesto. Solo aparece en los archivos a los que el presupuesto de verdad limita: en la captura, únicamente el primero. El lote entero se lee de un vistazo sin leer una sola cifra.
 
 El plan completo por fases está en [`docs/spec.md`](docs/spec.md). Las decisiones técnicas y por qué se tomaron, en [`docs/decisiones.md`](docs/decisiones.md).
 
