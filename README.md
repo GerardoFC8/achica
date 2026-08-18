@@ -2,9 +2,13 @@
 
 Comprime y convierte **muchas imágenes a la vez**, en tu navegador. Sin backend, sin cuentas, sin límite de archivos.
 
+![Soltar una carpeta, elegir el destino, y la cola resolviendo el lote](docs/demo.gif)
+
 Ningún byte de tus imágenes sale de tu dispositivo, y no hace falta creernos: abre las herramientas de desarrollo, pestaña Red, y comprime una carpeta entera. **La aplicación no hace ninguna petición después de cargar.**
 
-En el sitio desplegado sí aparecen unas pocas peticiones al mismo origen bajo `/cdn-cgi/`. Son de la protección anti-bots de Cloudflare, no las hace nuestro código, no llevan datos de imagen, y desaparecen al autoalojar el proyecto — que es exactamente para lo que la licencia es MIT. La propia página las cuenta y las muestra, separadas de las nuestras, para que nadie tenga que confiar en este párrafo. Esa cuenta es un piso, no un total: la API del navegador que la mide no registra todas las peticiones, y la página lo dice en lugar de aparentar exactitud. La autoridad sigue siendo la pestaña Red, y el código que hace la cuenta está acá para leerlo.
+Eso está verificado en cada corrida de CI, no solo afirmado acá. `npm run smoke` maneja la aplicación construida en Chromium y en Firefox, registra **todas** las peticiones que hace la página y falla si alguna sale del origen. Es el instrumento que esta promesa siempre necesitó: la Fase 0 medía desde dentro de la página con Resource Timing, que es un piso y no un registro completo, y así quedó documentado en su momento.
+
+En el sitio desplegado sí pueden aparecer unas pocas peticiones al mismo origen bajo `/cdn-cgi/`: son de la protección anti-bots de Cloudflare, no las hace nuestro código, no llevan datos de imagen, y desaparecen al autohospedar el proyecto — que es exactamente para lo que la licencia es MIT.
 
 ## El problema
 
@@ -30,7 +34,7 @@ Los perfiles de trámites solo se agregan con fuente oficial verificable y fecha
 
 ## Estado
 
-**Fase 4 cerrada.** El flujo está completo: se arrastra una carpeta, se elige el destino, la cola muestra estado, ahorro y peso contra presupuesto archivo por archivo, y los resultados se descargan como ZIP o se escriben directo en una carpeta donde el navegador lo permite. Desplegado en https://achica.gfcode.dev
+**Terminado y en uso.** El flujo está completo: se arrastra una carpeta, se elige el destino, la cola muestra estado, ahorro y peso contra presupuesto archivo por archivo, y los resultados se descargan como ZIP o se escriben directo en una carpeta donde el navegador lo permite. Desplegado en https://achica.gfcode.dev
 
 ![La cola después de comprimir un lote, con el destino «Enviar por mensajería»](docs/captura.png)
 
@@ -64,10 +68,36 @@ npm run build      # build estático a dist/
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
 npm run test       # vitest
+npm run smoke      # el build de producción, de punta a punta, en los dos navegadores
 npm run bench      # 200 imágenes por la cola real, midiendo memoria
 npm run screenshot # regenera las capturas del README
-npm run verify:download # descarga el ZIP en Chromium y en Firefox y lo revisa
+npm run gif        # regenera la animación del README
 ```
+
+`npm run smoke` necesita `npm run build` antes: corre contra `dist/`, servido con las mismas cabeceras que manda el host, para que un problema de cabeceras o de empaquetado falle acá y no después de desplegar.
+
+## Decisiones de arquitectura
+
+Las 43 decisiones, con su contexto y su consecuencia, están en [`docs/decisiones.md`](docs/decisiones.md). Las que más forma le dan al proyecto:
+
+- **`core/` no importa React ni toca el DOM**, y no es una convención: ESLint lo verifica y CI falla si alguien la rompe. Hay un test que protege esa verificación, para que aflojar la regla también falle.
+- **Cancelar es terminar el worker.** El `AbortController` que pedía el spec no puede cruzar al worker — `AbortSignal` no es clonable por estructura, comprobado con `DataCloneError` en Chromium — y una codificación WASM es síncrona, así que ninguna bandera cooperativa la interrumpe. El pool es dueño del ciclo de vida de los workers por eso.
+- **La memoria está acotada por la concurrencia, no por el largo de la cola.** Unos 240 MiB por worker, medidos. Los resultados viven como `Blob`, que el navegador puede respaldar en disco, y nunca como arreglos tipados.
+- **Un presupuesto que el archivo ya cumple no es un objetivo.** Si ya entra, se codifica una vez con la calidad del perfil en lugar de buscar contra su propio tamaño y devolver un 1 % de ahorro.
+- **Un perfil de trámite sin fuente no compila.** La regla más importante del producto es un tipo, no un comentario.
+- **Las tres señales de color están medidas** contra simulación de daltonismo: ninguna combinación baja de ΔE 21,8, y verde/ámbar/rojo se descartó con el número que lo condena.
+
+## Limitaciones conocidas
+
+Escritas acá porque descubrirlas usando la herramienta es peor que leerlas antes.
+
+- **HEIC no entra en esta versión.** Las fotos de iPhone se detectan y se rechazan con un mensaje que dice qué hacer, en lugar de fallar de forma rara. Las dos librerías disponibles son LGPL-3.0 y chocan con el eje MIT del producto.
+- **Los metadatos siempre se eliminan.** Los códecs de este stack no escriben metadatos, así que `stripMetadata: false` no es entregable. La orientación EXIF ya está aplicada a los píxeles antes de codificar, así que no se pierde nada visible.
+- **La lista de trámites sale vacía.** Es la respuesta honesta hasta que cada requisito se verifique contra su fuente oficial. La interfaz lo dice en lugar de esconder el grupo.
+- **El ZIP se arma entero antes de entregarse.** En un lote grande hay una segunda copia de todo lo comprimido, respaldada en disco por el navegador. Guardar en una carpeta escribe archivo por archivo y no acumula: es el camino que conviene con cientos de fotos, y por eso sigue estando.
+- **Guardar en una carpeta solo existe en Chromium.** Firefox y Safari no tienen File System Access API; ahí el ZIP es el único camino, y funciona.
+- **El caso de 300 fotos de 12 MP no está verificado de forma automática.** El banco usa una foto de 2 MP. Lo que escala con los megapíxeles es el costo por worker, no el de la cola, pero eso es un razonamiento y no una medición.
+- **El pico de memoria es alto.** Con cuatro workers, unos 950 MiB sobre la línea base. Está acotado y no crece con el lote, pero una máquina con poca RAM va a sentirlo. La concurrencia baja sola en máquinas con menos núcleos.
 
 ## Licencia
 

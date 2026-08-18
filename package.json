@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "bench": "node scripts/bench.mjs",
     "screenshot": "node scripts/screenshot.mjs",
-    "verify:download": "node scripts/verify-download.mjs",
+    "gif": "node scripts/make-gif.mjs",
+    "smoke": "node scripts/smoke.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -30,6 +31,7 @@
     "@vitest/browser-playwright": "^4.1.10",
     "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.1.8",
+    "gifenc": "^1.0.3",
     "globals": "^17.11.0",
     "playwright": "^1.62.1",
     "prettier": "^3.9.6",

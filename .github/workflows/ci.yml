@@ -39,3 +39,10 @@ jobs:
       - run: npm run format:check
       - run: npm run test
       - run: npm run build
+
+      # The product, against the build that ships, in both browsers it targets.
+      # It is the only place the central promise is really checked: Playwright
+      # sees every request the page makes, which is what "no byte leaves your
+      # device" always needed and Resource Timing could never give.
+      - name: Smoke test the production build
+        run: npm run smoke

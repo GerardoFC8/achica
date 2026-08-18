@@ -28,19 +28,14 @@ npm run lint
 
 ## Estado actual
 
-Fase: 5 — presentación y cierre
+Fase: 5 — presentación y cierre (en curso)
 
-Fase 4 cerrada: los dos caminos de salida, con los nombres decididos una sola vez fuera de ambos. 299 tests en verde en cuatro proyectos de Vitest (node, chromium, firefox). El ZIP es la acción por defecto y la carpeta queda al lado (D43).
+Hecho: test de humo con Playwright en CI (`npm run smoke`), README final con GIF, decisiones de arquitectura y limitaciones conocidas.
 
-Cómo quedó verificada la aceptación, que pedía los dos caminos en Chromium y en Firefox:
+Falta: desplegar el build de producción a https://achica.gfcode.dev y verificar las cabeceras contra el host en vivo. El despliegue es manual con `npx wrangler deploy` y necesita las credenciales de Cloudflare del usuario.
 
-- **ZIP**: `npm run verify:download` maneja la app real en los dos navegadores, dispara la descarga y comprueba el archivo que cae en disco — cabecera local, fin de directorio central, una entrada por archivo. Idéntico byte a byte en ambos.
-- **Carpeta**: verificada a mano en Chromium. Ningún test puede abrir `showDirectoryPicker`: exige gesto del usuario y un diálogo nativo. Los casos difíciles —cerrar el diálogo, permiso que se cae a mitad del lote— están cubiertos con dobles en `src/output/save.browser-test.ts`.
-- Firefox corre acotado a `src/output/**` (D42): es donde el ZIP es el único camino.
+Lo que dejó escrito la Fase 5:
 
-Lo que dejó escrito la Fase 4:
-
-- Los nombres se deciden en `src/output/names.ts`, fuera de los dos caminos (D41). `jpeg` se escribe `.jpg`. El choque que importa lo creamos nosotros al convertir `foto.jpg` y `foto.png` al mismo formato.
-- Las funciones de guardado reciben su borde de plataforma como argumento. Es lo único que las vuelve testeables.
-
-Siguiente criterio de aceptación: un desconocido entra al link, arrastra una carpeta y obtiene resultados sin leer nada. Incluye README final con GIF, cabeceras verificadas en el host, y test de humo con Playwright en CI — que es donde corresponde llevar `verify:download` y la auditoría de red que la Fase 0 dejó en `src/smoke/`.
+- El test de humo corre contra `dist/` servido con las cabeceras del host, en Chromium y en Firefox. Verifica el aislamiento cross-origin, el flujo completo, el ZIP que cae en disco, y **que ninguna petición salga del origen** — que es la promesa central del producto y hasta ahora solo se medía desde dentro de la página, donde Resource Timing es un piso.
+- `scripts/make-gif.mjs` decodifica sus propios cuadros dentro del navegador que los sacó, porque Node no trae decodificador de PNG y agregar uno para leer capturas propias sería una dependencia de más. `gifenc` es CommonJS: los exports nombrados salen del default.
+- La auditoría de red de la Fase 0 (`src/smoke/network-audit.ts`) sigue con sus tests pero ya no se sirve en la página; el test de humo la reemplazó con un instrumento mejor.
