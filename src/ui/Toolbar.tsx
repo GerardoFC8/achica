@@ -11,20 +11,27 @@ type Props = {
   readonly profile: Profile
   readonly formatters: Formatters
   readonly pending: number
+  readonly done: number
   readonly running: boolean
+  /** True where the browser can write into a folder; a ZIP everywhere else. */
+  readonly toFolder: boolean
   readonly onSelectProfile: (profile: Profile) => void
   readonly onStart: () => void
   readonly onCancelAll: () => void
+  readonly onSave: () => void
 }
 
 export function Toolbar({
   profile,
   formatters,
   pending,
+  done,
   running,
+  toFolder,
   onSelectProfile,
   onStart,
   onCancelAll,
+  onSave,
 }: Props) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-rule px-4">
@@ -35,6 +42,18 @@ export function Toolbar({
       <div className="flex-1" />
 
       {/* The button says what happens, and the result uses the same word. */}
+      {done > 0 && !running ? (
+        <button
+          type="button"
+          onClick={onSave}
+          className="flex h-8 items-center gap-2 rounded-sm bg-fits px-3.5 text-[13px] leading-4 font-medium text-paper hover:brightness-110 coarse:h-11"
+        >
+          {toFolder
+            ? `Guardar ${formatters.count(done)} ${done === 1 ? 'imagen' : 'imágenes'}`
+            : `Descargar ${formatters.count(done)} en un ZIP`}
+        </button>
+      ) : null}
+
       {running ? (
         <button
           type="button"

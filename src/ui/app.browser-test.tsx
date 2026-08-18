@@ -71,6 +71,22 @@ describe('the queue', () => {
     }
   })
 
+  it('offers to save only once there is something to save', { timeout: 40_000 }, async () => {
+    render(<App />)
+    queueStore.getState().add([await fixture('Landscape_6.jpg')])
+
+    // Nothing to save yet: a save button on an empty result is a dead end.
+    await expect.element(page.getByRole('button', { name: /Guardar|ZIP/ })).not.toBeInTheDocument()
+
+    await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
+    await expect.element(page.getByText(/imagen comprimida/), { timeout: 30_000 }).toBeVisible()
+
+    // The label says which road this browser takes. It is not clicked here:
+    // the folder picker needs a user gesture and a real dialog, which is why
+    // both paths are tested against fakes in src/output.
+    await expect.element(page.getByRole('button', { name: /Guardar 1 imagen|ZIP/ })).toBeVisible()
+  })
+
   it('blames the file that failed and finishes the rest', { timeout: 40_000 }, async () => {
     render(<App />)
     queueStore.getState().add([await fixture('xd0n2c08.png'), await fixture('Landscape_6.jpg')])

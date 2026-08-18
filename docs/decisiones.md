@@ -250,3 +250,15 @@ Peor con imágenes chicas: para un PNG de 32×32 el techo efectivo pasaba a ser 
 **Consecuencia.** Cuando `bytesBefore <= maxBytes`, el objetivo deja de ser el presupuesto y pasa a ser la calidad del perfil —que es para lo que el usuario eligió un destino—: una sola codificación, sin búsqueda. Si esa codificación se pasa del presupuesto, cosa posible al convertir a un formato más pesado, recién ahí entra la búsqueda. El techo de la búsqueda vuelve a ser `maxBytes` a secas: el tope contra el tamaño de origen solo se activaba en el caso que ahora se atiende aparte.
 
 La interfaz refleja la misma regla: **la marca del presupuesto no se dibuja cuando el presupuesto nunca limitó a ese archivo**. Fijarla al borde derecho invitaba a leer «entró justo» en una fila donde el límite jamás estuvo en juego. Verificado con dos corridas que comparan calidad 40 contra calidad 90, porque una calidad reportada no prueba nada por sí sola y un umbral de tamaño solo habría descrito el contenido de ese fixture.
+
+## D41 — Los nombres de salida se deciden una vez, fuera de los dos caminos
+
+**Contexto.** Guardar en una carpeta y armar un ZIP son dos APIs distintas, y cada una podría resolver los nombres por su cuenta. Un choque de nombres cuesta un archivo en las dos: en una carpeta se sobrescribe en silencio, y dentro de un ZIP quedan dos entradas iguales que unas herramientas rechazan y otras descartan sin avisar.
+
+**Consecuencia.** `src/output/names.ts` decide para ambos, sin nada de navegador adentro: extensión según el formato que realmente salió —`jpeg` se escribe `.jpg`, que es lo que espera el sistema operativo— y sufijo `-2`, `-3` antes de la extensión cuando hay repetidos, comparando sin distinguir mayúsculas porque Windows y macOS tampoco distinguen. El caso que importa no es el exótico: convertir `foto.jpg` y `foto.png` a WebP crea un choque que **no existía hasta que nosotros convertimos**. El contador sigue de largo si el usuario ya traía un `foto-2`.
+
+## D42 — Firefox entra a la suite, acotado a la capa de salida
+
+**Contexto.** La aceptación de la Fase 4 pide los dos caminos verificados en Chromium y en Firefox. Hasta ahora el proyecto `browser` de Vitest solo corría Chromium — o sea que el navegador donde el respaldo a ZIP deja de ser un premio consuelo y pasa a ser el único camino no se ejecutaba nunca.
+
+**Consecuencia.** Un tercer proyecto de Vitest corre Firefox sobre `src/output/**` y nada más. Acotado a propósito: lo que la fase tiene que probar es que los dos caminos de guardado funcionan en los dos navegadores, y repetir la suite de códecs completa cuesta minutos de CI sin responder ninguna pregunta nueva. El test de detección de soporte quedó escrito para pasar en los dos: afirma que la respuesta coincide con la realidad del navegador, no una constante. Correr toda la interfaz en Firefox queda para el test de humo de la Fase 5.

@@ -66,6 +66,29 @@ export default defineConfig({
         },
       },
       {
+        /*
+         * Firefox, scoped to the output layer.
+         *
+         * It is where the ZIP fallback stops being a consolation prize and
+         * becomes the only road: Firefox has no File System Access API, so a
+         * suite that only ever runs in Chromium never exercises the path most
+         * of the world takes. Scoped rather than a second full run because
+         * what phase 4 has to prove is that both save paths work in both
+         * browsers, and the codec suite costs minutes.
+         */
+        extends: true,
+        test: {
+          name: 'firefox',
+          include: ['src/output/**/*.browser-test.ts'],
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            instances: [{ browser: 'firefox' }],
+          },
+        },
+      },
+      {
         extends: true,
         test: {
           name: 'browser',

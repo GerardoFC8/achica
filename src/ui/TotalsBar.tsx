@@ -17,6 +17,8 @@ type Props = {
   readonly queued: number
   readonly bytesQueued: number
   readonly formatters: Formatters
+  /** What the last save did. Empty most of the time, and that is the point. */
+  readonly flash: string
   readonly onClear: () => void
 }
 
@@ -33,7 +35,15 @@ const SEGMENTS = [
   { key: 'cancelled', label: 'cancelados', fill: 'var(--color-ink-soft)', text: 'text-ink-soft' },
 ] as const
 
-export function TotalsBar({ totals, counts, queued, bytesQueued, formatters, onClear }: Props) {
+export function TotalsBar({
+  totals,
+  counts,
+  queued,
+  bytesQueued,
+  formatters,
+  flash,
+  onClear,
+}: Props) {
   const present = SEGMENTS.filter((segment) => counts[segment.key] > 0)
   const finished = totals.done > 0
 
@@ -89,6 +99,12 @@ export function TotalsBar({ totals, counts, queued, bytesQueued, formatters, onC
             </li>
           ))}
         </ul>
+
+        {flash === '' ? null : (
+          <p role="status" className="text-xs leading-4 whitespace-nowrap text-fits">
+            {flash}
+          </p>
+        )}
 
         <button
           type="button"

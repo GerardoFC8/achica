@@ -16,6 +16,7 @@ type Props = {
   readonly onToggleDetail: () => void
   readonly onCancel: () => void
   readonly onCompare: () => void
+  readonly onSave: () => void
 }
 
 /** Says the bar out loud, for anyone not reading pixels. */
@@ -41,6 +42,7 @@ export function QueueRow({
   onToggleDetail,
   onCancel,
   onCompare,
+  onSave,
 }: Props) {
   const saved = savedRatio(item)
   const tone = TEXT_TONE[kind]
@@ -134,13 +136,23 @@ export function QueueRow({
             </button>
           ) : null}
           {item.status === 'done' ? (
-            <button
-              type="button"
-              onClick={onCompare}
-              className="h-11 rounded-sm border border-rule px-3 text-[13px] hover:border-ink-soft md:h-5 md:px-2 md:text-xs"
-            >
-              Comparar
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onCompare}
+                className="h-11 rounded-sm border border-rule px-3 text-[13px] hover:border-ink-soft md:h-5 md:px-2 md:text-xs"
+              >
+                Comparar
+              </button>
+              <button
+                type="button"
+                onClick={onSave}
+                title={`Descargar ${item.name}`}
+                className="h-11 rounded-sm border border-rule px-3 text-[13px] text-fits hover:bg-fits hover:text-paper md:h-5 md:px-2 md:text-xs"
+              >
+                Descargar
+              </button>
+            </>
           ) : null}
         </div>
       </div>

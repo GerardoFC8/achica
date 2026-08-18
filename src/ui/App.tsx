@@ -17,6 +17,7 @@ import { QueueTable } from './QueueTable'
 import { Toolbar } from './Toolbar'
 import { TotalsBar } from './TotalsBar'
 import { useFormatters } from './useFormatters'
+import { useSave } from './useSave'
 
 /**
  * The whole interface, and the only place that holds view state.
@@ -35,6 +36,7 @@ const toggle = (set: ReadonlySet<string>, id: string): Set<string> => {
 export function App() {
   const formatters = useFormatters()
   const items = useQueue((state) => state.items)
+  const save = useSave(formatters)
 
   const [profile, setProfile] = useState<Profile>(() => PERFILES[0] as Profile)
   const [filter, setFilter] = useState<FilterId>('todos')
@@ -54,6 +56,7 @@ export function App() {
 
   const running = items.some((item) => item.status === 'running')
   const pending = items.filter((item) => item.status === 'pending').length
+  const done = items.filter((item) => item.status === 'done').length
   const compared = items.find((item) => item.id === comparing)
 
   const sortBy = (key: SortKey): void => {
@@ -65,6 +68,8 @@ export function App() {
   }
 
   const selectedIds = [...selected].filter((id) => items.some((item) => item.id === id))
+  const selectedItems = items.filter((item) => selected.has(item.id))
+  const selectedDone = selectedItems.filter((item) => item.status === 'done').length
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-paper text-ink">
@@ -72,10 +77,13 @@ export function App() {
         profile={profile}
         formatters={formatters}
         pending={pending}
+        done={done}
         running={running}
+        toFolder={save.toFolder}
         onSelectProfile={setProfile}
         onStart={() => queueActions.start(toOutputPlan(profile))}
         onCancelAll={queueActions.cancelAll}
+        onSave={() => void save.saveAll(items)}
       />
 
       <main className="flex min-h-0 flex-1 flex-col">
@@ -88,7 +96,9 @@ export function App() {
               active={filter}
               formatters={formatters}
               selectedCount={selectedIds.length}
+              selectedDone={selectedDone}
               onFilter={setFilter}
+              onSave={() => void save.saveAll(selectedItems)}
               onRecompress={() => queueActions.requeue(selectedIds, toOutputPlan(profile))}
               onRemove={() => {
                 queueActions.remove(selectedIds)
@@ -120,6 +130,10 @@ export function App() {
               }
               onCancel={queueActions.cancel}
               onCompare={setComparing}
+              onSave={(id) => {
+                const item = items.find((candidate) => candidate.id === id)
+                if (item !== undefined) save.saveRow(item)
+              }}
             />
           </>
         )}
@@ -132,6 +146,7 @@ export function App() {
           queued={items.length}
           bytesQueued={items.reduce((sum, item) => sum + item.bytesBefore, 0)}
           formatters={formatters}
+          flash={save.flash}
           onClear={() => {
             queueActions.clear()
             setSelected(new Set())

@@ -24,9 +24,11 @@ type Props = {
   readonly active: FilterId
   readonly formatters: Formatters
   readonly selectedCount: number
+  readonly selectedDone: number
   readonly onFilter: (filter: FilterId) => void
   readonly onRecompress: () => void
   readonly onRemove: () => void
+  readonly onSave: () => void
 }
 
 export function FilterBar({
@@ -34,9 +36,11 @@ export function FilterBar({
   active,
   formatters,
   selectedCount,
+  selectedDone,
   onFilter,
   onRecompress,
   onRemove,
+  onSave,
 }: Props) {
   return (
     <div className="flex min-h-9 flex-wrap items-center gap-x-1 gap-y-1.5 border-b border-rule px-4 py-1.5">
@@ -76,6 +80,15 @@ export function FilterBar({
           >
             Recomprimir
           </button>
+          {selectedDone > 0 ? (
+            <button
+              type="button"
+              onClick={onSave}
+              className="h-6 rounded-sm bg-fits px-2 text-xs whitespace-nowrap text-paper coarse:h-11"
+            >
+              Guardar {formatters.count(selectedDone)}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onRemove}

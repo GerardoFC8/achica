@@ -27,10 +27,12 @@ jobs:
 
       - run: npm ci
 
-      # The browser Vitest project runs the codec tests in real Chromium,
-      # because @jsquash decodes to ImageData and Node has no ImageData.
-      - name: Install Chromium for the browser test project
-        run: npx playwright install --with-deps chromium
+      # Chromium runs the codec tests, because @jsquash decodes to ImageData
+      # and Node has no ImageData. Firefox runs the output tests: it has no
+      # File System Access API, so it is the browser where the ZIP fallback is
+      # the only road out and the one place that path is really proven.
+      - name: Install the browsers the test projects need
+        run: npx playwright install --with-deps chromium firefox
 
       - run: npm run typecheck
       - run: npm run lint

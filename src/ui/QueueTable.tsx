@@ -17,6 +17,7 @@ type Props = {
   readonly onToggleAll: () => void
   readonly onCancel: (id: string) => void
   readonly onCompare: (id: string) => void
+  readonly onSave: (id: string) => void
 }
 
 const COLUMNS: readonly { readonly key: SortKey; readonly label: string; readonly cell: string }[] =
@@ -42,6 +43,7 @@ export function QueueTable({
   onToggleAll,
   onCancel,
   onCompare,
+  onSave,
 }: Props) {
   const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.item.id))
 
@@ -101,6 +103,7 @@ export function QueueTable({
             onToggleDetail={() => onToggleDetail(row.item.id)}
             onCancel={() => onCancel(row.item.id)}
             onCompare={() => onCompare(row.item.id)}
+            onSave={() => onSave(row.item.id)}
           />
         ))}
       </div>
