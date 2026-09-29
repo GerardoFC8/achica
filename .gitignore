@@ -26,3 +26,6 @@ blob-report/
 
 # Vitest browser failure screenshots
 **/__screenshots__/
+
+# Vitest browser attachments (failure screenshots, traces)
+.vitest-attachments/
