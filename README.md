@@ -76,6 +76,7 @@ npm run smoke      # el build de producción, de punta a punta, en los dos naveg
 npm run bench      # 200 imágenes por la cola real, midiendo memoria
 npm run screenshot # regenera las capturas del README
 npm run gif        # regenera la animación del README
+npm run og         # regenera la imagen de vista previa y el ícono de iOS
 ```
 
 `npm run smoke` necesita `npm run build` antes: corre contra `dist/`, servido con las mismas cabeceras que manda el host, para que un problema de cabeceras o de empaquetado falle acá y no después de desplegar. Pasándole una URL comprueba un despliegue en vivo: `node scripts/smoke.mjs https://achica.gfcode.dev`.

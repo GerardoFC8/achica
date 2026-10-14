@@ -42,7 +42,14 @@ describe('the empty screen', () => {
   it('is the work surface, not a landing page', async () => {
     render(<App />)
 
-    await expect.element(page.getByText('Arrastra tus imágenes aquí')).toBeVisible()
+    await expect
+      .element(
+        page.getByRole('heading', {
+          level: 1,
+          name: 'Arrastra aquí las imágenes que quieres comprimir',
+        }),
+      )
+      .toBeVisible()
     await expect.element(page.getByText('Nada sale de tu dispositivo')).toBeVisible()
   })
 })

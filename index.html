@@ -3,14 +3,69 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>achica</title>
+    <title>Comprimir imágenes por lote, sin subirlas | achica</title>
     <meta
       name="description"
-      content="Comprime muchas imágenes a la vez en tu navegador. Sin backend, sin cuentas, sin límite de archivos."
+      content="Comprime muchas imágenes a la vez en tu navegador, sin subirlas a ningún servidor. Sin cuentas, sin límite de archivos, gratis y de código abierto."
     />
+    <link rel="canonical" href="https://achica.gfcode.dev/" />
+    <meta name="theme-color" content="#f2f1ec" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!--
+      Read by the link previews of WhatsApp, X, LinkedIn and Slack, none of
+      which run JavaScript. Absolute URLs because a crawler resolves nothing.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="achica" />
+    <meta property="og:locale" content="es_ES" />
+    <meta property="og:url" content="https://achica.gfcode.dev/" />
+    <meta property="og:title" content="achica: comprime muchas imágenes a la vez, sin subirlas" />
+    <meta
+      property="og:description"
+      content="En tu navegador, sin cuentas y sin límite de archivos. Ningún byte de tus imágenes sale de tu dispositivo."
+    />
+    <meta property="og:image" content="https://achica.gfcode.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="achica, compresor de imágenes por lote: tres barras de peso sobre papel claro"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "achica",
+        "url": "https://achica.gfcode.dev/",
+        "description": "Compresor de imágenes por lote que corre entero en el navegador. Sin backend, sin cuentas y sin límite de archivos.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Cualquiera con un navegador actual",
+        "browserRequirements": "Requiere JavaScript y WebAssembly",
+        "inLanguage": "es",
+        "isAccessibleForFree": true,
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+          "Compresión por lote sin límite de archivos",
+          "JPEG, PNG, WebP y AVIF",
+          "Perfiles por destino: web, correo, mensajería y miniatura",
+          "Descarga en ZIP o directo a una carpeta",
+          "Ninguna imagen sale del dispositivo"
+        ]
+      }
+    </script>
   </head>
   <body>
-    <main id="app"></main>
+    <!--
+      Empty in the source. The build fills it with the first screen rendered
+      ahead of time (scripts/prerender.mjs), so the page reads the same before
+      and after the script runs, and to readers that never run it.
+    -->
+    <div id="app"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

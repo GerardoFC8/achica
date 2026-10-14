@@ -18,6 +18,10 @@
  * kept as PNG is packed by oxipng (D50). Running only the default would ship
  * the second path without it ever touching the build (D51).
  *
+ * Before any browser, the page is read from Node with no JavaScript at all:
+ * that is what a crawler or a link preview gets, and it has to carry the
+ * title, the first screen and the preview image on its own (D52).
+ *
  * The folder save is not here and cannot be: showDirectoryPicker needs a user
  * gesture and opens a native dialog no automation can drive. It is covered by
  * fakes in src/output/save.browser-test.ts and verified by hand.
@@ -126,7 +130,9 @@ async function runBatch(browser, batch, downloads) {
     await page.goto(base)
     check(
       'the work surface is the first screen',
-      await page.getByText('Arrastra tus imágenes aquí').isVisible(),
+      await page
+        .getByRole('heading', { level: 1, name: /imágenes que quieres comprimir/ })
+        .isVisible(),
     )
 
     const isolated = await page.evaluate(() => globalThis.crossOriginIsolated)
@@ -207,7 +213,61 @@ async function runBatch(browser, batch, downloads) {
   }
 }
 
+/**
+ * What a reader that never runs JavaScript gets: a crawler, or the bot behind
+ * a link preview. Fetched from Node and not from a browser on purpose, because
+ * a browser would run the script and hide an empty page behind the live one.
+ */
+async function runDiscoverability() {
+  console.log('\nwithout JavaScript: what crawlers and link previews read')
+
+  const response = await fetch(base)
+  const html = await response.text()
+  // Attribute by attribute, because a formatter is free to break a tag across
+  // lines and to put its attributes in any order.
+  const meta = (attribute, name) =>
+    [...html.matchAll(/<meta\s([^>]*)>/g)]
+      .map(([, attributes]) => attributes)
+      .find((attributes) => attributes.includes(`${attribute}="${name}"`))
+      ?.match(/content="([^"]*)"/)?.[1]
+
+  check('the page answers', response.ok, `${response.status}`)
+  check('the title names the task', /<title>[^<]*[Cc]omprimir[^<]*<\/title>/.test(html))
+  check('there is a description', (meta('name', 'description') ?? '').length > 50)
+  check(
+    'the first screen is in the HTML, not only in the script',
+    /<h1[^>]*>[^<]*comprimir[^<]*<\/h1>/.test(html),
+  )
+
+  const jsonLd = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)?.[1]
+  let parsed = null
+  try {
+    parsed = JSON.parse(jsonLd ?? '')
+  } catch {
+    // Reported by the check below.
+  }
+  check('the structured data parses', parsed?.['@type'] === 'WebApplication')
+
+  // The preview image is an absolute URL to the live host, so it is checked
+  // by its path against the origin under test.
+  const image = meta('property', 'og:image')
+  check('there is a preview image', image !== undefined)
+
+  for (const path of [
+    image === undefined ? '/og.png' : new URL(image).pathname,
+    '/favicon.svg',
+    '/apple-touch-icon.png',
+    '/robots.txt',
+    '/sitemap.xml',
+  ]) {
+    const asset = await fetch(new URL(path, base))
+    check(`${path} is served`, asset.ok, `${asset.status}`)
+  }
+}
+
 try {
+  await runDiscoverability()
+
   for (const [name, engine] of [
     ['chromium', chromium],
     ['firefox', firefox],
