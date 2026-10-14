@@ -36,7 +36,13 @@ export function DropZone({ onFiles }: Props) {
           over ? 'border-ink bg-raised' : 'border-rule'
         }`}
       >
-        <p className="text-[15px] leading-5 font-semibold">Arrastra tus imágenes aquí</p>
+        {/*
+          The page's one heading. It names the task in the words people search
+          with, and it is still the invitation the empty screen has to be.
+        */}
+        <h1 className="text-[15px] leading-5 font-semibold">
+          Arrastra aquí las imágenes que quieres comprimir
+        </h1>
         <button
           type="button"
           onClick={() => input.current?.click()}

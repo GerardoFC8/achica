@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The weight bar, the one distinctive element: a track, what the file weighs now, and the budget mark. -->
+  <rect width="32" height="32" rx="2" fill="#f2f1ec"/>
+  <rect x="4" y="11" width="24" height="10" fill="#d8d7d3"/>
+  <rect x="4" y="11" width="14" height="10" fill="#0d5c52"/>
+  <rect x="22" y="6" width="2.5" height="20" fill="#16181a"/>
+</svg>
