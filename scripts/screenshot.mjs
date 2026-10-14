@@ -4,7 +4,7 @@
  *
  * It drives the real interface on a throwaway dev server, with real files from
  * the fixture corpus and real codecs — the figures in the image are measured,
- * not mocked up. The destination is the one with a weight budget, because the
+ * not mocked up. The batch runs under a weight ceiling (D53), because the
  * budget mark is what the weight bar is for and a capture without it would
  * show the least interesting half of the design.
  *
@@ -53,6 +53,10 @@ try {
     await page.goto(base)
     await page.getByRole('button', { name: /Destino/ }).click()
     await page.getByRole('button', { name: /Enviar por mensajería/ }).click()
+    // The ceiling is what draws the budget mark on the bars (D53).
+    await page.getByRole('button', { name: /Destino/ }).click()
+    await page.getByRole('button', { name: '200 KB', exact: true }).click()
+    await page.keyboard.press('Escape')
     await page.setInputFiles('input[type=file]', FILES)
     await page.getByRole('button', { name: /Comprimir/ }).click()
     // Not "N imágenes comprimidas": that total is true as soon as the third
