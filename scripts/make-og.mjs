@@ -1,6 +1,7 @@
 /**
- * The images other sites show for achica: the link preview (public/og.png,
- * 1200x630, what WhatsApp, X, LinkedIn and Slack put under a shared link) and
+ * The images other sites show for achica: the link previews (public/og.png
+ * and public/og-en.png, 1200x630, what WhatsApp, X, LinkedIn and Slack put
+ * under a shared link, one per page language) and
  * the home-screen icon iOS asks for (public/apple-touch-icon.png).
  *
  * Drawn as HTML in Playwright with the app's own fonts and tokens, so they are
@@ -55,7 +56,21 @@ const bar = (fill, colour, mark) => `
     }
   </div>`
 
-const PREVIEW = `
+/** One preview per page language (D54): og.png for /, og-en.png for /en/. */
+const PREVIEWS = [
+  {
+    out: 'og.png',
+    headline: 'Comprime muchas imágenes a&nbsp;la vez, sin subirlas.',
+    line: 'En tu navegador. Sin cuentas, sin límite de archivos, de código abierto.',
+  },
+  {
+    out: 'og-en.png',
+    headline: 'Compress many images at once, without uploading them.',
+    line: 'In your browser. No account, no file limit, open source.',
+  },
+]
+
+const preview = ({ headline, line }) => `
   <style>${BASE_STYLE}</style>
   <div style="width: 1200px; height: 630px; padding: 64px 72px; display: flex; flex-direction: column;">
     <div style="display: flex; justify-content: space-between; align-items: baseline;">
@@ -64,10 +79,10 @@ const PREVIEW = `
     </div>
 
     <p style="margin-top: 64px; max-width: 980px; font-size: 68px; line-height: 1.06; font-weight: 600; letter-spacing: -0.025em;">
-      Comprime muchas imágenes a&nbsp;la vez, sin subirlas.
+      ${headline}
     </p>
     <p style="margin-top: 24px; font-size: 28px; line-height: 1.3; color: ${INK_SOFT};">
-      En tu navegador. Sin cuentas, sin límite de archivos, de código abierto.
+      ${line}
     </p>
 
     <div style="margin-top: auto; display: grid; gap: 22px;">
@@ -89,7 +104,7 @@ try {
   const page = await browser.newPage({ deviceScaleFactor: 1 })
 
   for (const { html, width, height, out } of [
-    { html: PREVIEW, width: 1200, height: 630, out: 'og.png' },
+    ...PREVIEWS.map((text) => ({ html: preview(text), width: 1200, height: 630, out: text.out })),
     { html: ICON, width: 180, height: 180, out: 'apple-touch-icon.png' },
   ]) {
     await page.setViewportSize({ width, height })

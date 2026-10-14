@@ -1,5 +1,6 @@
 import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
+import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
 import { rowDetails, rowNote, savedRatio, weightBar, type RowKind } from './row-model'
 import { STRIPE_TONE, TEXT_TONE } from './tone'
@@ -20,15 +21,19 @@ type Props = {
 }
 
 /** Says the bar out loud, for anyone not reading pixels. */
-function describeBar(item: QueueItem, profile: Profile, formatters: Formatters): string {
-  if (item.status !== 'done') return rowNote(item, formatters)
+function describeBar(
+  item: QueueItem,
+  profile: Profile,
+  formatters: Formatters,
+  copy: Copy,
+): string {
+  if (item.status !== 'done') return rowNote(item, formatters, copy)
 
-  const weight = formatters.bytes(item.outcome.bytesAfter)
-  const from = formatters.bytes(item.bytesBefore)
-
-  return profile.maxBytes === undefined
-    ? `${from} quedó en ${weight}, sin presupuesto`
-    : `${from} quedó en ${weight}, con un presupuesto de ${formatters.bytes(profile.maxBytes)}`
+  return copy.row.bar(
+    formatters.bytes(item.bytesBefore),
+    formatters.bytes(item.outcome.bytesAfter),
+    profile.maxBytes === undefined ? null : formatters.bytes(profile.maxBytes),
+  )
 }
 
 export function QueueRow({
@@ -47,7 +52,9 @@ export function QueueRow({
   const saved = savedRatio(item)
   const tone = TEXT_TONE[kind]
   const running = item.status === 'pending' || item.status === 'running'
-  const details = expanded ? rowDetails(item, profile, formatters) : []
+  const copy = useCopy()
+  const note = rowNote(item, formatters, copy)
+  const details = expanded ? rowDetails(item, profile, formatters, copy) : []
 
   const after = item.status === 'done' ? formatters.bytes(item.outcome.bytesAfter) : '—'
   const savedText = saved === null ? '' : formatters.percent(saved)
@@ -67,7 +74,7 @@ export function QueueRow({
             type="checkbox"
             checked={selected}
             onChange={onToggleSelect}
-            aria-label={`Seleccionar ${item.name}`}
+            aria-label={copy.row.select(item.name)}
             className="size-5 accent-ink coarse:size-6 md:size-4"
           />
         </div>
@@ -82,12 +89,12 @@ export function QueueRow({
             {item.name}
           </button>
           <span
-            title={rowNote(item, formatters)}
+            title={note}
             className={`min-w-0 shrink truncate text-[13px] leading-4 md:text-xs ${
               item.status === 'failed' ? 'text-over' : 'text-ink-soft'
             }`}
           >
-            {rowNote(item, formatters)}
+            {note}
           </span>
           {/* Pushes nothing: keeps the note beside the name instead of letting
               it drift to the far edge of a wide column. */}
@@ -118,7 +125,7 @@ export function QueueRow({
           <WeightBar
             bar={weightBar(item, profile)}
             kind={kind}
-            description={describeBar(item, profile, formatters)}
+            description={describeBar(item, profile, formatters, copy)}
           />
         </div>
 
@@ -133,7 +140,7 @@ export function QueueRow({
               onClick={onCancel}
               className="h-11 rounded-sm border border-rule px-3 text-[13px] text-ink-soft hover:border-ink-soft hover:text-ink md:h-5 md:border-0 md:px-0 md:text-xs"
             >
-              Cancelar
+              {copy.row.cancel}
             </button>
           ) : null}
           {item.status === 'done' ? (
@@ -143,15 +150,15 @@ export function QueueRow({
                 onClick={onCompare}
                 className="h-11 rounded-sm border border-rule px-3 text-[13px] hover:border-ink-soft md:h-5 md:px-2 md:text-xs"
               >
-                Comparar
+                {copy.row.compare}
               </button>
               <button
                 type="button"
                 onClick={onSave}
-                title={`Descargar ${item.name}`}
+                title={copy.row.downloadTitle(item.name)}
                 className="h-11 rounded-sm border border-rule px-3 text-[13px] text-fits hover:bg-fits hover:text-paper md:h-5 md:px-2 md:text-xs"
               >
-                Descargar
+                {copy.row.download}
               </button>
             </>
           ) : null}

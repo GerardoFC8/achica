@@ -7,6 +7,7 @@ import {
   type SaveOutcome,
 } from '../output/save'
 import type { QueueItem } from '../state/queue'
+import { useCopy } from './copy'
 import type { Formatters } from './format'
 import { saveList } from './save-list'
 
@@ -33,6 +34,7 @@ export type Save = {
 }
 
 export function useSave(formatters: Formatters): Save {
+  const { save } = useCopy()
   const [flash, setFlash] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -56,18 +58,18 @@ export function useSave(formatters: Formatters): Save {
       if (outcome.status === 'cancelled') return
 
       if (outcome.status === 'failed') {
-        announce(`No se pudo guardar: ${outcome.detail}`)
+        announce(save.failed(outcome.detail))
         return
       }
 
       announce(
         said(
-          `${formatters.count(outcome.files)} ${outcome.files === 1 ? 'imagen' : 'imágenes'}`,
+          save.images(outcome.files, formatters.count(outcome.files)),
           formatters.bytes(outcome.bytes),
         ),
       )
     },
-    [announce, formatters],
+    [announce, formatters, save],
   )
 
   const download = useCallback(
@@ -82,13 +84,13 @@ export function useSave(formatters: Formatters): Save {
        * which of the two is about to happen either way.
        */
       if (files.length === 1) {
-        report(saveOne(only), (count) => `${count} descargada`)
+        report(saveOne(only), (count) => save.downloadedOne(count))
         return
       }
 
-      report(await saveAsZip(files, ARCHIVE_NAME), (count, bytes) => `ZIP con ${count} · ${bytes}`)
+      report(await saveAsZip(files, ARCHIVE_NAME), save.zipped)
     },
-    [report],
+    [report, save],
   )
 
   const toFolder = useCallback(
@@ -96,12 +98,9 @@ export function useSave(formatters: Formatters): Save {
       const files = saveList(items)
       if (files.length === 0) return
 
-      report(
-        await saveToFolder(files),
-        (count, bytes) => `${count} en la carpeta que elegiste · ${bytes}`,
-      )
+      report(await saveToFolder(files), save.toFolder)
     },
-    [report],
+    [report, save],
   )
 
   const saveRow = useCallback(
@@ -112,11 +111,11 @@ export function useSave(formatters: Formatters): Save {
       const outcome = saveOne(file)
       announce(
         outcome.status === 'saved'
-          ? `${file.name} descargada`
-          : `No se pudo guardar: ${outcome.status === 'failed' ? outcome.detail : ''}`,
+          ? save.downloadedOne(file.name)
+          : save.failed(outcome.status === 'failed' ? outcome.detail : ''),
       )
     },
-    [announce],
+    [announce, save],
   )
 
   return { flash, canUseFolder: supportsFolderPicker(), download, toFolder, saveRow }

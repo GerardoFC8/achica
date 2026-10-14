@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
+import { useCopy } from './copy'
 import type { Formatters } from './format'
 import { rowKind } from './row-model'
 import { TEXT_TONE } from './tone'
@@ -27,6 +28,7 @@ type Props = {
 }
 
 export function Comparator({ item, profile, formatters, onClose }: Props) {
+  const copy = useCopy()
   const [split, setSplit] = useState(50)
   const [actualSize, setActualSize] = useState(false)
   const [urls, setUrls] = useState<{ before: string; after: string } | null>(null)
@@ -94,7 +96,7 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
       ref={dialog}
       role="dialog"
       aria-modal="true"
-      aria-label={`Comparar ${item.name}`}
+      aria-label={copy.compare.dialog(item.name)}
       tabIndex={-1}
       className="fixed inset-0 z-60 flex flex-col bg-paper"
     >
@@ -111,7 +113,7 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
               actualSize ? 'text-ink-soft' : 'bg-ink text-paper'
             }`}
           >
-            Ajustada
+            {copy.compare.fit}
           </button>
           <button
             type="button"
@@ -130,7 +132,7 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
           onClick={onClose}
           className="h-7 rounded-sm border border-rule px-2.5 text-[13px] hover:border-ink-soft coarse:h-11"
         >
-          Cerrar
+          {copy.compare.close}
         </button>
       </header>
 
@@ -162,7 +164,7 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
             >
               <img
                 src={urls.before}
-                alt={`${item.name}, original`}
+                alt={copy.compare.original(item.name)}
                 onLoad={(event) =>
                   setSource({
                     width: event.currentTarget.naturalWidth,
@@ -173,7 +175,7 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
               />
               <img
                 src={urls.after}
-                alt={`${item.name}, comprimida`}
+                alt={copy.compare.compressed(item.name)}
                 style={{ clipPath: `inset(0 0 0 ${split}%)` }}
                 className="absolute inset-0 size-full object-contain"
               />
@@ -185,11 +187,11 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
               <div
                 role="slider"
                 tabIndex={0}
-                aria-label="Cortina de comparación"
+                aria-label={copy.compare.curtain}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(split)}
-                aria-valuetext={`${Math.round(split)} % del ancho`}
+                aria-valuetext={copy.compare.curtainValue(Math.round(split))}
                 onKeyDown={nudge}
                 onPointerDown={(event) => {
                   event.currentTarget.setPointerCapture(event.pointerId)
@@ -214,21 +216,20 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
           )}
 
           <p className="tnum pointer-events-none absolute top-3 left-3 bg-ink px-2 py-0.5 text-[11px] text-paper">
-            antes · {formatters.bytes(item.bytesBefore)}
+            {copy.compare.before} · {formatters.bytes(item.bytesBefore)}
             {source === null ? '' : ` · ${formatters.dimensions(source.width, source.height)}`}
           </p>
           <p
             className={`tnum pointer-events-none absolute top-3 right-3 bg-paper px-2 py-0.5 text-[11px] ${TEXT_TONE[kind]}`}
           >
-            después · {formatters.bytes(outcome.bytesAfter)} ·{' '}
+            {copy.compare.after} · {formatters.bytes(outcome.bytesAfter)} ·{' '}
             {formatters.dimensions(outcome.width, outcome.height)} · {outcome.format.toUpperCase()}
           </p>
         </div>
       </div>
 
       <p className="shrink-0 border-t border-rule px-4 py-2.5 text-xs leading-4 text-pretty text-ink-soft">
-        Arrastra la cortina para cruzar el antes y el después, o muévela con las flechas. Los
-        artefactos de compresión solo se ven a 1:1.
+        {copy.compare.hint}
       </p>
     </div>
   )

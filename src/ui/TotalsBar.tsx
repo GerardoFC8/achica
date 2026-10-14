@@ -1,4 +1,5 @@
 import type { QueueTotals } from '../state/queue'
+import { useCopy } from './copy'
 import type { Formatters } from './format'
 import type { FilterCounts } from './queue-view'
 
@@ -23,16 +24,15 @@ type Props = {
 }
 
 const SEGMENTS = [
-  { key: 'fits', label: 'con margen', fill: 'var(--color-fits)', text: 'text-fits' },
-  { key: 'tight', label: 'justos', fill: 'var(--color-tight)', text: 'text-tight' },
+  { key: 'fits', fill: 'var(--color-fits)', text: 'text-fits' },
+  { key: 'tight', fill: 'var(--color-tight)', text: 'text-tight' },
   {
     key: 'over',
-    label: 'no entraron',
     fill: 'repeating-linear-gradient(135deg, var(--color-over) 0 2px, var(--color-paper) 2px 4px)',
     text: 'text-over',
   },
-  { key: 'failed', label: 'fallaron', fill: 'var(--color-over)', text: 'text-over' },
-  { key: 'cancelled', label: 'cancelados', fill: 'var(--color-ink-soft)', text: 'text-ink-soft' },
+  { key: 'failed', fill: 'var(--color-over)', text: 'text-over' },
+  { key: 'cancelled', fill: 'var(--color-ink-soft)', text: 'text-ink-soft' },
 ] as const
 
 export function TotalsBar({
@@ -44,6 +44,7 @@ export function TotalsBar({
   flash,
   onClear,
 }: Props) {
+  const { totals: words } = useCopy()
   const present = SEGMENTS.filter((segment) => counts[segment.key] > 0)
   const finished = totals.done > 0
 
@@ -64,8 +65,8 @@ export function TotalsBar({
       <div className="flex min-h-13 flex-wrap items-center gap-x-3.5 gap-y-1.5 px-4 py-1.5">
         <p className="tnum text-sm whitespace-nowrap">
           {finished
-            ? `${formatters.count(totals.done)} ${totals.done === 1 ? 'imagen comprimida' : 'imágenes comprimidas'}`
-            : `${formatters.count(queued)} ${queued === 1 ? 'imagen en la cola' : 'imágenes en la cola'}`}
+            ? words.compressed(totals.done, formatters.count(totals.done))
+            : words.queued(queued, formatters.count(queued))}
         </p>
         <span className="text-ink-soft">·</span>
         <p className="tnum text-sm whitespace-nowrap">
@@ -81,7 +82,7 @@ export function TotalsBar({
                 totals.savedRatio > 0 ? 'text-fits' : 'text-ink-soft'
               }`}
             >
-              {formatters.percent(totals.savedRatio)} menos
+              {words.less(formatters.percent(totals.savedRatio))}
             </p>
           </>
         ) : null}
@@ -92,7 +93,7 @@ export function TotalsBar({
           {present.map((segment) => (
             <li key={segment.key} className="flex items-center gap-1.5 whitespace-nowrap">
               <span className="size-2" style={{ background: segment.fill }} />
-              <span className="text-xs leading-4 text-ink-soft">{segment.label}</span>
+              <span className="text-xs leading-4 text-ink-soft">{words.segments[segment.key]}</span>
               <span className={`tnum text-xs leading-4 ${segment.text}`}>
                 {formatters.count(counts[segment.key])}
               </span>
@@ -111,7 +112,7 @@ export function TotalsBar({
           onClick={onClear}
           className="h-7 rounded-sm border border-rule px-2.5 text-[13px] leading-4 whitespace-nowrap hover:border-ink-soft coarse:h-11"
         >
-          Vaciar la cola
+          {words.clear}
         </button>
       </div>
     </footer>

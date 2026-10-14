@@ -23,6 +23,17 @@ describe('preferredLocale', () => {
     expect(preferredLocale([])).toBe(DEFAULT_LOCALE)
   })
 
+  it('follows the language of the page, letting the browser pick only the region', () => {
+    expect(preferredLocale(['en-GB', 'es-PE'], 'en', 'en-US')).toBe('en-GB')
+    expect(preferredLocale(['es-PE'], 'en', 'en-US')).toBe('en-US')
+  })
+
+  it('passes over a tag Intl would throw on', () => {
+    // Seen in a real headless Chromium, read from the system's POSIX locale.
+    expect(preferredLocale(['en-US@posix', 'en-GB'], 'en', 'en-US')).toBe('en-GB')
+    expect(preferredLocale(['en-US@posix'], 'en', 'en-US')).toBe('en-US')
+  })
+
   it('defaults to the region the paperwork profiles are for', () => {
     // Verified: `es` renders 1.234.567,89 and `es-419` renders 1,234,567.89.
     expect(DEFAULT_LOCALE).toBe('es-419')

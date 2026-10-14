@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useCopy } from './copy'
 import { createFormatters, preferredLocale, type Formatters } from './format'
 
 /**
@@ -6,5 +7,9 @@ import { createFormatters, preferredLocale, type Formatters } from './format'
  * the browser's language. Everything downstream takes a locale as data.
  */
 export function useFormatters(): Formatters {
-  return useMemo(() => createFormatters(preferredLocale(navigator.languages)), [])
+  const { lang, numberLocale } = useCopy()
+  return useMemo(
+    () => createFormatters(preferredLocale(navigator.languages, lang, numberLocale)),
+    [lang, numberLocale],
+  )
 }

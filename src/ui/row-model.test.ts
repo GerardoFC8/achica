@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
+import { es } from './copy'
 import { createFormatters, DEFAULT_LOCALE } from './format'
 import { rowKind, rowNote, weightBar } from './row-model'
 
@@ -174,28 +175,28 @@ describe('rowNote', () => {
   const formatters = createFormatters(DEFAULT_LOCALE)
 
   it('names the state while the file waits or runs', () => {
-    expect(rowNote(pending, formatters)).toBe('En cola')
-    expect(rowNote({ ...pending, status: 'running' }, formatters)).toBe('Comprimiendo')
-    expect(rowNote({ ...pending, status: 'cancelled' }, formatters)).toBe('Cancelado')
+    expect(rowNote(pending, formatters, es)).toBe('En cola')
+    expect(rowNote({ ...pending, status: 'running' }, formatters, es)).toBe('Comprimiendo')
+    expect(rowNote({ ...pending, status: 'cancelled' }, formatters, es)).toBe('Cancelado')
   })
 
   it('shows the output dimensions once there is a result', () => {
-    expect(rowNote(done(1_000_000, 200_000), formatters)).toBe('1,280 × 853')
+    expect(rowNote(done(1_000_000, 200_000), formatters, es)).toBe('1,280 × 853')
   })
 
   it('says outright when the image was shrunk to fit', () => {
     // The user has to learn this here, not when they open the file.
-    expect(rowNote(done(1_000_000, 200_000, true), formatters)).toBe(
+    expect(rowNote(done(1_000_000, 200_000, true), formatters, es)).toBe(
       'Se redujo a 1,280 × 853 para entrar',
     )
   })
 
   it('says outright when the format changed to fit', () => {
     // A .png that comes back .webp is the other surprise to name in the row.
-    expect(rowNote(done(1_000_000, 200_000, false, true), formatters)).toBe(
+    expect(rowNote(done(1_000_000, 200_000, false, true), formatters, es)).toBe(
       '1,280 × 853 · pasó a WebP para entrar',
     )
-    expect(rowNote(done(1_000_000, 200_000, true, true), formatters)).toBe(
+    expect(rowNote(done(1_000_000, 200_000, true, true), formatters, es)).toBe(
       'Pasó a WebP y se redujo a 1,280 × 853 para entrar',
     )
   })
@@ -203,6 +204,6 @@ describe('rowNote', () => {
   it('explains the failure in words', () => {
     const item: QueueItem = { ...pending, status: 'failed', error: { code: 'empty-file' } }
 
-    expect(rowNote(item, formatters)).toBe('Archivo vacío, no hay nada que comprimir')
+    expect(rowNote(item, formatters, es)).toBe('Archivo vacío, no hay nada que comprimir')
   })
 })

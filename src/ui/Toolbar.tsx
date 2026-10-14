@@ -1,5 +1,6 @@
 import type { Profile } from '../core/profiles'
 import type { BudgetChoice } from './budget'
+import { useCopy } from './copy'
 import { DestinationPicker } from './DestinationPicker'
 import type { Formatters } from './format'
 
@@ -40,6 +41,8 @@ export function Toolbar({
   onDownload,
   onSaveToFolder,
 }: Props) {
+  const { toolbar } = useCopy()
+
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-rule px-4">
       <p className="text-[15px] leading-5 font-semibold tracking-tight">achica</p>
@@ -68,7 +71,7 @@ export function Toolbar({
               onClick={onSaveToFolder}
               className="h-8 rounded-sm border border-rule px-3 text-[13px] leading-4 hover:border-ink-soft coarse:h-11"
             >
-              Guardar en una carpeta
+              {toolbar.saveToFolder}
             </button>
           ) : null}
           <button
@@ -76,7 +79,7 @@ export function Toolbar({
             onClick={onDownload}
             className="h-8 rounded-sm bg-fits px-3.5 text-[13px] leading-4 font-medium text-paper hover:brightness-110 coarse:h-11"
           >
-            {done === 1 ? 'Descargar 1 imagen' : `Descargar ${formatters.count(done)} en un ZIP`}
+            {toolbar.download(done, formatters.count(done))}
           </button>
         </>
       ) : null}
@@ -87,7 +90,7 @@ export function Toolbar({
           onClick={onCancelAll}
           className="h-8 rounded-sm bg-ink px-3.5 text-[13px] leading-4 font-medium text-paper hover:bg-ink-soft coarse:h-11"
         >
-          Cancelar
+          {toolbar.cancel}
         </button>
       ) : pending > 0 ? (
         <button
@@ -95,7 +98,7 @@ export function Toolbar({
           onClick={onStart}
           className="h-8 rounded-sm bg-ink px-3.5 text-[13px] leading-4 font-medium text-paper hover:bg-ink-soft coarse:h-11"
         >
-          Comprimir {formatters.count(pending)} {pending === 1 ? 'imagen' : 'imágenes'}
+          {toolbar.compress(pending, formatters.count(pending))}
         </button>
       ) : null}
     </header>

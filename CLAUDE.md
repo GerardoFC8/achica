@@ -30,7 +30,7 @@ npm run lint
 
 **v1 terminada y desplegada** en https://achica.gfcode.dev
 
-Las cinco fases cerradas. 312 tests en verde en cuatro proyectos de Vitest (node, chromium, firefox), CI corriendo typecheck, lint, format, tests, build y el test de humo contra el build de producción.
+Las cinco fases cerradas. 336 tests en verde en cuatro proyectos de Vitest (node, chromium, firefox), CI corriendo typecheck, lint, format, tests, build y el test de humo contra el build de producción.
 
 Contra la definición de terminado del spec (sección 10): **diez de doce puntos**. Los dos que faltan son decisiones con evidencia, no deuda:
 
@@ -39,10 +39,11 @@ Contra la definición de terminado del spec (sección 10): **diez de doce puntos
 
 Verificado contra el host en vivo con `node scripts/smoke.mjs https://achica.gfcode.dev`, en Chromium y en Firefox: aislamiento cross-origin, flujo completo, ZIP válido en disco, y ninguna petición fuera del origen. Las tres peticiones que aparecen bajo `/cdn-cgi/` son de la protección anti-bots de Cloudflare, del mismo origen, y el comando las nombra.
 
+Después de la v1: la primera pantalla viaja prerenderizada en el HTML con metadatos para buscadores y vistas previas (D52), el tope de peso volvió como elección del usuario (D53) y la interfaz existe en inglés en `/en/` (D54). Los textos viven en `src/ui/copy/`, nunca escritos dentro de un componente.
+
 ## Si el trabajo continúa
 
 Nada de esto está empezado y ninguno es deuda; son las puertas que la v1 dejó abiertas a propósito:
 
-- **Inglés.** La estructura del copy lo permite; el formateo de números ya recibe el idioma como argumento.
 - **Reciclar workers** para bajar el pico de memoria (anotado en D31, no implementado).
 - **Verificar el caso de 300 fotos de 12 MP** con una medición y no con un razonamiento.
