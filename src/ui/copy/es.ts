@@ -80,6 +80,7 @@ export const es = {
   table: {
     label: 'Cola de compresión',
     selectAll: 'Seleccionar todo lo visible',
+    weight: 'Peso contra presupuesto',
     columns: {
       name: 'Archivo',
       before: 'Antes',

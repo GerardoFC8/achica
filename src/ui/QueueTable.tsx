@@ -85,7 +85,7 @@ export function QueueTable({
         ))}
 
         <div role="columnheader" className="cell-bar hidden md:block">
-          Peso contra presupuesto
+          {table.weight}
         </div>
         <div role="columnheader" className="cell-actions hidden md:block" />
       </div>

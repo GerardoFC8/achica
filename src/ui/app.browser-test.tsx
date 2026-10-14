@@ -118,7 +118,7 @@ describe('the queue', () => {
 
 describe('the English page', () => {
   it('speaks English from the heading to the totals', { timeout: 40_000 }, async () => {
-    render(
+    const { container } = await render(
       <CopyProvider value={en}>
         <App />
       </CopyProvider>,
@@ -133,6 +133,15 @@ describe('the English page', () => {
     await userEvent.click(page.getByRole('button', { name: /Compress 1 image/ }))
     await expect.element(page.getByText(/1 image compressed/), { timeout: 30_000 }).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Download 1 image' })).toBeVisible()
+
+    // Every text node, not only what was asserted above, and not only what is
+    // visible at this width: a sentence left written inside a component shows
+    // up here, in Spanish (D54). The table header that slipped through was
+    // hidden on narrow screens, which is why this is textContent.
+    const visible = (container.textContent ?? '').replace(/Español/g, '')
+    expect(visible).not.toMatch(
+      /[áéíóúñ]|\b(de|del|la|las|el|los|que|con|sin|contra|para|por|una|en|y)\b/i,
+    )
   })
 })
 
