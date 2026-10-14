@@ -31,6 +31,7 @@ const DONE: JobReport = {
       quality: 75,
       withinBudget: true,
       shrunkForBudget: null,
+      convertedForBudget: false,
       encodes: 1,
     },
   },

@@ -25,6 +25,7 @@ function outcome(bytesBefore: number, bytesAfter: number): PipelineOutcome {
     quality: 70,
     withinBudget: true,
     shrunkForBudget: null,
+    convertedForBudget: false,
     encodes: 3,
   }
 }

@@ -43,7 +43,6 @@ Verificado contra el host en vivo con `node scripts/smoke.mjs https://achica.gfc
 
 Nada de esto está empezado y ninguno es deuda; son las puertas que la v1 dejó abiertas a propósito:
 
-- **Volver a ofrecer el presupuesto de peso**, que es el eje 3 del spec y desde D49 no se alcanza desde la interfaz. El soporte está en el núcleo y probado; falta la manera de pedirlo.
 - **Inglés.** La estructura del copy lo permite; el formateo de números ya recibe el idioma como argumento.
 - **Reciclar workers** para bajar el pico de memoria (anotado en D31, no implementado).
 - **Verificar el caso de 300 fotos de 12 MP** con una medición y no con un razonamiento.

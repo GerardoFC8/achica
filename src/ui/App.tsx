@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { PERFILES, toOutputPlan, type Profile } from '../core/profiles'
+import { PERFILES, type Profile } from '../core/profiles'
 import { totalsOf } from '../state/queue'
 import { queueActions, useQueue } from '../state/queue-store'
+import { NO_BUDGET, planFor, withBudget, type BudgetChoice } from './budget'
 import { Comparator } from './Comparator'
 import { DropZone } from './DropZone'
 import { FilterBar } from './FilterBar'
@@ -38,7 +39,10 @@ export function App() {
   const items = useQueue((state) => state.items)
   const save = useSave(formatters)
 
-  const [profile, setProfile] = useState<Profile>(() => PERFILES[0] as Profile)
+  const [destination, setDestination] = useState<Profile>(() => PERFILES[0] as Profile)
+  const [budget, setBudget] = useState<BudgetChoice>(NO_BUDGET)
+  // What every row is measured against: the destination with the ceiling in.
+  const profile = useMemo(() => withBudget(destination, budget), [destination, budget])
   const [filter, setFilter] = useState<FilterId>('todos')
   const [sortKey, setSortKey] = useState<SortKey>('orden')
   const [direction, setDirection] = useState<SortDirection>('asc')
@@ -74,14 +78,16 @@ export function App() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-paper text-ink">
       <Toolbar
-        profile={profile}
+        profile={destination}
+        budget={budget}
         formatters={formatters}
         pending={pending}
         done={done}
         running={running}
         canUseFolder={save.canUseFolder}
-        onSelectProfile={setProfile}
-        onStart={() => queueActions.start(toOutputPlan(profile))}
+        onSelectProfile={setDestination}
+        onBudget={setBudget}
+        onStart={() => queueActions.start(planFor(destination, budget))}
         onCancelAll={queueActions.cancelAll}
         onDownload={() => void save.download(items)}
         onSaveToFolder={() => void save.toFolder(items)}
@@ -100,7 +106,7 @@ export function App() {
               selectedDone={selectedDone}
               onFilter={setFilter}
               onSave={() => void save.download(selectedItems)}
-              onRecompress={() => queueActions.requeue(selectedIds, toOutputPlan(profile))}
+              onRecompress={() => queueActions.requeue(selectedIds, planFor(destination, budget))}
               onRemove={() => {
                 queueActions.remove(selectedIds)
                 setSelected(new Set())

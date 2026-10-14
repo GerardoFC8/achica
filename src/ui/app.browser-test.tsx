@@ -115,6 +115,58 @@ describe('the queue', () => {
   })
 })
 
+describe('the weight ceiling', () => {
+  it('reaches the worker and holds every file under it', { timeout: 60_000 }, async () => {
+    render(<App />)
+    queueStore.getState().add([await fixture('Landscape_6.jpg')])
+
+    await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
+    await userEvent.click(page.getByRole('button', { name: '100 KB' }))
+    await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
+
+    // The ceiling shows on the control that holds it, panel closed.
+    await expect.element(page.getByRole('button', { name: /^Destino.*máx\. 100 KB/ })).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
+    await expect.element(page.getByText(/imagen comprimida/), { timeout: 50_000 }).toBeVisible()
+
+    const item = queueStore.getState().items[0]
+    expect(item?.status).toBe('done')
+    if (item?.status === 'done') expect(item.outcome.bytesAfter).toBeLessThanOrEqual(100_000)
+  })
+
+  it('takes a ceiling typed by hand, and says when it is not one', async () => {
+    render(<App />)
+
+    await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
+    await userEvent.fill(page.getByLabelText('Otro'), 'mucho')
+    await userEvent.click(page.getByRole('button', { name: 'Usar' }))
+    await expect.element(page.getByRole('alert')).toHaveTextContent(/entre 5 y/)
+
+    await userEvent.fill(page.getByLabelText('Otro'), '250')
+    await userEvent.click(page.getByRole('button', { name: 'Usar' }))
+    await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', { name: /^Destino.*máx\. 250 KB/ })).toBeVisible()
+  })
+
+  it('asks what to do with a PNG only where the answer can matter', async () => {
+    render(<App />)
+    await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
+
+    // No ceiling yet: nothing to decide.
+    await expect.element(page.getByText('Si un PNG no entra en el tope')).not.toBeInTheDocument()
+
+    await userEvent.click(page.getByRole('button', { name: '200 KB' }))
+    // The web destination converts every PNG to WebP anyway.
+    await expect.element(page.getByText('Si un PNG no entra en el tope')).not.toBeInTheDocument()
+
+    await userEvent.click(page.getByRole('button', { name: /Adjunto de correo/ }))
+    await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
+    await expect.element(page.getByText('Si un PNG no entra en el tope')).toBeVisible()
+    await expect.element(page.getByRole('radio', { name: /Pasarlo a WebP/ })).toBeChecked()
+  })
+})
+
 describe('the comparator', () => {
   it('puts both pictures in exactly the same box', { timeout: 40_000 }, async () => {
     render(<App />)

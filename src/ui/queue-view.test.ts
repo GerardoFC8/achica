@@ -38,6 +38,7 @@ function done(id: string, name: string, before: number, after: number, ms: numbe
       quality: 70,
       withinBudget: true,
       shrunkForBudget: null,
+      convertedForBudget: false,
       encodes: 2,
     },
   }

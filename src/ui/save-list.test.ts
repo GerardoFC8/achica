@@ -28,6 +28,7 @@ function done(name: string, format: 'webp' | 'jpeg'): QueueItem {
       quality: 70,
       withinBudget: true,
       shrunkForBudget: null,
+      convertedForBudget: false,
       encodes: 1,
     },
   }
