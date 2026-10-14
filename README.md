@@ -32,7 +32,9 @@ Los cuatro son recomendaciones nuestras y cada fila del selector lo dice. Ningun
 
 ### 3. Presupuesto de peso de primera clase
 
-"Déjalas todas bajo 100 KB" es la operación principal, no una casilla escondida. Está implementado y probado en el núcleo, pero desde D49 ningún perfil lo usa, así que hoy no se alcanza desde la interfaz. Es el eje que queda pendiente.
+"Déjalas todas bajo 100 KB" es una operación de primera clase, no una casilla escondida. El tope se elige en el mismo panel que el destino: 100 KB, 200 KB, 500 KB, 1 MB o el número que escribas. Es un límite sobre lo que **sale**, no sobre lo que entra: puedes soltar fotos de cualquier peso y cada una vuelve bajo el tope con la mejor calidad que quepa.
+
+Un PNG no tiene perilla de calidad, así que bajo un tope que no alcanza tal como está hay dos caminos y los eliges tú (D53): pasarlo a WebP, que conserva cada píxel y la transparencia pero cambia la extensión, o dejarlo en PNG y achicar sus dimensiones. Por defecto, WebP. Un PNG que ya entra no cambia de formato, y la fila de cada archivo dice si cambió de formato o de tamaño para entrar.
 
 ## Estado
 

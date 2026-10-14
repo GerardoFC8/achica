@@ -165,6 +165,97 @@ describe('processImage', () => {
       expect(result.value.width).toBeLessThan(32)
     })
 
+    describe('a PNG allowed to turn into WebP (D53)', () => {
+      /**
+       * A PNG the size of a real one: smooth colour under grain, and an alpha
+       * ramp so it is obvious whether transparency survives. The fixture PNGs
+       * are a few hundred bytes, too small for any budget to bite.
+       */
+      async function photoLikePng(): Promise<ArrayBuffer> {
+        const width = 480
+        const height = 320
+        const pixels = new Uint8ClampedArray(width * height * 4)
+        let seed = 7
+        const noise = (): number => {
+          seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31
+          return (seed % 48) - 24
+        }
+
+        for (let y = 0; y < height; y += 1) {
+          for (let x = 0; x < width; x += 1) {
+            const at = (y * width + x) * 4
+            pixels[at] = (x / width) * 255 + noise()
+            pixels[at + 1] = (y / height) * 255 + noise()
+            pixels[at + 2] = 128 + noise()
+            pixels[at + 3] = 255 - (x / width) * 200
+          }
+        }
+
+        const encoded = await encodeImage('png', new ImageData(pixels, width, height))
+        if (!encoded.ok) throw new Error('could not build the PNG fixture')
+        return encoded.value.slice().buffer
+      }
+
+      it('meets a budget it could only have met by shrinking, at full size', async () => {
+        const source = await photoLikePng()
+        const maxBytes = Math.floor(source.byteLength / 4)
+
+        const result = await processImage(source, {
+          format: 'keep',
+          maxBytes,
+          losslessUnderBudget: 'webp',
+        })
+
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect(result.value.format).toBe('webp')
+        expect(result.value.convertedForBudget).toBe(true)
+        expect(result.value.withinBudget).toBe(true)
+        expect(result.value.bytesAfter).toBeLessThanOrEqual(maxBytes)
+        expect(result.value.shrunkForBudget).toBeNull()
+        expect(result.value.width).toBe(480)
+
+        // The point of choosing WebP over shrinking: the transparency stays.
+        const decoded = await decodeImage('webp', result.value.output.slice().buffer)
+        expect(decoded.ok).toBe(true)
+        if (!decoded.ok) return
+        let lowestAlpha = 255
+        for (let at = 3; at < decoded.value.data.length; at += 4) {
+          lowestAlpha = Math.min(lowestAlpha, decoded.value.data[at] ?? 255)
+        }
+        expect(lowestAlpha).toBeLessThan(128)
+      })
+
+      it('keeps the PNG when it already fits, because a new name would buy nothing', async () => {
+        const source = await photoLikePng()
+
+        const result = await processImage(source, {
+          format: 'keep',
+          maxBytes: source.byteLength * 2,
+          losslessUnderBudget: 'webp',
+        })
+
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect(result.value.format).toBe('png')
+        expect(result.value.convertedForBudget).toBe(false)
+      })
+
+      it('leaves a photo alone, since only a lossless file has a reason to change', async () => {
+        const result = await processImage(await load('Landscape_6.jpg'), {
+          format: 'keep',
+          maxBytes: 100_000,
+          losslessUnderBudget: 'webp',
+        })
+
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect(result.value.format).toBe('jpeg')
+        expect(result.value.convertedForBudget).toBe(false)
+        expect(result.value.bytesAfter).toBeLessThanOrEqual(100_000)
+      })
+    })
+
     it('never inflates a file to fill a generous budget', async () => {
       /*
        * The bug this guards, found by the profile tests. Asked for "under

@@ -30,7 +30,12 @@ const UNBUDGETED: Profile = {
 
 const SOURCE = new File([new Uint8Array(8)], 'foto.jpg')
 
-function done(bytesBefore: number, bytesAfter: number, shrunk = false): QueueItem {
+function done(
+  bytesBefore: number,
+  bytesAfter: number,
+  shrunk = false,
+  converted = false,
+): QueueItem {
   return {
     id: 'a',
     file: SOURCE,
@@ -40,7 +45,7 @@ function done(bytesBefore: number, bytesAfter: number, shrunk = false): QueueIte
     blob: new Blob([new Uint8Array(bytesAfter)]),
     ms: 42,
     outcome: {
-      format: 'jpeg',
+      format: converted ? 'webp' : 'jpeg',
       bytesBefore,
       bytesAfter,
       width: 1280,
@@ -48,6 +53,7 @@ function done(bytesBefore: number, bytesAfter: number, shrunk = false): QueueIte
       quality: 70,
       withinBudget: true,
       shrunkForBudget: shrunk ? { width: 1280, height: 853 } : null,
+      convertedForBudget: converted,
       encodes: 3,
     },
   }
@@ -181,6 +187,16 @@ describe('rowNote', () => {
     // The user has to learn this here, not when they open the file.
     expect(rowNote(done(1_000_000, 200_000, true), formatters)).toBe(
       'Se redujo a 1,280 × 853 para entrar',
+    )
+  })
+
+  it('says outright when the format changed to fit', () => {
+    // A .png that comes back .webp is the other surprise to name in the row.
+    expect(rowNote(done(1_000_000, 200_000, false, true), formatters)).toBe(
+      '1,280 × 853 · pasó a WebP para entrar',
+    )
+    expect(rowNote(done(1_000_000, 200_000, true, true), formatters)).toBe(
+      'Pasó a WebP y se redujo a 1,280 × 853 para entrar',
     )
   })
 

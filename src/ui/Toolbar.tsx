@@ -1,4 +1,5 @@
 import type { Profile } from '../core/profiles'
+import type { BudgetChoice } from './budget'
 import { DestinationPicker } from './DestinationPicker'
 import type { Formatters } from './format'
 
@@ -9,6 +10,7 @@ import type { Formatters } from './format'
 
 type Props = {
   readonly profile: Profile
+  readonly budget: BudgetChoice
   readonly formatters: Formatters
   readonly pending: number
   readonly done: number
@@ -16,6 +18,7 @@ type Props = {
   /** Whether to offer the folder road at all; only Chromium has it. */
   readonly canUseFolder: boolean
   readonly onSelectProfile: (profile: Profile) => void
+  readonly onBudget: (budget: BudgetChoice) => void
   readonly onStart: () => void
   readonly onCancelAll: () => void
   readonly onDownload: () => void
@@ -24,12 +27,14 @@ type Props = {
 
 export function Toolbar({
   profile,
+  budget,
   formatters,
   pending,
   done,
   running,
   canUseFolder,
   onSelectProfile,
+  onBudget,
   onStart,
   onCancelAll,
   onDownload,
@@ -39,7 +44,13 @@ export function Toolbar({
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-rule px-4">
       <p className="text-[15px] leading-5 font-semibold tracking-tight">achica</p>
 
-      <DestinationPicker selected={profile} formatters={formatters} onSelect={onSelectProfile} />
+      <DestinationPicker
+        selected={profile}
+        budget={budget}
+        formatters={formatters}
+        onSelect={onSelectProfile}
+        onBudget={onBudget}
+      />
 
       <div className="flex-1" />
 

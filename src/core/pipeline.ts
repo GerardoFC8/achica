@@ -32,6 +32,16 @@ export type OutputPlan = {
   readonly minQuality?: number
   /** Used only when there is no budget to search against. */
   readonly quality?: number
+  /**
+   * Where a lossless file goes when it cannot meet the budget as it is.
+   *
+   * PNG has no quality to search, so under a ceiling its only lever is
+   * shrinking the picture. Set, a file that would come out lossless and miss
+   * the budget is encoded in this format instead, at full size, and reaches
+   * the budget by quality. Unset, it stays lossless and shrinks (D21). A file
+   * that already fits keeps its format either way (D53).
+   */
+  readonly losslessUnderBudget?: OutputFormat
 }
 
 export type PipelineOutcome = {
@@ -47,6 +57,8 @@ export type PipelineOutcome = {
   readonly withinBudget: boolean
   /** Set when the pipeline shrank the image further than the plan asked for. */
   readonly shrunkForBudget: Dimensions | null
+  /** True when the format changed only because the budget asked for it. */
+  readonly convertedForBudget: boolean
   readonly encodes: number
 }
 
@@ -149,7 +161,9 @@ export async function processImage(
   const decoded = await decodeImage(detected.value, bytes)
   if (!decoded.ok) return err(decoded.error)
 
-  const format: OutputFormat = plan.format === 'keep' ? detected.value : plan.format
+  // Not const: a lossless file may still switch to plan.losslessUnderBudget.
+  let format: OutputFormat = plan.format === 'keep' ? detected.value : plan.format
+  let convertedForBudget = false
 
   // The plan's own dimension limits apply first. Anything past this point is
   // the budget loop choosing to go smaller than was asked for.
@@ -180,6 +194,7 @@ export async function processImage(
     quality: isLossy(format) ? attempt.quality : null,
     withinBudget: attempt.withinBudget,
     shrunkForBudget: shrunk,
+    convertedForBudget,
     encodes,
   })
 
@@ -192,6 +207,29 @@ export async function processImage(
     }
 
     const maxBytes = plan.maxBytes
+
+    /*
+     * A lossless file gets one honest try in its own format first. A PNG of
+     * a screenshot often packs under the budget as it is, and turning it into
+     * a WebP would change its name for nothing. Only when that try misses does
+     * the format change, and from then on the budget search below runs on the
+     * lossy format like any other photo.
+     */
+    const fallback = plan.losslessUnderBudget
+    if (!isLossy(format) && fallback !== undefined && isLossy(fallback)) {
+      const output = await encode(image, DEFAULT_QUALITY)
+      if (output.length <= maxBytes) {
+        return ok(
+          describe(
+            { withinBudget: true, output, bytes: output.length, quality: DEFAULT_QUALITY },
+            null,
+          ),
+        )
+      }
+
+      format = fallback
+      convertedForBudget = true
+    }
 
     /*
      * A budget the file already meets is not a target.

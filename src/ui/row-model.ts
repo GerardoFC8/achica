@@ -1,3 +1,4 @@
+import type { OutputFormat } from '../core/codecs/encode'
 import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
 import type { Formatters } from './format'
@@ -21,6 +22,14 @@ export type WeightBar = {
   readonly mark: number | null
   /** The stretch past the budget, drawn apart so colour is not the only cue. */
   readonly overflow: { readonly start: number; readonly width: number } | null
+}
+
+/** How a format is written in a sentence, which is not how its extension is. */
+const FORMAT_NAMES: Readonly<Record<OutputFormat, string>> = {
+  jpeg: 'JPEG',
+  png: 'PNG',
+  webp: 'WebP',
+  avif: 'AVIF',
 }
 
 /** Inside this much of the mark, a result counts as having only just fitted. */
@@ -92,8 +101,19 @@ export function rowNote(item: QueueItem, formatters: Formatters): string {
     case 'failed':
       return describeJobError(item.error)
     case 'done': {
-      const size = formatters.dimensions(item.outcome.width, item.outcome.height)
-      return item.outcome.shrunkForBudget === null ? size : `Se redujo a ${size} para entrar`
+      const { outcome } = item
+      const size = formatters.dimensions(outcome.width, outcome.height)
+      const shrunk = outcome.shrunkForBudget !== null
+
+      // Both are things the user did not ask for in so many words, so the row
+      // says them before the file is opened (D53).
+      if (outcome.convertedForBudget) {
+        const name = FORMAT_NAMES[outcome.format]
+        return shrunk
+          ? `Pasó a ${name} y se redujo a ${size} para entrar`
+          : `${size} · pasó a ${name} para entrar`
+      }
+      return shrunk ? `Se redujo a ${size} para entrar` : size
     }
   }
 }
