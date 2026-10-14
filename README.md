@@ -4,7 +4,7 @@ Comprime y convierte **muchas imágenes a la vez**, en tu navegador. Sin backend
 
 En español en https://achica.gfcode.dev y en inglés en https://achica.gfcode.dev/en/
 
-![Soltar una carpeta, elegir el destino, y la cola resolviendo el lote](docs/demo.gif)
+![Soltar 24 fotos, elegir el destino, ver la cola resolver el lote, comparar antes y después con la cortina y descargar todo en un ZIP](docs/demo.gif)
 
 Ningún byte de tus imágenes sale de tu dispositivo, y no hace falta creernos: abre las herramientas de desarrollo, pestaña Red, y comprime una carpeta entera. **La aplicación no hace ninguna petición después de cargar.**
 
