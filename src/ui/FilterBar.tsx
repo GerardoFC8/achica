@@ -1,3 +1,4 @@
+import { useCopy } from './copy'
 import type { Formatters } from './format'
 import type { FilterCounts, FilterId } from './queue-view'
 
@@ -8,16 +9,15 @@ import type { FilterCounts, FilterId } from './queue-view'
  * to predict is a dead end.
  */
 
-const FILTERS: readonly { readonly id: FilterId; readonly label: string; readonly dot: string }[] =
-  [
-    { id: 'todos', label: 'Todos', dot: '' },
-    { id: 'fits', label: 'Entraron con margen', dot: 'bg-fits' },
-    { id: 'tight', label: 'Justos', dot: 'bg-tight' },
-    { id: 'over', label: 'No entraron', dot: 'bg-over' },
-    { id: 'failed', label: 'Fallaron', dot: 'bg-over' },
-    { id: 'cancelled', label: 'Cancelados', dot: 'bg-ink-soft' },
-    { id: 'pending', label: 'En cola', dot: 'bg-rule' },
-  ]
+const FILTERS: readonly { readonly id: FilterId; readonly dot: string }[] = [
+  { id: 'todos', dot: '' },
+  { id: 'fits', dot: 'bg-fits' },
+  { id: 'tight', dot: 'bg-tight' },
+  { id: 'over', dot: 'bg-over' },
+  { id: 'failed', dot: 'bg-over' },
+  { id: 'cancelled', dot: 'bg-ink-soft' },
+  { id: 'pending', dot: 'bg-rule' },
+]
 
 type Props = {
   readonly counts: FilterCounts
@@ -42,6 +42,8 @@ export function FilterBar({
   onRemove,
   onSave,
 }: Props) {
+  const { filters, selection } = useCopy()
+
   return (
     <div className="flex min-h-9 flex-wrap items-center gap-x-1 gap-y-1.5 border-b border-rule px-4 py-1.5">
       {FILTERS.filter((filter) => filter.id === 'todos' || counts[filter.id] > 0).map((filter) => {
@@ -60,7 +62,7 @@ export function FilterBar({
             }`}
           >
             {filter.dot === '' ? null : <span className={`size-1.5 ${filter.dot}`} />}
-            <span>{filter.label}</span>
+            <span>{filters[filter.id]}</span>
             <span className="tnum text-[11px]">{formatters.count(counts[filter.id])}</span>
           </button>
         )
@@ -71,14 +73,14 @@ export function FilterBar({
       {selectedCount > 0 ? (
         <div className="flex items-center gap-2">
           <span className="tnum text-xs whitespace-nowrap text-ink-soft">
-            {formatters.count(selectedCount)} seleccionados
+            {selection.selected(formatters.count(selectedCount))}
           </span>
           <button
             type="button"
             onClick={onRecompress}
             className="h-6 rounded-sm border border-rule px-2 text-xs whitespace-nowrap hover:border-ink-soft coarse:h-11"
           >
-            Recomprimir
+            {selection.recompress}
           </button>
           {selectedDone > 0 ? (
             <button
@@ -86,7 +88,7 @@ export function FilterBar({
               onClick={onSave}
               className="h-6 rounded-sm bg-fits px-2 text-xs whitespace-nowrap text-paper coarse:h-11"
             >
-              Descargar {formatters.count(selectedDone)}
+              {selection.download(formatters.count(selectedDone))}
             </button>
           ) : null}
           <button
@@ -94,7 +96,7 @@ export function FilterBar({
             onClick={onRemove}
             className="h-6 rounded-sm border border-rule px-2 text-xs whitespace-nowrap hover:border-ink-soft coarse:h-11"
           >
-            Quitar
+            {selection.remove}
           </button>
         </div>
       ) : null}

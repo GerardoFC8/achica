@@ -67,7 +67,45 @@ const BATCHES = [
     expected: ['no-exif.jpg', 'basn6a08.png'],
     oxipng: true,
   },
+  {
+    // The second language and the weight ceiling, both against the build:
+    // the English page has its own entry, and the ceiling its own path
+    // through the pipeline (D53, D54).
+    label: 'the English page, with a weight ceiling',
+    language: 'en',
+    destination: /Email attachment/,
+    budget: '100 KB',
+    files: [fixture('vendor/exif-orientation/Landscape_6.jpg'), fixture('generated/no-exif.jpg')],
+    expected: ['Landscape_6.jpg', 'no-exif.jpg'],
+    oxipng: false,
+  },
 ]
+
+/** What each page says, so the same run reads both languages. */
+const WORDS = {
+  es: {
+    path: '',
+    title: /comprimir/i,
+    heading: /imágenes que quieres comprimir/,
+    destination: /^Destino/,
+    compress: /Comprimir/,
+    compressing: 'Comprimiendo',
+    compressed: (count) => `${count} imágenes comprimidas`,
+    saved: /% menos/,
+    zip: /Descargar .* en un ZIP/,
+  },
+  en: {
+    path: 'en/',
+    title: /compress/i,
+    heading: /images you want to compress/,
+    destination: /^Destination/,
+    compress: /Compress/,
+    compressing: 'Compressing',
+    compressed: (count) => `${count} images compressed`,
+    saved: /% smaller/,
+    zip: /Download .* as a ZIP/,
+  },
+}
 
 const LOCAL_HEADER = '504b0304'
 const CENTRAL_ENTRY = 'PK\x01\x02'
@@ -127,33 +165,47 @@ async function runBatch(browser, batch, downloads) {
     const errors = []
     page.on('pageerror', (error) => errors.push(error.message))
 
-    await page.goto(base)
+    const words = WORDS[batch.language ?? 'es']
+
+    await page.goto(new URL(words.path, base).href)
     check(
       'the work surface is the first screen',
-      await page
-        .getByRole('heading', { level: 1, name: /imágenes que quieres comprimir/ })
-        .isVisible(),
+      await page.getByRole('heading', { level: 1, name: words.heading }).isVisible(),
     )
 
     const isolated = await page.evaluate(() => globalThis.crossOriginIsolated)
     check('cross-origin isolated', isolated === true)
 
     if (batch.destination !== null) {
-      await page.getByRole('button', { name: /^Destino/ }).click()
+      await page.getByRole('button', { name: words.destination }).click()
       await page.getByRole('button', { name: batch.destination }).click()
       check(
         'the destination switches',
         await page
-          .getByRole('button', { name: new RegExp(`^Destino.*${batch.destination.source}`) })
+          .getByRole('button', {
+            name: new RegExp(`${words.destination.source}.*${batch.destination.source}`),
+          })
+          .isVisible(),
+      )
+    }
+
+    if (batch.budget !== undefined) {
+      await page.getByRole('button', { name: words.destination }).click()
+      await page.getByRole('button', { name: batch.budget, exact: true }).click()
+      await page.keyboard.press('Escape')
+      check(
+        'the ceiling is set',
+        await page
+          .getByRole('button', { name: new RegExp(`${words.destination.source}.*${batch.budget}`) })
           .isVisible(),
       )
     }
 
     await page.setInputFiles('input[type=file]', batch.files)
-    await page.getByRole('button', { name: /Comprimir/ }).click()
+    await page.getByRole('button', { name: words.compress }).click()
     await page.waitForFunction(
-      () => !(document.body.textContent ?? '').includes('Comprimiendo'),
-      undefined,
+      (busy) => !(document.body.textContent ?? '').includes(busy),
+      words.compressing,
       { timeout: 120_000 },
     )
 
@@ -163,13 +215,13 @@ async function runBatch(browser, batch, downloads) {
     const summary = (await page.locator('footer').innerText()).replace(/\s+/g, ' ')
     check(
       'the batch reports what it saved',
-      summary.includes(`${batch.files.length} imágenes comprimidas`) && /% menos/.test(summary),
+      summary.includes(words.compressed(batch.files.length)) && words.saved.test(summary),
       summary,
     )
 
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 30_000 }),
-      page.getByRole('button', { name: /Descargar .* en un ZIP/ }).click(),
+      page.getByRole('button', { name: words.zip }).click(),
     ])
 
     const archive = join(downloads, download.suggestedFilename())
@@ -219,47 +271,56 @@ async function runBatch(browser, batch, downloads) {
  * a browser would run the script and hide an empty page behind the live one.
  */
 async function runDiscoverability() {
-  console.log('\nwithout JavaScript: what crawlers and link previews read')
+  for (const [language, words] of Object.entries(WORDS)) {
+    console.log(`\nwithout JavaScript, /${words.path}: what crawlers and link previews read`)
 
-  const response = await fetch(base)
-  const html = await response.text()
-  // Attribute by attribute, because a formatter is free to break a tag across
-  // lines and to put its attributes in any order.
-  const meta = (attribute, name) =>
-    [...html.matchAll(/<meta\s([^>]*)>/g)]
-      .map(([, attributes]) => attributes)
-      .find((attributes) => attributes.includes(`${attribute}="${name}"`))
-      ?.match(/content="([^"]*)"/)?.[1]
+    const response = await fetch(new URL(words.path, base))
+    const html = await response.text()
+    // Attribute by attribute, because a formatter is free to break a tag across
+    // lines and to put its attributes in any order.
+    const meta = (attribute, name) =>
+      [...html.matchAll(/<meta\s([^>]*)>/g)]
+        .map(([, attributes]) => attributes)
+        .find((attributes) => attributes.includes(`${attribute}="${name}"`))
+        ?.match(/content="([^"]*)"/)?.[1]
 
-  check('the page answers', response.ok, `${response.status}`)
-  check('the title names the task', /<title>[^<]*[Cc]omprimir[^<]*<\/title>/.test(html))
-  check('there is a description', (meta('name', 'description') ?? '').length > 50)
-  check(
-    'the first screen is in the HTML, not only in the script',
-    /<h1[^>]*>[^<]*comprimir[^<]*<\/h1>/.test(html),
-  )
+    check('the page answers', response.ok, `${response.status}`)
+    check('the page says its language', html.includes(`<html lang="${language}">`))
+    check(
+      'the title names the task',
+      words.title.test(/<title>([^<]*)<\/title>/.exec(html)?.[1] ?? ''),
+    )
+    check('there is a description', (meta('name', 'description') ?? '').length > 50)
+    check(
+      'the first screen is in the HTML, not only in the script',
+      new RegExp(`<h1[^>]*>[^<]*${words.heading.source}[^<]*</h1>`).test(html),
+    )
+    check(
+      'it points to its other-language twin',
+      /hreflang="es"/.test(html) && /hreflang="en"/.test(html),
+    )
 
-  const jsonLd = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)?.[1]
-  let parsed = null
-  try {
-    parsed = JSON.parse(jsonLd ?? '')
-  } catch {
-    // Reported by the check below.
+    const jsonLd = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)?.[1]
+    let parsed = null
+    try {
+      parsed = JSON.parse(jsonLd ?? '')
+    } catch {
+      // Reported by the check below.
+    }
+    check('the structured data parses', parsed?.['@type'] === 'WebApplication')
+
+    // The preview image is an absolute URL to the live host, so it is checked
+    // by its path against the origin under test.
+    const image = meta('property', 'og:image')
+    check('there is a preview image', image !== undefined)
+    if (image !== undefined) {
+      const asset = await fetch(new URL(new URL(image).pathname, base))
+      check(`${new URL(image).pathname} is served`, asset.ok, `${asset.status}`)
+    }
   }
-  check('the structured data parses', parsed?.['@type'] === 'WebApplication')
 
-  // The preview image is an absolute URL to the live host, so it is checked
-  // by its path against the origin under test.
-  const image = meta('property', 'og:image')
-  check('there is a preview image', image !== undefined)
-
-  for (const path of [
-    image === undefined ? '/og.png' : new URL(image).pathname,
-    '/favicon.svg',
-    '/apple-touch-icon.png',
-    '/robots.txt',
-    '/sitemap.xml',
-  ]) {
+  console.log('\nwhat every page shares')
+  for (const path of ['/favicon.svg', '/apple-touch-icon.png', '/robots.txt', '/sitemap.xml']) {
     const asset = await fetch(new URL(path, base))
     check(`${path} is served`, asset.ok, `${asset.status}`)
   }

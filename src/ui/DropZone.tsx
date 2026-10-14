@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useCopy } from './copy'
 import { filesFromDrop } from './dropped-files'
 
 /**
@@ -14,6 +15,7 @@ type Props = {
 }
 
 export function DropZone({ onFiles }: Props) {
+  const copy = useCopy()
   const [over, setOver] = useState(false)
   const input = useRef<HTMLInputElement>(null)
 
@@ -40,18 +42,29 @@ export function DropZone({ onFiles }: Props) {
           The page's one heading. It names the task in the words people search
           with, and it is still the invitation the empty screen has to be.
         */}
-        <h1 className="text-[15px] leading-5 font-semibold">
-          Arrastra aquí las imágenes que quieres comprimir
-        </h1>
+        <h1 className="text-[15px] leading-5 font-semibold">{copy.drop.heading}</h1>
         <button
           type="button"
           onClick={() => input.current?.click()}
           className="text-[13px] leading-4 underline underline-offset-[3px] coarse:min-h-11"
         >
-          o elige archivos
+          {copy.drop.pick}
         </button>
         {/* A quiet fact about the tool, not a claim about the tool. */}
-        <p className="text-xs leading-4 text-ink-soft">Nada sale de tu dispositivo</p>
+        <p className="text-xs leading-4 text-ink-soft">{copy.drop.promise}</p>
+
+        {/*
+          A plain link and not a switch: each language is its own page, so a
+          crawler follows it and a visitor can share either one (D54).
+        */}
+        <a
+          href={copy.otherLanguage.href}
+          hrefLang={copy.otherLanguage.lang}
+          lang={copy.otherLanguage.lang}
+          className="mt-4 text-xs leading-4 text-ink-soft underline underline-offset-[3px] hover:text-ink coarse:min-h-11"
+        >
+          {copy.otherLanguage.label}
+        </a>
 
         <input
           ref={input}

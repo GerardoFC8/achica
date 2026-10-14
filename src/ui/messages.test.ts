@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { JobError } from '../workers/protocol'
+import { en, es } from './copy'
 import { describeJobError } from './messages'
 
 /**
@@ -10,25 +11,28 @@ import { describeJobError } from './messages'
 
 describe('describeJobError', () => {
   it('tells an iPhone user what to do about HEIC', () => {
-    const message = describeJobError({ code: 'unsupported-format', format: 'heic' })
+    const message = describeJobError({ code: 'unsupported-format', format: 'heic' }, es)
 
     expect(message).toContain('HEIC')
     expect(message).toContain('JPEG')
   })
 
   it('names the format that is not supported', () => {
-    expect(describeJobError({ code: 'unsupported-format', format: 'tiff' })).toContain('TIFF')
+    expect(describeJobError({ code: 'unsupported-format', format: 'tiff' }, es)).toContain('TIFF')
   })
 
   it('does not blame the image when the worker died', () => {
-    const message = describeJobError({ code: 'worker-crashed', detail: 'out of memory' })
+    const message = describeJobError({ code: 'worker-crashed', detail: 'out of memory' }, es)
 
     expect(message).toContain('memoria')
     expect(message).not.toContain('out of memory')
   })
 
   it('names the format of a file it could not read', () => {
-    const message = describeJobError({ code: 'decode-failed', format: 'png', detail: 'bad IHDR' })
+    const message = describeJobError(
+      { code: 'decode-failed', format: 'png', detail: 'bad IHDR' },
+      es,
+    )
 
     expect(message).toContain('PNG')
     // The codec's own message is for logs. It is not an instruction to a user.
@@ -45,10 +49,12 @@ describe('describeJobError', () => {
       { code: 'worker-crashed', detail: 'x' },
     ]
 
-    for (const error of codes) {
-      const message = describeJobError(error)
-      expect(message.length).toBeGreaterThan(10)
-      expect(message).not.toContain('undefined')
+    for (const copy of [es, en]) {
+      for (const error of codes) {
+        const message = describeJobError(error, copy)
+        expect(message.length).toBeGreaterThan(10)
+        expect(message).not.toContain('undefined')
+      }
     }
   })
 })

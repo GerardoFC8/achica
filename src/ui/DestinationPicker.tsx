@@ -9,6 +9,7 @@ import {
   type BudgetChoice,
   type PngUnderBudget,
 } from './budget'
+import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
 
 /**
@@ -37,9 +38,12 @@ type Props = {
   readonly onBudget: (budget: BudgetChoice) => void
 }
 
-const PNG_CHOICES: readonly { readonly value: PngUnderBudget; readonly label: string }[] = [
-  { value: 'webp', label: 'Pasarlo a WebP, que conserva la transparencia' },
-  { value: 'keep', label: 'Dejarlo en PNG y achicar sus dimensiones' },
+const PNG_CHOICES: readonly {
+  readonly value: PngUnderBudget
+  readonly label: 'pngToWebp' | 'pngKeep'
+}[] = [
+  { value: 'webp', label: 'pngToWebp' },
+  { value: 'keep', label: 'pngKeep' },
 ]
 
 /**
@@ -50,16 +54,19 @@ const PNG_CHOICES: readonly { readonly value: PngUnderBudget; readonly label: st
  * so on every row would be noise. A weight ceiling wins the line when a profile
  * sets one, since it is the harder promise.
  */
-function summaryOf(profile: Profile, formatters: Formatters): string {
-  if (profile.maxBytes !== undefined) return `máx. ${formatters.bytes(profile.maxBytes)}`
+function summaryOf(profile: Profile, formatters: Formatters, copy: Copy): string {
+  const words = copy.destination
+  if (profile.maxBytes !== undefined) return words.ceiling(formatters.bytes(profile.maxBytes))
 
   const bound = profile.maxWidth ?? profile.maxHeight
-  const size = bound === undefined ? 'tamaño original' : `${bound} px`
+  const size = bound === undefined ? words.originalSize : `${bound} px`
 
   return profile.format === 'keep' ? size : `WebP · ${size}`
 }
 
 export function DestinationPicker({ selected, budget, formatters, onSelect, onBudget }: Props) {
+  const copy = useCopy()
+  const words = copy.destination
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState('')
   const [invalid, setInvalid] = useState(false)
@@ -100,10 +107,10 @@ export function DestinationPicker({ selected, budget, formatters, onSelect, onBu
         aria-controls={panelId}
         className="flex h-8 items-center gap-2 rounded-sm border border-rule px-2.5 text-[13px] leading-4 hover:border-ink-soft coarse:h-11"
       >
-        <span className="text-ink-soft">Destino</span>
-        <span className="font-medium">{selected.label}</span>
+        <span className="text-ink-soft">{copy.toolbar.destination}</span>
+        <span className="font-medium">{words.profile(selected).label}</span>
         <span className="tnum text-[11px] text-ink-soft">
-          {summaryOf(withBudget(selected, budget), formatters)}
+          {summaryOf(withBudget(selected, budget), formatters, copy)}
         </span>
       </button>
 
@@ -119,7 +126,7 @@ export function DestinationPicker({ selected, budget, formatters, onSelect, onBu
           {[...profilesByGroup(PERFILES)].map(([group, members]) => (
             <div key={group} className="border-b border-rule last:border-b-0">
               <div className="px-3 pt-2 pb-1 text-[11px] leading-4 tracking-wider text-ink-soft uppercase">
-                {group}
+                {words.group(group)}
               </div>
 
               {members.map((profile) => (
@@ -136,14 +143,18 @@ export function DestinationPicker({ selected, budget, formatters, onSelect, onBu
                   }`}
                 >
                   <span className="flex items-baseline justify-between gap-3">
-                    <span className="text-[13px] leading-4 font-medium">{profile.label}</span>
+                    <span className="text-[13px] leading-4 font-medium">
+                      {words.profile(profile).label}
+                    </span>
                     <span className="tnum text-[11px] text-ink-soft">
-                      {summaryOf(profile, formatters)}
+                      {summaryOf(profile, formatters, copy)}
                     </span>
                   </span>
                   <span className="text-xs leading-4 text-pretty text-ink-soft">
-                    Recomendación nuestra
-                    {profile.note === undefined ? '' : `. ${profile.note}`}
+                    {words.ourAdvice}
+                    {words.profile(profile).note === undefined
+                      ? ''
+                      : `. ${words.profile(profile).note}`}
                   </span>
                 </button>
               ))}
@@ -152,7 +163,7 @@ export function DestinationPicker({ selected, budget, formatters, onSelect, onBu
 
           <div className="grid gap-2 border-t border-rule px-3 pt-2 pb-3">
             <div className="text-[11px] leading-4 tracking-wider text-ink-soft uppercase">
-              Tope por archivo
+              {words.budgetTitle}
             </div>
 
             <div className="flex flex-wrap gap-1">
@@ -162,7 +173,7 @@ export function DestinationPicker({ selected, budget, formatters, onSelect, onBu
                 onClick={() => onBudget({ ...budget, maxBytes: null })}
                 className={chip(budget.maxBytes === null, false)}
               >
-                Sin tope
+                {words.noBudget}
               </button>
               {BUDGET_PRESETS.map((bytes) => (
                 <button
@@ -190,7 +201,7 @@ export function DestinationPicker({ selected, budget, formatters, onSelect, onBu
               }}
             >
               <label htmlFor={customId} className="text-xs leading-4 text-ink-soft">
-                Otro
+                {words.otherBudget}
               </label>
               <input
                 id={customId}
@@ -209,12 +220,15 @@ export function DestinationPicker({ selected, budget, formatters, onSelect, onBu
                 type="submit"
                 className="h-7 rounded-sm border border-rule px-2 text-xs leading-4 hover:border-ink-soft coarse:h-11"
               >
-                Usar
+                {words.useBudget}
               </button>
             </form>
             {invalid ? (
               <p role="alert" className="text-xs leading-4 text-over">
-                Escribe un número de KB entre {MIN_KILOBYTES} y {formatters.count(MAX_KILOBYTES)}.
+                {words.invalidBudget(
+                  formatters.count(MIN_KILOBYTES),
+                  formatters.count(MAX_KILOBYTES),
+                )}
               </p>
             ) : null}
 
@@ -226,7 +240,7 @@ export function DestinationPicker({ selected, budget, formatters, onSelect, onBu
             {budget.maxBytes !== null && selected.format === 'keep' ? (
               <fieldset className="grid gap-1">
                 <legend className="pb-1 text-xs leading-4 text-ink-soft">
-                  Si un PNG no entra en el tope
+                  {words.pngQuestion}
                 </legend>
                 {PNG_CHOICES.map((choice) => (
                   <label key={choice.value} className="flex items-start gap-2 text-xs leading-4">
@@ -237,7 +251,7 @@ export function DestinationPicker({ selected, budget, formatters, onSelect, onBu
                       onChange={() => onBudget({ ...budget, png: choice.value })}
                       className="mt-0.5 accent-ink"
                     />
-                    {choice.label}
+                    {words[choice.label]}
                   </label>
                 ))}
               </fieldset>

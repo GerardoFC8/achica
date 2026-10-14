@@ -17,12 +17,35 @@
 export const DEFAULT_LOCALE = 'es-419'
 
 /**
- * The interface is written in Spanish, so its numbers follow a Spanish
- * convention. Honouring an unrelated locale would put German separators inside
- * Spanish sentences.
+ * Numbers follow the language the page is written in. Honouring an unrelated
+ * locale would put German separators inside Spanish sentences, so the browser
+ * only gets to pick the region: es-PE on the Spanish page, en-GB on the
+ * English one (D54).
  */
-export function preferredLocale(languages: readonly string[]): string {
-  return languages.find((language) => language.toLowerCase().startsWith('es')) ?? DEFAULT_LOCALE
+export function preferredLocale(
+  languages: readonly string[],
+  language = 'es',
+  fallback = DEFAULT_LOCALE,
+): string {
+  return (
+    languages.find(
+      (candidate) =>
+        candidate.toLowerCase().startsWith(language.toLowerCase()) && isLocaleTag(candidate),
+    ) ?? fallback
+  )
+}
+
+/**
+ * Whether Intl accepts the tag at all. Browsers can hand over a POSIX name
+ * such as `en-US@posix`, read from the system, and Intl.NumberFormat throws on
+ * it: one odd setting would take down every number on the page.
+ */
+function isLocaleTag(tag: string): boolean {
+  try {
+    return Intl.getCanonicalLocales(tag).length === 1
+  } catch {
+    return false
+  }
 }
 
 export type Formatters = {

@@ -1,8 +1,8 @@
-import type { OutputFormat } from '../core/codecs/encode'
 import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
+import type { Copy } from './copy'
 import type { Formatters } from './format'
-import { describeJobError } from './messages'
+import { describeJobError, formatName } from './messages'
 
 /**
  * The arithmetic behind a row, kept out of the components that draw it.
@@ -22,14 +22,6 @@ export type WeightBar = {
   readonly mark: number | null
   /** The stretch past the budget, drawn apart so colour is not the only cue. */
   readonly overflow: { readonly start: number; readonly width: number } | null
-}
-
-/** How a format is written in a sentence, which is not how its extension is. */
-const FORMAT_NAMES: Readonly<Record<OutputFormat, string>> = {
-  jpeg: 'JPEG',
-  png: 'PNG',
-  webp: 'WebP',
-  avif: 'AVIF',
 }
 
 /** Inside this much of the mark, a result counts as having only just fitted. */
@@ -90,16 +82,18 @@ export function weightBar(item: QueueItem, profile: Profile): WeightBar | null {
   }
 }
 
-export function rowNote(item: QueueItem, formatters: Formatters): string {
+export function rowNote(item: QueueItem, formatters: Formatters, copy: Copy): string {
+  const { note } = copy
+
   switch (item.status) {
     case 'pending':
-      return 'En cola'
+      return note.pending
     case 'running':
-      return 'Comprimiendo'
+      return note.running
     case 'cancelled':
-      return 'Cancelado'
+      return note.cancelled
     case 'failed':
-      return describeJobError(item.error)
+      return describeJobError(item.error, copy)
     case 'done': {
       const { outcome } = item
       const size = formatters.dimensions(outcome.width, outcome.height)
@@ -108,12 +102,10 @@ export function rowNote(item: QueueItem, formatters: Formatters): string {
       // Both are things the user did not ask for in so many words, so the row
       // says them before the file is opened (D53).
       if (outcome.convertedForBudget) {
-        const name = FORMAT_NAMES[outcome.format]
-        return shrunk
-          ? `Pasó a ${name} y se redujo a ${size} para entrar`
-          : `${size} · pasó a ${name} para entrar`
+        const name = formatName(outcome.format)
+        return shrunk ? note.convertedAndShrunk(size, name) : note.converted(size, name)
       }
-      return shrunk ? `Se redujo a ${size} para entrar` : size
+      return shrunk ? note.shrunk(size) : size
     }
   }
 }
@@ -138,14 +130,15 @@ export type RowDetail = {
  * any more (D49) that would be every file in the batch, so the row now carries
  * the bound the profile actually imposes.
  */
-function describeTarget(profile: Profile, formatters: Formatters): string {
-  if (profile.maxBytes !== undefined) return `máx. ${formatters.bytes(profile.maxBytes)}`
+function describeTarget(profile: Profile, formatters: Formatters, copy: Copy): string {
+  const { details } = copy
+  if (profile.maxBytes !== undefined) return details.ceiling(formatters.bytes(profile.maxBytes))
 
   const bound = profile.maxWidth ?? profile.maxHeight
-  const size = bound === undefined ? 'cualquier tamaño' : `máx. ${bound} px`
+  const size = bound === undefined ? details.anySize : details.maxSize(bound)
 
   return profile.format === 'keep'
-    ? `${size}, formato original`
+    ? `${size}, ${details.originalFormat}`
     : `${size}, ${profile.format.toUpperCase()}`
 }
 
@@ -161,25 +154,30 @@ export function rowDetails(
   item: QueueItem,
   profile: Profile,
   formatters: Formatters,
+  copy: Copy,
 ): readonly RowDetail[] {
-  const target: RowDetail = { label: 'Destino pide', value: describeTarget(profile, formatters) }
+  const { details } = copy
+  const target: RowDetail = {
+    label: details.target,
+    value: describeTarget(profile, formatters, copy),
+  }
 
   if (item.status === 'failed') {
     // The message in full, because the row truncates it and it is the only
     // content a failed row has. The code goes with it for a bug report.
     return [
-      { label: 'Qué pasó', value: describeJobError(item.error), kind: 'failed' },
-      { label: 'Código', value: item.error.code },
-      { label: 'Origen', value: formatters.bytes(item.bytesBefore) },
+      { label: details.whatHappened, value: describeJobError(item.error, copy), kind: 'failed' },
+      { label: details.code, value: item.error.code },
+      { label: details.source, value: formatters.bytes(item.bytesBefore) },
     ]
   }
 
   if (item.status !== 'done') {
     return [
-      { label: 'Origen', value: formatters.bytes(item.bytesBefore) },
+      { label: details.source, value: formatters.bytes(item.bytesBefore) },
       target,
       ...(item.status === 'running'
-        ? [{ label: 'Avance', value: 'no medible dentro de un archivo' }]
+        ? [{ label: details.progress, value: details.progressUnknown }]
         : []),
     ]
   }
@@ -192,29 +190,29 @@ export function rowDetails(
 
   return [
     {
-      label: 'Salida',
+      label: details.output,
       value:
         outcome.quality === null
           ? outcome.format.toUpperCase()
-          : `${outcome.format.toUpperCase()} · calidad ${formatters.count(outcome.quality)}`,
+          : `${outcome.format.toUpperCase()} · ${details.quality(formatters.count(outcome.quality))}`,
     },
-    { label: 'Dimensiones', value: formatters.dimensions(outcome.width, outcome.height) },
-    { label: 'Pasadas de codificación', value: formatters.count(outcome.encodes) },
+    { label: details.dimensions, value: formatters.dimensions(outcome.width, outcome.height) },
+    { label: details.encodes, value: formatters.count(outcome.encodes) },
     target,
     ...(margin === null
       ? []
       : [
           {
-            label: margin >= 0 ? 'Margen' : 'Exceso',
+            label: margin >= 0 ? details.margin : details.excess,
             value: formatters.bytes(Math.abs(margin)),
             kind,
           },
         ]),
     {
-      label: 'Ahorro',
+      label: details.saved,
       value: `${formatters.bytes(item.bytesBefore - outcome.bytesAfter)} · ${formatters.percent(savedRatio(item) ?? 0)}`,
       kind,
     },
-    { label: 'Tiempo en el worker', value: formatters.ms(item.ms) },
+    { label: details.time, value: formatters.ms(item.ms) },
   ]
 }

@@ -1,11 +1,12 @@
 import type { JobError } from '../workers/protocol'
+import type { Copy } from './copy'
 
 /**
  * A typed code becomes a sentence here, and only here.
  *
  * The core reports codes precisely so the wording is not baked into it — that
- * is what lets the same failure be shown in Spanish today and in English
- * later. Each message says what happened and what to do about it. The codec's
+ * is what lets the same failure be shown in Spanish and in English (the
+ * sentences themselves are in ./copy). Each message says what happened and what to do about it. The codec's
  * own `detail` never reaches the user: it is for a bug report, and a stack
  * trace in a table row helps nobody.
  */
@@ -21,28 +22,29 @@ const FORMAT_NAMES: Readonly<Record<string, string>> = {
   bmp: 'BMP',
 }
 
-const nameOf = (format: string): string => FORMAT_NAMES[format] ?? format.toUpperCase()
+/** How a format is written in a sentence, which is not how its extension is. */
+export const formatName = (format: string): string => FORMAT_NAMES[format] ?? format.toUpperCase()
 
-export function describeJobError(error: JobError): string {
+export function describeJobError(error: JobError, copy: Copy): string {
+  const { errors } = copy
+
   switch (error.code) {
     case 'empty-file':
-      return 'Archivo vacío, no hay nada que comprimir'
+      return errors.emptyFile
 
     case 'unknown-format':
-      return 'No es una imagen que se pueda reconocer'
+      return errors.unknownFormat
 
     case 'unsupported-format':
-      return error.format === 'heic'
-        ? 'Las fotos HEIC del iPhone no entran en esta versión. Expórtalas como JPEG desde el teléfono'
-        : `${nameOf(error.format)} no está soportado. Convierte el archivo a JPEG, PNG, WebP o AVIF`
+      return error.format === 'heic' ? errors.heic : errors.unsupported(formatName(error.format))
 
     case 'decode-failed':
-      return `${nameOf(error.format)} dañado, no se pudo leer la imagen`
+      return errors.decodeFailed(formatName(error.format))
 
     case 'encode-failed':
-      return `No se pudo generar el ${nameOf(error.format)} de salida`
+      return errors.encodeFailed(formatName(error.format))
 
     case 'worker-crashed':
-      return 'El navegador cortó el proceso, probablemente por falta de memoria. Prueba con menos archivos a la vez'
+      return errors.workerCrashed
   }
 }

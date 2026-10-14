@@ -30,6 +30,14 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
+    // Two pages, one app: / in Spanish and /en/ in English (D54). Both load
+    // the same bundle; each says its language in <html lang>.
+    rolldownOptions: {
+      input: {
+        es: 'index.html',
+        en: 'en/index.html',
+      },
+    },
     assetsInlineLimit: (filePath) =>
       /*
        * Never inline wasm: a base64 data URL cannot be streamed by

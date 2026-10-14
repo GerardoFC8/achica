@@ -5,6 +5,7 @@ import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-react'
 import { queueStore } from '../state/queue-store'
+import { CopyProvider, en } from './copy'
 import { App } from './App'
 
 /**
@@ -112,6 +113,26 @@ describe('the queue', () => {
     // The cause in words, in the row, with the batch carrying on around it.
     await expect.element(page.getByText(/PNG dañado/), { timeout: 30_000 }).toBeVisible()
     await expect.element(page.getByText(/1 imagen comprimida/)).toBeVisible()
+  })
+})
+
+describe('the English page', () => {
+  it('speaks English from the heading to the totals', { timeout: 40_000 }, async () => {
+    render(
+      <CopyProvider value={en}>
+        <App />
+      </CopyProvider>,
+    )
+
+    await expect
+      .element(page.getByRole('heading', { level: 1, name: /images you want to compress/ }))
+      .toBeVisible()
+    await expect.element(page.getByRole('link', { name: 'Español' })).toHaveAttribute('href', '/')
+
+    queueStore.getState().add([await fixture('Landscape_6.jpg')])
+    await userEvent.click(page.getByRole('button', { name: /Compress 1 image/ }))
+    await expect.element(page.getByText(/1 image compressed/), { timeout: 30_000 }).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Download 1 image' })).toBeVisible()
   })
 })
 

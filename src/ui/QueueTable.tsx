@@ -1,4 +1,5 @@
 import type { Profile } from '../core/profiles'
+import { useCopy } from './copy'
 import type { Formatters } from './format'
 import type { SortDirection, SortKey, ViewRow } from './queue-view'
 import { QueueRow } from './QueueRow'
@@ -20,14 +21,13 @@ type Props = {
   readonly onSave: (id: string) => void
 }
 
-const COLUMNS: readonly { readonly key: SortKey; readonly label: string; readonly cell: string }[] =
-  [
-    { key: 'name', label: 'Archivo', cell: 'cell-name' },
-    { key: 'before', label: 'Antes', cell: 'cell-before' },
-    { key: 'after', label: 'Después', cell: 'cell-after' },
-    { key: 'saved', label: 'Ahorro', cell: 'cell-saved' },
-    { key: 'time', label: 'Tiempo', cell: 'cell-time' },
-  ]
+const COLUMNS: readonly { readonly key: Exclude<SortKey, 'orden'>; readonly cell: string }[] = [
+  { key: 'name', cell: 'cell-name' },
+  { key: 'before', cell: 'cell-before' },
+  { key: 'after', cell: 'cell-after' },
+  { key: 'saved', cell: 'cell-saved' },
+  { key: 'time', cell: 'cell-time' },
+]
 
 export function QueueTable({
   rows,
@@ -45,10 +45,11 @@ export function QueueTable({
   onCompare,
   onSave,
 }: Props) {
+  const { table } = useCopy()
   const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.item.id))
 
   return (
-    <div role="table" aria-label="Cola de compresión" className="flex min-h-0 flex-1 flex-col">
+    <div role="table" aria-label={table.label} className="flex min-h-0 flex-1 flex-col">
       <div
         role="row"
         className="queue-head hidden border-b border-rule text-xs leading-4 text-ink-soft md:grid"
@@ -58,7 +59,7 @@ export function QueueTable({
             type="checkbox"
             checked={allSelected}
             onChange={onToggleAll}
-            aria-label="Seleccionar todo lo visible"
+            aria-label={table.selectAll}
             className="size-4 accent-ink"
           />
         </div>
@@ -77,7 +78,7 @@ export function QueueTable({
               onClick={() => onSort(column.key)}
               className={`w-full cursor-pointer ${column.key === 'name' ? 'text-left' : 'text-right'}`}
             >
-              {column.label}
+              {table.columns[column.key]}
               {sortKey === column.key ? (direction === 'asc' ? ' ↑' : ' ↓') : ''}
             </button>
           </div>
