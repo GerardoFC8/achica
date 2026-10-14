@@ -42,9 +42,9 @@ Un PNG no tiene perilla de calidad, así que bajo un tope que no alcanza tal com
 
 **Terminado y en uso.** El flujo está completo: se arrastra una carpeta, se elige el destino, la cola muestra estado, ahorro y peso contra presupuesto archivo por archivo, y los resultados se descargan como ZIP o se escriben directo en una carpeta donde el navegador lo permite. Desplegado en https://achica.gfcode.dev
 
-![La cola después de comprimir un lote, con el destino «Enviar por mensajería»](docs/captura.png)
+![La cola después de comprimir un lote, con el destino «Enviar por mensajería» y un tope de 200 KB](docs/captura.png)
 
-La barra de cada fila es el peso original; el relleno, lo que pesa ahora; y la marca vertical, dónde cae el presupuesto. Solo aparece en los archivos a los que el presupuesto de verdad limita: en la captura, únicamente el primero. El lote entero se lee de un vistazo sin leer una sola cifra.
+La barra de cada fila es el peso original; el relleno, lo que pesa ahora; y la marca vertical, dónde cae el presupuesto. Solo aparece en los archivos a los que el presupuesto de verdad limita: en la captura, las dos fotos; las imágenes diminutas ya entraban de sobra. El lote entero se lee de un vistazo sin leer una sola cifra.
 
 Contra la definición de terminado de la v1 ([`docs/spec.md`](docs/spec.md), sección 10): **diez de doce puntos completos**. Los dos que faltan no son deuda pendiente sino decisiones tomadas con evidencia — HEIC de entrada y la opción de conservar metadatos — y están explicadas en [limitaciones conocidas](#limitaciones-conocidas).
 
