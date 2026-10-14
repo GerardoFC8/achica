@@ -35,12 +35,16 @@ describe('the English catalogue', () => {
   })
 
   it('carries no Spanish', () => {
-    const { otherLanguage, ...rest } = en
+    // Codes, not sentences: 'en' would trip the guard below on its own.
+    const { otherLanguage, lang, numberLocale, ...rest } = en
+    expect([lang, numberLocale]).toEqual(['en', 'en-US'])
     // The link to the Spanish page is the one place Spanish belongs.
     expect(otherLanguage.label).toBe('Español')
 
     for (const sentence of sentencesOf(rest)) {
-      expect(sentence, sentence).not.toMatch(/[áéíóúñ¿¡]|\b(de|la|el|los|las|que|con)\b/i)
+      expect(sentence, sentence).not.toMatch(
+        /[áéíóúñ¿¡]|\b(de|del|la|las|el|los|que|con|sin|contra|para|por|una|en|y)\b/i,
+      )
     }
   })
 

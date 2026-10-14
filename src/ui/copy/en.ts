@@ -100,6 +100,7 @@ export const en: Copy = {
   table: {
     label: 'Compression queue',
     selectAll: 'Select everything visible',
+    weight: 'Weight against the limit',
     columns: {
       name: 'File',
       before: 'Before',
