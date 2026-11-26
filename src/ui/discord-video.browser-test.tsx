@@ -41,7 +41,7 @@ async function setSegment(start: string, length: string, fps: string): Promise<v
   await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
   await userEvent.fill(page.getByLabelText('Inicio (s)'), start)
   await userEvent.fill(page.getByLabelText('Duración (s)'), length)
-  await userEvent.fill(page.getByLabelText('Fotogramas por segundo'), fps)
+  await userEvent.fill(page.getByLabelText('Fotogramas por segundo (máx.)'), fps)
   await userEvent.keyboard('{Escape}')
 }
 
@@ -52,7 +52,7 @@ describe('the Video section of the destination panel', () => {
 
     await expect.element(page.getByLabelText('Inicio (s)')).toHaveValue('0')
     await expect.element(page.getByLabelText('Duración (s)')).toHaveValue('5')
-    await expect.element(page.getByLabelText('Fotogramas por segundo')).toHaveValue('15')
+    await expect.element(page.getByLabelText('Fotogramas por segundo (máx.)')).toHaveValue('15')
     await expect.element(page.getByText(/es de achica, no de Discord/)).toBeVisible()
   })
 

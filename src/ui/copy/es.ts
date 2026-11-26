@@ -364,10 +364,11 @@ export const es = {
   /** The Discord panel's section for cutting a video (the tool's own numbers, not Discord's). */
   video: {
     title: 'Video',
-    onlyVideos: 'Solo cuenta para los archivos de video.',
+    onlyVideos:
+      'Solo cuenta para los archivos de video. Los fotogramas por segundo son un máximo: el resultado nunca supera a los del propio video, así que un video de 10 fps sale a 10 fps aunque pidas 15.',
     start: 'Inicio (s)',
     length: 'Duración (s)',
-    fps: 'Fotogramas por segundo',
+    fps: 'Fotogramas por segundo (máx.)',
     /** Why there is a cap, and whose it is. */
     capNote: (seconds: string, frames: string) =>
       `El tope de ${seconds} s y ${frames} fotogramas es de achica, no de Discord: reproducir el tramo lleva tanto tiempo como dure, y los fotogramas se guardan en memoria.`,

@@ -395,16 +395,21 @@ function gifTiming(data) {
   return { frames, ms: hundredths * 10, broken: false }
 }
 
+/** The frame rate of the generated video fixtures (video-gray-steps.webm / .mp4). */
+const GRAY_STEPS_FPS = 8
+
 /**
  * A video as a sticker GIF: what a sticker is, and in addition the segment that
  * was asked for. Frames and duration are within 15 % (at least one frame) of
- * the seconds and the rate chosen in the panel.
+ * the seconds and the rate chosen in the panel, where that rate is a MAXIMUM:
+ * the result never has more frames per second than the video itself, so the
+ * wanted count is seconds x min(rate asked, rate of the video).
  */
-const verifyVideoGif = (seconds, fps) => (entries, batch) => {
+const verifyVideoGif = (seconds, fps, sourceFps) => (entries, batch) => {
   verifyStickerGif(entries, batch)
   for (const entry of entries) {
     const timing = gifTiming(entry.data)
-    const wantedFrames = seconds * fps
+    const wantedFrames = seconds * Math.min(fps, sourceFps)
     const wantedMs = seconds * 1000
     check(`${entry.name} is a well-formed GIF`, !timing.broken)
     check(
@@ -582,7 +587,8 @@ const BATCHES = [
     page: verifyNotAnimatedRow,
   },
   {
-    // The fixture is 2 s long: the whole of it, at 10 frames per second.
+    // The fixture is 2 s long and 8 fps: the whole of it, and the 10 fps asked is a
+    // maximum, so it comes out at the video's own 8 (16 frames, 125 ms each).
     label: 'Discord, in Spanish, a WebM video as a sticker, 0 to 2 s at 10 fps',
     tool: 'discord',
     language: 'es',
@@ -591,10 +597,10 @@ const BATCHES = [
     done: 1,
     expected: ['video-gray-steps.gif'],
     oxipng: false,
-    verify: verifyVideoGif(2, 10),
+    verify: verifyVideoGif(2, 10, GRAY_STEPS_FPS),
   },
   {
-    // Only the duration changes, at the default 15 fps: a second, not two.
+    // Only the duration changes, at the default 15 fps (above the video's 8): a second, not two.
     label: 'Discord, in English, the same video with the duration set to 1 s',
     tool: 'discord',
     language: 'en',
@@ -603,7 +609,7 @@ const BATCHES = [
     done: 1,
     expected: ['video-gray-steps.gif'],
     oxipng: false,
-    verify: verifyVideoGif(1, 15),
+    verify: verifyVideoGif(1, 15, GRAY_STEPS_FPS),
   },
   {
     // Only where this browser can play H.264; it says so when it cannot.
@@ -616,7 +622,7 @@ const BATCHES = [
     done: 1,
     expected: ['video-gray-steps.gif'],
     oxipng: false,
-    verify: verifyVideoGif(1, 8),
+    verify: verifyVideoGif(1, 8, GRAY_STEPS_FPS),
   },
 ]
 
@@ -668,7 +674,7 @@ const WORDS = {
       busy: 'Preparando',
       finished: (count) => `${count} ${count === 1 ? 'animación lista' : 'animaciones listas'}`,
       single: /Descargar 1 animación/,
-      fields: { start: 'Inicio (s)', length: 'Duración (s)', fps: 'Fotogramas por segundo' },
+      fields: { start: 'Inicio (s)', length: 'Duración (s)', fps: 'Fotogramas por segundo (máx.)' },
     },
     auditar: {
       title: /HAR/,
@@ -717,7 +723,7 @@ const WORDS = {
       busy: 'Preparing',
       finished: (count) => `${count} ${count === 1 ? 'animation' : 'animations'} ready`,
       single: /Download 1 animation/,
-      fields: { start: 'Start (s)', length: 'Length (s)', fps: 'Frames per second' },
+      fields: { start: 'Start (s)', length: 'Length (s)', fps: 'Frames per second (max)' },
     },
     auditar: {
       title: /HAR/,

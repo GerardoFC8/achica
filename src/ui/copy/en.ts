@@ -318,10 +318,11 @@ export const en: Copy = {
 
   video: {
     title: 'Video',
-    onlyVideos: 'Only used for video files.',
+    onlyVideos:
+      "Only used for video files. Frames per second is a maximum: the result never goes above the video's own rate, so a 10 fps video comes out at 10 fps even if you ask for 15.",
     start: 'Start (s)',
     length: 'Length (s)',
-    fps: 'Frames per second',
+    fps: 'Frames per second (max)',
     capNote: (seconds, frames) =>
       `The cap of ${seconds} s and ${frames} frames is achica's, not Discord's: playing the segment takes as long as it lasts, and the frames are held in memory.`,
     problems: {

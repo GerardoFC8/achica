@@ -316,6 +316,7 @@ describe('memory: the frames leave the main thread', () => {
           width: side,
           height: side,
           repeatedFrames: 0,
+          effectiveFps: 15,
           source: { durationSeconds: 5, width: 1920, height: 1080 },
           clip: { startSeconds: 0, lengthSeconds: 5 },
         }),

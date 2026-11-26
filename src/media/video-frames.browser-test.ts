@@ -6,10 +6,9 @@ import { extractVideoFrames, type ExtractedVideo, type ExtractOptions } from './
  * The oracle is independent of the extractor: video-gray-steps has a flat gray
  * of level 8 + 16k in source frame k (8 fps, 16 frames), so the pixel value of
  * an extracted frame says which SOURCE frame it came from. A shift by one
- * frame is 16 levels; the tolerance for lossy coding is 6.
+ * frame is 16 levels.
  */
 
-const TOLERANCE = 6
 const STICKER = { kind: 'sticker', size: 320 } as const
 
 type Spies = { readonly created: string[]; readonly revoked: string[] }
@@ -84,9 +83,19 @@ function sourceFrameOf(video: ExtractedVideo, index: number): number {
  *   (that is what this catches), while a loaded machine spoils a minority.
  */
 function expectNoShiftNorReorder(video: ExtractedVideo, sources: readonly number[]): void {
-  expect(video.frames).toHaveLength(sources.length)
-  const seen = sources.map((_, index) => sourceFrameOf(video, index))
-  const offsets = seen.map((frame, index) => frame - (sources[index] ?? 0))
+  // Targets served by the same presented frame are fused into one frame, so
+  // `repeatedFrames` fewer frames than targets come out. Frame j then serves
+  // some target between j and j + repeatedFrames: that is the window its
+  // source frame is checked against (no window at all when nothing was fused).
+  const fused = video.repeatedFrames
+  expect(video.frames).toHaveLength(sources.length - fused)
+  const seen = video.frames.map((_, index) => sourceFrameOf(video, index))
+  const nearest = (index: number): number => {
+    const seenFrame = seen[index] ?? 0
+    const window = sources.slice(index, index + fused + 1)
+    return seenFrame - (window.find((s) => Math.abs(s - seenFrame) <= 1) ?? window[0] ?? 0)
+  }
+  const offsets = seen.map((_, index) => nearest(index))
 
   expect(Math.abs(offsets[0] ?? 0), 'the first frame is the first target').toBeLessThanOrEqual(1)
   offsets.forEach((offset, index) => {
@@ -98,13 +107,26 @@ function expectNoShiftNorReorder(video: ExtractedVideo, sources: readonly number
   for (let i = 1; i < seen.length; i += 1) {
     expect(seen[i] ?? 0, `frame ${i} went back`).toBeGreaterThanOrEqual(seen[i - 1] ?? 0)
   }
-  const exact = offsets.filter((offset) => offset === 0).length
+  const exact = offsets.filter((offset) => Math.abs(offset) <= (fused > 0 ? 1 : 0)).length
   expect(
     exact,
     `only ${exact} of ${offsets.length} frames are the one wanted: a shift`,
   ).toBeGreaterThanOrEqual(offsets.length / 2)
-  expect(video.repeatedFrames).toBeGreaterThanOrEqual(0)
+  expect(fused).toBeGreaterThanOrEqual(0)
 }
+
+/** What fusing guarantees: no two consecutive output frames show the same source frame. */
+function expectNoConsecutiveDuplicates(video: ExtractedVideo): void {
+  for (let i = 1; i < video.frames.length; i += 1) {
+    expect(
+      sourceFrameOf(video, i),
+      `frame ${i} repeats the source frame of the one before`,
+    ).toBeGreaterThan(sourceFrameOf(video, i - 1))
+  }
+}
+
+const sumOfDelays = (video: ExtractedVideo): number =>
+  video.frames.reduce((sum, frame) => sum + frame.delayMs, 0)
 
 const range = (from: number, count: number, step = 1): number[] =>
   Array.from({ length: count }, (_, i) => from + i * step)
@@ -117,17 +139,20 @@ describe('extractVideoFrames, WebM (VP9)', () => {
     expectClean(spies)
   })
 
-  it('counts the frames it repeated, and none when the rate is below the source rate', async () => {
+  it('counts the targets it fused, and few when the rate is below the source rate', async () => {
     // Sampling every other source frame serves a presented frame twice only when
     // playback lost one, and a loaded machine does lose them (125 of 150 were
-    // measured in Firefox). So this asserts "well below the by-design repeats
+    // measured in Firefox). So this asserts "well below the by-design fusions
     // of the dense case", not "none": half of the 8 targets is the line.
     const sparse = await extractOk('video-gray-steps.webm', { fps: 4 })
     expect(sparse.repeatedFrames).toBeLessThanOrEqual(4)
+    expect(sparse.frames.length + sparse.repeatedFrames).toBe(8)
 
-    // Above the source rate the repeats are by design: 16 fps over 8 fps video.
+    // Above the source rate the fusions are by design: 16 fps over 8 fps video
+    // is 16 targets for 8 presented frames.
     const dense = await extractOk('video-gray-steps.webm', { fps: 16, lengthSeconds: 1 })
     expect(dense.repeatedFrames).toBeGreaterThanOrEqual(6)
+    expect(dense.frames.length + dense.repeatedFrames).toBe(16)
   })
 
   it('takes every other source frame at 4 fps', async () => {
@@ -151,22 +176,58 @@ describe('extractVideoFrames, WebM (VP9)', () => {
     expect(video.source.height).toBe(90)
   })
 
-  it('repeats a frame when the target rate is above the source rate, still in order', async () => {
+  it('never exceeds the video rate: 16 fps asked over 8 fps gives the 8 frames, in order', async () => {
     const video = await extractOk('video-gray-steps.webm', { fps: 16, lengthSeconds: 1 })
-    expect(video.frames).toHaveLength(16)
-    const grays = video.frames.map((_, i) => centreGray(video, i))
-    for (let i = 1; i < grays.length; i += 1) {
-      expect(grays[i] ?? 0).toBeGreaterThanOrEqual((grays[i - 1] ?? 0) - TOLERANCE)
+    // Eight presented frames in that second; playback can only lose some.
+    expect(video.frames.length).toBeLessThanOrEqual(8)
+    expect(video.frames.length).toBeGreaterThanOrEqual(5)
+    expectNoConsecutiveDuplicates(video)
+    expectNoShiftNorReorder(video, range(0, 16, 0.5).map(Math.floor))
+    const last = sourceFrameOf(video, video.frames.length - 1)
+    expect(Math.abs(last - 7)).toBeLessThanOrEqual(1)
+  })
+
+  it('a frame stays as long as it was really on screen: 125 ms at 8 fps, asked at 16', async () => {
+    const video = await extractOk('video-gray-steps.webm', { fps: 16, lengthSeconds: 1 })
+    expect(sumOfDelays(video)).toBe(1000)
+    // The 15-over-10 case of the bug: slicing the 16 fps timeline would give
+    // 62/63 ms. A presented frame lasts 125 ms, or a multiple if playback lost
+    // the one after it.
+    for (const frame of video.frames) expect(frame.delayMs).toBeGreaterThanOrEqual(120)
+    if (video.repeatedFrames === 8) {
+      for (const frame of video.frames) expect(Math.abs(frame.delayMs - 125)).toBeLessThanOrEqual(2)
     }
-    expect(Math.abs((grays[15] ?? 0) - grayOfSourceFrame(7))).toBeLessThanOrEqual(TOLERANCE)
+    expect(video.effectiveFps).toBeCloseTo((video.frames.length * 1000) / 1000, 5)
+    expect(video.effectiveFps).toBeLessThanOrEqual(8.01)
+  })
+
+  it('at a rate below the source rate the result is the one it always was', async () => {
+    const video = await extractOk('video-gray-steps.webm', { fps: 4 })
+    expect(sumOfDelays(video)).toBe(Math.round(video.clip.lengthSeconds * 1000))
+    // Nothing fused (the usual case): every frame is one 250 ms slot, as before.
+    if (video.repeatedFrames === 0) {
+      expect(video.frames).toHaveLength(8)
+      expect(video.frames.every((frame) => frame.delayMs === 250)).toBe(true)
+      expect(video.effectiveFps).toBeCloseTo(4, 5)
+    }
   })
 
   it('delays come from the timeline and add up to the extracted length', async () => {
-    const video = await extractOk('video-gray-steps.webm', { fps: 10 })
-    expect(video.frames).toHaveLength(20)
-    const total = video.frames.reduce((sum, frame) => sum + frame.delayMs, 0)
-    expect(total).toBe(Math.round(video.clip.lengthSeconds * 1000))
-    expect(video.frames.every((frame) => frame.delayMs === 100)).toBe(true)
+    const video = await extractOk('video-gray-steps.webm', { fps: 5 })
+    expect(sumOfDelays(video)).toBe(Math.round(video.clip.lengthSeconds * 1000))
+    if (video.repeatedFrames === 0) {
+      expect(video.frames).toHaveLength(10)
+      expect(video.frames.every((frame) => frame.delayMs === 200)).toBe(true)
+    }
+  })
+
+  it('asked at exactly the video rate, nothing is fused and every frame lasts 125 ms', async () => {
+    const video = await extractOk('video-gray-steps.webm', { fps: 8, lengthSeconds: 1 })
+    expect(sumOfDelays(video)).toBe(1000)
+    expect(video.frames.length + video.repeatedFrames).toBe(8)
+    if (video.repeatedFrames === 0) {
+      expect(video.frames.every((frame) => Math.abs(frame.delayMs - 125) <= 1)).toBe(true)
+    }
   })
 
   it('reports progress up to the total', async () => {
@@ -176,6 +237,7 @@ describe('extractVideoFrames, WebM (VP9)', () => {
       onProgress: (done, total) => calls.push([done, total]),
     })
     expect(calls.length).toBeGreaterThan(0)
+    // Progress counts targets resolved, fused ones included, so it still ends at the total.
     expect(calls.at(-1)).toEqual([8, 8])
   })
 

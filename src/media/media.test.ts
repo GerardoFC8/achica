@@ -4,6 +4,7 @@ import { sniffVideoContainer } from './sniff'
 import {
   createNearestSelector,
   frameDelays,
+  fusedDelays,
   MAX_CLIP_FRAMES,
   MAX_CLIP_SECONDS,
   nearestFrameIndices,
@@ -96,6 +97,109 @@ describe('targetTimes and frameDelays', () => {
   })
   it('never gives a delay under 1 ms', () => {
     expect(frameDelays(10, 0.001).every((d) => d >= 1)).toBe(true)
+  })
+})
+
+describe('fusedDelays', () => {
+  const run = (mediaTime: number, targets = 1) => ({ mediaTime, targets })
+  const sum = (values: readonly number[]): number => values.reduce((a, b) => a + b, 0)
+
+  it('is frameDelays when nothing was fused, whatever the media times say', () => {
+    const runs = Array.from({ length: 15 }, (_, k) => run(k / 15 + 0.011 * (k % 2)))
+    expect(fusedDelays(runs, 0, 1)).toEqual(frameDelays(15, 1))
+    expect(fusedDelays([run(0)], 0, 0.033)).toEqual(frameDelays(1, 0.033))
+    expect(fusedDelays([], 0, 1)).toEqual([])
+  })
+
+  it('a 10 fps source asked at 15 fps gives 100 ms, not 66 and 133', () => {
+    // Targets every 1/15 s, nearest presented frame every 0.1 s: the runs
+    // serve 1, 2, 1, 2 targets. 3.7 s of clip: 37 presented frames, 56 targets.
+    const targets = Array.from({ length: 56 }, (_, k) => k / 15)
+    const presented = Array.from({ length: 37 }, (_, k) => k / 10)
+    const serving = new Array<number>(presented.length).fill(0)
+    for (const target of targets) {
+      let best = 0
+      presented.forEach((time, i) => {
+        if (Math.abs(time - target) < Math.abs((presented[best] ?? 0) - target)) best = i
+      })
+      serving[best] = (serving[best] ?? 0) + 1
+    }
+    const runs = presented.map((time, i) => run(time, serving[i]))
+    expect(sum(runs.map((r) => r.targets))).toBe(56)
+    expect(runs.filter((r) => r.targets > 1).length).toBeGreaterThan(15)
+
+    const delays = fusedDelays(runs, 0, 3.7)
+    expect(delays).toHaveLength(37)
+    expect(sum(delays)).toBe(3700)
+    for (const delay of delays) expect(Math.abs(delay - 100)).toBeLessThanOrEqual(10)
+  })
+
+  it('an 8 fps source asked at 16 fps gives 125 ms and the total of the clip', () => {
+    const runs = Array.from({ length: 8 }, (_, k) => run(k / 8, 2))
+    const delays = fusedDelays(runs, 0, 1)
+    expect(delays).toEqual(Array.from({ length: 8 }, () => 125))
+  })
+
+  it('measures from the clip start, and the first frame may predate it', () => {
+    // Clip from 1.03 s of a 10 fps video: the frame on screen at the start was
+    // presented at 1.0, so only 70 ms of it are in the clip.
+    const runs = [run(1.0, 1), run(1.1, 2), run(1.2, 1), run(1.3, 2)]
+    const delays = fusedDelays(runs, 1.03, 0.4)
+    expect(delays[0]).toBe(70)
+    expect(sum(delays)).toBe(400)
+    expect(delays.slice(1, 3)).toEqual([100, 100])
+  })
+
+  it('gives the last frame what is left of the clip, and a lone fused frame all of it', () => {
+    const runs = [run(0, 2), run(0.1, 2), run(0.2, 1)]
+    const delays = fusedDelays(runs, 0, 0.35)
+    expect(delays).toEqual([100, 100, 150])
+    expect(fusedDelays([run(0, 5)], 0, 0.5)).toEqual([500])
+    // A single fused frame whose media time is past the clip start keeps the whole clip.
+    expect(fusedDelays([run(0.2, 3)], 0, 0.5)).toEqual([500])
+  })
+
+  it('a dropped frame leaves the clip uniform except at its two neighbours', () => {
+    // 15 fps over a 30 fps video: target k is served by presented frame 2k.
+    // Frame 8 was dropped, so presented frame 6 serves targets 3 and 4 (fused).
+    const runs = [run(0), run(1 / 15), run(2 / 15), run(3 / 15, 2), run(5 / 15), run(6 / 15)]
+    const delays = fusedDelays(runs, 0, 7 / 15)
+    expect(sum(delays)).toBe(467)
+    // Far from the fused frame the delays are the slots of the uniform timeline.
+    expect(delays[0]).toBe(67)
+    // The fused frame keeps the time of the two slots it served.
+    expect(delays[3]).toBeGreaterThanOrEqual(120)
+  })
+
+  it('keeps every delay at least 1 ms and the total exact, even when media times collide', () => {
+    const runs = [run(0, 2), run(0, 2), run(0, 2), run(0.001, 2)]
+    const delays = fusedDelays(runs, 0, 0.004)
+    expect(delays.every((d) => d >= 1)).toBe(true)
+    expect(sum(delays)).toBe(4)
+    // More frames than milliseconds in the clip: the minimum wins, as in frameDelays.
+    const crowded = fusedDelays([run(0, 2), run(0, 2), run(0, 2)], 0, 0.001)
+    expect(crowded.every((d) => d >= 1)).toBe(true)
+  })
+
+  it('keeps the total exact on random runs', () => {
+    let seed = 99
+    const random = (): number => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296
+      return seed / 4294967296
+    }
+    for (let round = 0; round < 300; round += 1) {
+      const count = 1 + Math.floor(random() * 40)
+      let time = random()
+      const runs = Array.from({ length: count }, () => {
+        time += random() * 0.2
+        return run(time, 1 + Math.floor(random() * 3))
+      })
+      const length = 0.05 + random() * 6
+      const delays = fusedDelays(runs, runs[0]?.mediaTime ?? 0, length)
+      expect(delays).toHaveLength(count)
+      expect(delays.every((d) => d >= 1)).toBe(true)
+      expect(sum(delays)).toBe(Math.max(count, Math.round(length * 1000)))
+    }
   })
 })
 

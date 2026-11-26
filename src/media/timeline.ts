@@ -72,6 +72,66 @@ export function frameDelays(frameCount: number, lengthSeconds: number): number[]
 }
 
 /**
+ * One output frame: the presented frame it shows, by media time, and how many
+ * consecutive targets it served. `targets > 1` means the presented frame was
+ * the nearest one to several targets in a row and those targets were fused
+ * into this single frame (requested rate above the source's, or frames dropped
+ * under load).
+ */
+export type PresentedRun = {
+  readonly mediaTime: number
+  readonly targets: number
+}
+
+/**
+ * How long each output frame stays, in milliseconds, when consecutive targets
+ * served by the same presented frame were fused.
+ *
+ * The delays must add up to the clip length (rounded once, as `frameDelays`
+ * does), so they are the gaps between frame START boundaries, anchored at 0
+ * and at the total. A frame starts:
+ *
+ * - at the media time of its presented frame (minus the clip start) when it or
+ *   the frame before it is a fused one. That is when it really appeared on
+ *   screen: a 10 fps source asked at 15 fps gives 100, 100, 100 and not the
+ *   66, 133 that slicing the 15 fps timeline would give;
+ * - otherwise at its slot on the uniform target timeline, exactly as
+ *   `frameDelays` places it. So when nothing was fused the result IS
+ *   `frameDelays`, and a stray fused frame under load only disturbs its two
+ *   neighbours instead of the whole clip.
+ *
+ * Boundaries are kept strictly increasing (every delay is at least 1 ms).
+ */
+export function fusedDelays(
+  runs: readonly PresentedRun[],
+  startSeconds: number,
+  lengthSeconds: number,
+): number[] {
+  const count = runs.length
+  if (count === 0) return []
+  const targetCount = runs.reduce((sum, run) => sum + run.targets, 0)
+  if (targetCount === count) return frameDelays(count, lengthSeconds)
+
+  const total = Math.max(count, Math.round(lengthSeconds * 1000))
+  const boundaries: number[] = [0]
+  let slot = 0
+  runs.forEach((run, i) => {
+    if (i > 0) {
+      const fused = run.targets > 1 || (runs[i - 1]?.targets ?? 1) > 1
+      const wanted = fused
+        ? Math.round((run.mediaTime - startSeconds) * 1000)
+        : Math.round((slot * total) / targetCount)
+      const floor = (boundaries[i - 1] ?? 0) + 1
+      const ceiling = total - (count - i)
+      boundaries.push(Math.min(ceiling, Math.max(floor, wanted)))
+    }
+    slot += run.targets
+  })
+  boundaries.push(total)
+  return runs.map((_, i) => (boundaries[i + 1] ?? total) - (boundaries[i] ?? 0))
+}
+
+/**
  * The reference, non-streaming version: for each target, the index of the
  * presented frame whose media time is the nearest (the earlier one on a tie).
  * `mediaTimes` must be ascending. The streaming selector below must agree with

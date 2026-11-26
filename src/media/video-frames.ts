@@ -5,11 +5,12 @@ import { err, ok, type Result } from '../core/result'
 import { SNIFF_BYTES, sniffVideoContainer } from './sniff'
 import {
   createNearestSelector,
-  frameDelays,
+  fusedDelays,
   MAX_CLIP_FRAMES,
   MAX_CLIP_SECONDS,
   planClip,
   targetTimes,
+  type PresentedRun,
 } from './timeline'
 
 /**
@@ -44,13 +45,20 @@ import {
  * - Failures are values, and the single <video> is never added to the page;
  *   its object URL is revoked and its source released on every path.
  *
- * - UNDER LOAD FRAMES ARE REPEATED. Playing in real time means the browser may
+ * - THE REQUESTED RATE IS A MAXIMUM. Consecutive targets served by the same
+ *   presented frame are fused into ONE output frame, which stays on screen as
+ *   long as the presented frame did (see `fusedDelays`). Without this a 10 fps
+ *   video asked at 15 fps came out as 56 frames, 19 of them repeats, with
+ *   66/133 ms delays that the original never had. There is no pre-pass and no
+ *   estimate of the source rate: the fusion is decided by what was presented.
+ * - UNDER LOAD FRAMES ARE DROPPED. Playing in real time means the browser may
  *   drop frames when the machine is busy (measured: 125 of 150 presented in
  *   Firefox while other test files ran). The nearest-frame rule keeps the
  *   timeline honest: a dropped frame is served by its neighbour, so the result
- *   is never shifted and never out of order, but some frames repeat.
- *   `repeatedFrames` counts them (it also counts the repeats that are by
- *   design when the target rate is above the source rate).
+ *   is never shifted and never out of order, and the neighbour (now fused)
+ *   stays on screen for the time of both.
+ *   `repeatedFrames` counts the fused targets (it also counts the ones fused
+ *   by design when the target rate is above the source rate).
  *
  * Not handled, and said so: rotation stored in the metadata (phone videos) is
  * whatever the browser reports as videoWidth/Height; variable frame rate is
@@ -91,11 +99,19 @@ export type ExtractedVideo = {
     readonly height: number
   }
   /**
-   * Output frames that repeat the presented frame of the one before: dropped
-   * frames under load (see the header), plus the repeats by design when the
-   * target rate is above the source rate. Zero means one presented frame each.
+   * Targets that were fused into the frame before them because the same
+   * presented frame served both: dropped frames under load (see the header),
+   * plus the ones fused by design when the target rate is above the source
+   * rate. Zero means one presented frame per target. `frames.length` is the
+   * number of targets minus this.
    */
   readonly repeatedFrames: number
+  /**
+   * Output frames per second of the clip, as they will play (`frames.length`
+   * over the sum of their delays). At most the requested rate, and below it
+   * when the video has fewer frames per second.
+   */
+  readonly effectiveFps: number
   /** What was really extracted, after clipping to the video and to the caps. */
   readonly clip: { readonly startSeconds: number; readonly lengthSeconds: number }
 }
@@ -263,29 +279,32 @@ async function extract(
       offsetY: placement.offsetY,
     }
     const targets = targetTimes(plan.value.startSeconds, options.fps, plan.value.frameCount)
-    const delays = frameDelays(plan.value.frameCount, plan.value.lengthSeconds)
 
     const job: Job = {
       video,
       geometry,
       targets,
-      delays,
       signal,
       stallMs,
       loadWaitMs,
       onProgress: options.onProgress,
       stats: { repeated: 0 },
     }
-    const frames =
+    const captured =
       typeof video.requestVideoFrameCallback === 'function'
         ? await captureByPlaying(job)
         : await captureBySeeking(job)
-    if (!frames.ok) return frames
+    if (!captured.ok) return captured
+    const { frames: pixels, runs } = captured.value
+    const delays = fusedDelays(runs, plan.value.startSeconds, plan.value.lengthSeconds)
+    const frames = pixels.map((frame, i) => ({ ...frame, delayMs: delays[i] ?? 1 }))
+    const playMs = delays.reduce((sum, delay) => sum + delay, 0)
     return ok({
-      frames: frames.value,
+      frames,
       width: geometry.width,
       height: geometry.height,
       repeatedFrames: job.stats.repeated,
+      effectiveFps: playMs > 0 ? (frames.length * 1000) / playMs : 0,
       source: { durationSeconds, width: sourceWidth, height: sourceHeight },
       clip: {
         startSeconds: plan.value.startSeconds,
@@ -305,35 +324,33 @@ type Job = {
   readonly video: HTMLVideoElement
   readonly geometry: Geometry
   readonly targets: readonly number[]
-  readonly delays: readonly number[]
   readonly signal: AbortSignal | undefined
   readonly stallMs: number
   readonly loadWaitMs: number
   readonly onProgress: ((done: number, total: number) => void) | undefined
-  /** Filled by the capture: how many output frames repeated the one before. */
+  /** Filled by the capture: how many targets were fused into the frame before them. */
   readonly stats: { repeated: number }
 }
 
-/** Reads the canvas into `count` frames (copies when a presented frame serves several targets). */
-function readFrames(
-  source: Canvas2D,
-  geometry: Geometry,
-  count: number,
-  firstIndex: number,
-  delays: readonly number[],
-): Frame[] {
-  const pixels = source.context.getImageData(0, 0, geometry.width, geometry.height).data
-  return Array.from({ length: count }, (_, i) => ({
-    data: i === 0 ? pixels : pixels.slice(),
+/** What a capture hands back: one frame per run (delay still unset) and the runs themselves. */
+type Captured = { readonly frames: Frame[]; readonly runs: PresentedRun[] }
+
+/**
+ * Reads the canvas into one frame. Its delay is a placeholder: it is only
+ * known once every run is, because it depends on the next presented frame.
+ */
+function readFrame(source: Canvas2D, geometry: Geometry): Frame {
+  return {
+    data: source.context.getImageData(0, 0, geometry.width, geometry.height).data,
     width: geometry.width,
     height: geometry.height,
-    delayMs: delays[firstIndex + i] ?? 1,
-  }))
+    delayMs: 1,
+  }
 }
 
 /** The main method: play, and take the nearest presented frame to each target. */
-function captureByPlaying(job: Job): Promise<Result<Frame[], VideoError>> {
-  const { video, geometry, targets, delays, signal, stallMs, onProgress } = job
+function captureByPlaying(job: Job): Promise<Result<Captured, VideoError>> {
+  const { video, geometry, targets, signal, stallMs, onProgress } = job
   const canvases = [makeCanvas(geometry), makeCanvas(geometry)]
   const [first, second] = canvases
   if (first === null || second === null || first === undefined || second === undefined) {
@@ -342,8 +359,13 @@ function captureByPlaying(job: Job): Promise<Result<Frame[], VideoError>> {
   const pair: readonly [Canvas2D, Canvas2D] = [first, second]
   const selector = createNearestSelector(targets)
   const frames: Frame[] = []
+  const runs: PresentedRun[] = []
+  // Targets resolved so far, fused ones included: what progress counts.
+  let resolved = 0
   // Which canvas holds the previous presented frame; -1 before the first one.
   let previous: 0 | 1 | -1 = -1
+  // The media time of that frame.
+  let previousTime = 0
   let playing = false
   // Whether any callback has reported a frame yet (see the seed below).
   let reported = false
@@ -352,8 +374,10 @@ function captureByPlaying(job: Job): Promise<Result<Frame[], VideoError>> {
   let stallTimer: ReturnType<typeof setTimeout> | undefined
   let endTimer: ReturnType<typeof setTimeout> | undefined
 
+  const captured = (): Captured => ({ frames, runs })
+
   return new Promise((resolve) => {
-    const finish = (result: Result<Frame[], VideoError>): void => {
+    const finish = (result: Result<Captured, VideoError>): void => {
       if (finished) return
       finished = true
       clearTimeout(stallTimer)
@@ -371,20 +395,23 @@ function captureByPlaying(job: Job): Promise<Result<Frame[], VideoError>> {
     }
     const commit = (served: number): void => {
       if (served <= 0 || previous === -1) return
+      // However many targets it served, they become ONE frame.
       job.stats.repeated += served - 1
-      const made = readFrames(pair[previous], geometry, served, frames.length, delays)
-      for (const frame of made) frames.push(frame)
-      onProgress?.(frames.length, targets.length)
+      frames.push(readFrame(pair[previous], geometry))
+      runs.push({ mediaTime: previousTime, targets: served })
+      resolved += served
+      onProgress?.(resolved, targets.length)
     }
     const onFrame = (mediaTime: number): void => {
       const fed = selector.feed(mediaTime)
       if (fed.skip) return
       commit(fed.served)
       if (selector.done) {
-        finish(ok(frames))
+        finish(ok(captured()))
         return
       }
       previous = previous === 0 ? 1 : 0
+      previousTime = mediaTime
       drawFrame(pair[previous], video, geometry)
     }
     const schedule = (): void => {
@@ -401,7 +428,7 @@ function captureByPlaying(job: Job): Promise<Result<Frame[], VideoError>> {
       endTimer = setTimeout(() => {
         commit(selector.flush())
         if (frames.length === 0) finish(fail('corrupt', 'The video ended without a frame.'))
-        else finish(ok(frames))
+        else finish(ok(captured()))
       }, 100)
     }
     const onError = (): void =>
@@ -455,11 +482,12 @@ function captureByPlaying(job: Job): Promise<Result<Frame[], VideoError>> {
 }
 
 /** The fallback: one seek per target. Slow on real video (see the header), but it works everywhere. */
-async function captureBySeeking(job: Job): Promise<Result<Frame[], VideoError>> {
-  const { video, geometry, targets, delays, signal, onProgress } = job
+async function captureBySeeking(job: Job): Promise<Result<Captured, VideoError>> {
+  const { video, geometry, targets, signal, onProgress } = job
   const canvas = makeCanvas(geometry)
   if (canvas === null) return fail('internal', 'A 2D canvas is not available.')
   const frames: Frame[] = []
+  const runs: PresentedRun[] = []
   for (const target of targets) {
     if (isAborted(signal)) return fail('aborted', 'Cancelled.')
     if (Math.abs(video.currentTime - target) > 1e-3) {
@@ -470,10 +498,12 @@ async function captureBySeeking(job: Job): Promise<Result<Frame[], VideoError>> 
       if (sought === 'timeout') return fail('stalled', STALLED_MESSAGE)
     }
     drawFrame(canvas, video, geometry)
-    for (const frame of readFrames(canvas, geometry, 1, frames.length, delays)) frames.push(frame)
+    // One frame per target, never fused: a seek does not say which frame it landed on.
+    frames.push(readFrame(canvas, geometry))
+    runs.push({ mediaTime: target, targets: 1 })
     onProgress?.(frames.length, targets.length)
   }
-  return ok(frames)
+  return ok({ frames, runs })
 }
 
 /** A function, not an inline test: TypeScript would keep a narrowed `false` across the awaits. */
