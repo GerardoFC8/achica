@@ -1,0 +1,38 @@
+{
+  "width": 96,
+  "height": 96,
+  "frames": [
+    {
+      "sha256": "97ff89a42475909cc1f1fbacc15ad5fcb0db9319da321245f5c98de93fad182d",
+      "delayMs": 100
+    },
+    {
+      "sha256": "f1c65342da862c1cc68b2ac6346ee66f2b5e185f1f259fdab60f8e869ce553b7",
+      "delayMs": 100
+    },
+    {
+      "sha256": "f95900317ccaddb0494269a87961becb242257a88819a0809ccb859c99e5242f",
+      "delayMs": 100
+    },
+    {
+      "sha256": "0e8adc01154b13454f3be7644cdafc0e375a31027cbf53bb5cda5ffde5ae0bde",
+      "delayMs": 100
+    },
+    {
+      "sha256": "a712ae50488d1d3fac53745b92faeef0f7bd0ea01e5d5069c1776a2e66fad3ab",
+      "delayMs": 100
+    },
+    {
+      "sha256": "972b255c88372d87d78e197656e5ba82dd195a09324ee35796e25b3c7750a475",
+      "delayMs": 100
+    },
+    {
+      "sha256": "877ca8fd4eafa64489cbd7aa947e8dc98a73531b84c8f0bb6160706d6feb8624",
+      "delayMs": 100
+    },
+    {
+      "sha256": "8d4a88ba0d07049c1247dd438e4d595a567d2d91410ff27e620239c14e9de3f3",
+      "delayMs": 100
+    }
+  ]
+}

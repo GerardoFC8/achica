@@ -91,3 +91,19 @@ export type AnimationEncoding = {
   readonly height: number
   readonly report: EncodeReport
 }
+
+/** Why an animation could not be read, framed or fitted. Values, never exceptions. */
+export type DecodeErrorCode =
+  | 'empty-file'
+  | 'unsupported-format'
+  | 'animation-unsupported'
+  | 'not-animated'
+  | 'corrupt'
+  | 'too-large'
+  | 'resize-failed'
+
+/** Everything `processAnimation` can fail with. `detail` is for logs, the UI words its own message. */
+export type AnimationError = {
+  readonly code: DecodeErrorCode | EncodeErrorCode
+  readonly detail: string
+}

@@ -9,7 +9,9 @@ export {
 } from './quantize'
 export type {
   AnimationEncoding,
+  AnimationError,
   AnimationFormat,
+  DecodeErrorCode,
   EncodeError,
   EncodeErrorCode,
   EncodeReport,
@@ -18,3 +20,28 @@ export type {
   IndexedFrame,
 } from './types'
 export { LIMITS } from './validate'
+export {
+  decodeAnimation,
+  DECODE_LIMITS,
+  DEFAULT_DELAY_MS,
+  type DecodedAnimation,
+  type DecodeOptions,
+} from './decode'
+export { fitImage, planFit, type FitMode, type FittedPixels, type Placement } from './fit'
+export {
+  fitAnimationToBudget,
+  LADDER,
+  mergeShortDelays,
+  sampleAtRate,
+  type BudgetOutcome,
+  type BudgetPlan,
+  type EncodeSettings,
+  type LadderDeps,
+  type Step,
+} from './ladder'
+export {
+  processAnimation,
+  type AnimationLayout,
+  type AnimationOutcome,
+  type AnimationPlan,
+} from './process'

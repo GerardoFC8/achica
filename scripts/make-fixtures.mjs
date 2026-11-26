@@ -13,10 +13,13 @@
  * no EXIF, which is exactly the blank slate this script needs.
  *
  * Run: node scripts/make-fixtures.mjs
+ *      node scripts/make-fixtures.mjs --animations   (only the animated files; needs ffmpeg)
  * Outputs are committed, so this only needs re-running when the corpus changes.
  */
 
-import { copyFile, mkdir, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
@@ -145,8 +148,148 @@ async function encodeBaseJpeg(page, quadrants) {
   return Buffer.from(bytes)
 }
 
+/**
+ * Animated fixtures, made with ffmpeg (a system tool, not an npm dependency;
+ * no test calls it, the outputs are committed).
+ *
+ * ffmpeg is also the independent oracle. For every opaque file the script
+ * decodes the result again with ffmpeg and records, per frame, the SHA-256 of
+ * the RGB24 bytes and the delay in milliseconds in `<name>.expected.json`. The
+ * browser tests then require that ImageDecoder, through decodeAnimation,
+ * yields the same bytes. Opaque on purpose: with alpha, two correct decoders
+ * may differ by a rounding step, and the transparent fixture is checked with a
+ * tolerance instead.
+ *
+ * Small on purpose (about 100 px, 8 to 12 frames): the point is exact
+ * bytes, not realism.
+ */
+function ffmpeg(args) {
+  const run = spawnSync('ffmpeg', ['-v', 'error', '-y', ...args], { encoding: 'utf8' })
+  if (run.status !== 0) throw new Error(`ffmpeg ${args.join(' ')} failed: ${run.stderr}`)
+  return run.stdout
+}
+
+/** Per-frame SHA-256 of RGB24 and delay in ms, as ffmpeg itself decodes the file. */
+function expectedFrames(file) {
+  const out = ffmpeg(['-i', file, '-f', 'framehash', '-hash', 'sha256', '-pix_fmt', 'rgb24', '-'])
+  const lines = out.split(/\r?\n/)
+  const [num, den] = (lines.find((line) => line.startsWith('#tb 0:')) ?? '')
+    .replace('#tb 0:', '')
+    .trim()
+    .split('/')
+    .map(Number)
+  const size = (lines.find((line) => line.startsWith('#dimensions 0:')) ?? '')
+    .replace('#dimensions 0:', '')
+    .trim()
+    .split('x')
+    .map(Number)
+  const frames = lines
+    .filter((line) => line !== '' && !line.startsWith('#'))
+    .map((line) => {
+      const [, , , duration, , hash] = line.split(',').map((part) => part.trim())
+      return { sha256: hash, delayMs: Math.round((Number(duration) * 1000 * num) / den) }
+    })
+  return { width: size[0], height: size[1], frames }
+}
+
+async function makeAnimations() {
+  const written = []
+  const note = (name, extra = '') => written.push(`${name}${extra}`)
+  const out = (name) => join(OUT, name)
+  const source = (size, rate, seconds) => [
+    '-f',
+    'lavfi',
+    '-i',
+    `testsrc2=size=${size}:rate=${rate}:duration=${seconds}`,
+  ]
+
+  ffmpeg([...source('96x96', 10, 1.2), '-f', 'gif', out('anim-opaque.gif')])
+  ffmpeg([...source('160x90', 10, 1), '-f', 'gif', out('anim-wide.gif')])
+  ffmpeg([...source('96x96', 10, 0.8), '-plays', '0', '-f', 'apng', out('anim.apng')])
+  // Lossless, so the decoded RGB is exact and comparable byte for byte.
+  ffmpeg([
+    ...source('96x96', 10, 0.8),
+    '-lossless',
+    '1',
+    '-loop',
+    '0',
+    '-f',
+    'webp',
+    out('anim.webp'),
+  ])
+
+  // A circle of colour on a transparent background.
+  ffmpeg([
+    '-f',
+    'lavfi',
+    '-i',
+    "testsrc2=size=96x96:rate=10:duration=1.2,format=gbrap,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lt(hypot(X-48,Y-48),40),255,0)'",
+    '-vf',
+    'split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse',
+    '-f',
+    'gif',
+    out('anim-transparent.gif'),
+  ])
+
+  // Different delay on every frame: 40, 100, 60, 200 ms, repeated.
+  const temp = await mkdtemp(join(tmpdir(), 'achica-anim-'))
+  try {
+    ffmpeg([...source('96x96', 10, 1), join(temp, 'f%02d.png')])
+    const delays = [0.04, 0.1, 0.06, 0.2]
+    const lines = []
+    for (let frame = 1; frame <= 10; frame += 1) {
+      lines.push(`file 'f${String(frame).padStart(2, '0')}.png'`)
+      lines.push(`duration ${delays[(frame - 1) % delays.length]}`)
+    }
+    lines.push("file 'f10.png'")
+    await writeFile(join(temp, 'list.txt'), lines.join('\n'))
+    ffmpeg([
+      '-f',
+      'concat',
+      '-safe',
+      '0',
+      '-i',
+      join(temp, 'list.txt'),
+      '-fps_mode',
+      'vfr',
+      '-f',
+      'gif',
+      out('anim-delays.gif'),
+    ])
+  } finally {
+    await rm(temp, { recursive: true, force: true })
+  }
+
+  // The two "not animated" cases: one frame in a GIF, and a plain PNG.
+  ffmpeg([...source('96x96', 10, 1), '-frames:v', '1', '-f', 'gif', out('single-frame.gif')])
+  ffmpeg([...source('96x96', 10, 1), '-frames:v', '1', '-f', 'image2', out('static.png')])
+
+  for (const name of [
+    'anim-opaque.gif',
+    'anim-wide.gif',
+    'anim.apng',
+    'anim.webp',
+    'anim-delays.gif',
+  ]) {
+    const expected = expectedFrames(out(name))
+    await writeFile(out(`${name}.expected.json`), `${JSON.stringify(expected, null, 2)}\n`)
+    note(name, ` + expected.json (${expected.frames.length} frames)`)
+  }
+  note('anim-transparent.gif')
+  note('single-frame.gif')
+  note('static.png')
+
+  console.log(`Wrote ${written.length} animated fixtures to test/fixtures/generated:`)
+  for (const entry of written) console.log(`  ${entry}`)
+}
+
 async function main() {
   await mkdir(OUT, { recursive: true })
+
+  if (process.argv.includes('--animations')) {
+    await makeAnimations()
+    return
+  }
 
   await mkdir(join(OUT, 'headers'), { recursive: true })
 
@@ -213,6 +356,8 @@ async function main() {
     await writeFile(join(OUT, 'headers', name), data)
     written.push(`headers/${name} (${data.length} B)`)
   }
+
+  await makeAnimations()
 
   console.log(`Wrote ${written.length} fixtures to test/fixtures/generated:`)
   for (const entry of written) console.log(`  ${entry}`)

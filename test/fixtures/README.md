@@ -55,6 +55,25 @@ Medido contra Chromium, no deducido. La imagen base es 64×32 y las orientacione
 
 ---
 
+### Animaciones
+
+Generadas con **ffmpeg** (herramienta del sistema, no dependencia npm) por `node scripts/make-fixtures.mjs --animations`. Ningún test llama a ffmpeg: los archivos están comiteados. Son pequeños (96×96 o 160×90, de 8 a 12 fotogramas) porque lo que se prueba son bytes exactos, no realismo.
+
+Para los opacos, el script vuelve a decodificar el archivo con ffmpeg y escribe `<archivo>.expected.json` con el SHA-256 de los bytes RGB24 de cada fotograma y su retardo en ms. Ese es el oráculo independiente: `decode.browser-test.ts` exige que `decodeAnimation` (con `fit: 'none'`) dé los mismos hashes y retardos, en Chromium y en Firefox.
+
+| Archivo                | Qué prueba                                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `anim-opaque.gif`      | GIF opaco de 12 fotogramas, con `.expected.json`.                                                                                    |
+| `anim-wide.gif`        | GIF no cuadrado (160×90): el relleno transparente del sticker y el emoji sin ampliar. Con `.expected.json`.                          |
+| `anim-delays.gif`      | Retardos distintos en cada fotograma (40, 120, 40, 200 ms…). Con `.expected.json`.                                                   |
+| `anim.apng`            | APNG opaco de 8 fotogramas. Con `.expected.json`.                                                                                    |
+| `anim.webp`            | WebP animado sin pérdida (con pérdida, dos decodificadores correctos darían bytes distintos). Con `.expected.json`.                  |
+| `anim-transparent.gif` | Un círculo opaco sobre fondo transparente. Sin hash: con alfa se comprueban número, retardos, dimensiones y alfa binario con margen. |
+| `single-frame.gif`     | GIF de un solo fotograma: `not-animated`.                                                                                            |
+| `static.png`           | PNG estático: `not-animated`.                                                                                                        |
+
+---
+
 ## `vendor/exif-orientation/`
 
 **Origen:** [recurser/exif-orientation-examples](https://github.com/recurser/exif-orientation-examples)
