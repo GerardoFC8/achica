@@ -49,6 +49,7 @@ export const TOOL_IDS = [
   'redimensionar',
   'convertir',
   'quitar-exif',
+  'discord',
   'auditar',
 ] as const
 
@@ -308,6 +309,69 @@ export const TOOLS: readonly Tool<ToolId>[] = [
             'No re-encoding: the pixels do not change',
             'JPEG, PNG and WebP; AVIF not yet',
             'Keeps the colour profile and the orientation',
+            'Download as a ZIP or straight into a folder',
+            'No image ever leaves the device',
+          ],
+        },
+      },
+    },
+  },
+  {
+    id: 'discord',
+    applicationCategory: 'MultimediaApplication',
+    locales: {
+      es: {
+        path: '/stickers-emojis-discord/',
+        title: 'Stickers y emojis animados de Discord desde un GIF, APNG, WebP o video | achica',
+        description:
+          'Arrastra un GIF, un APNG, un WebP animado o un video (MP4 o WebM, si tu navegador puede reproducirlo) y sale un sticker o un emoji animado ajustado al peso que Discord publica, en tu navegador y sin subir nada. Cuando no cabe, te lo dice. Sin cuentas, gratis y de código abierto.',
+        ogTitle: 'achica: stickers y emojis animados de Discord, sin subir nada',
+        ogDescription:
+          'Un GIF, un APNG, un WebP animado o un video, ajustado al peso que Discord publica, en tu navegador. Ningún byte de tus archivos sale de tu dispositivo.',
+        ogImage: '/og.png',
+        ogImageAlt:
+          'achica, herramientas de imagen por lote: tres barras de peso sobre papel claro',
+        ogLocale: 'es_ES',
+        jsonLd: {
+          name: 'achica: stickers y emojis animados de Discord',
+          description:
+            'Ajusta un GIF, un APNG, un WebP animado o un video (MP4 o WebM, si el navegador puede reproducirlo) al peso que Discord publica para un sticker o un emoji animado. Corre entero en el navegador, sin backend y sin cuentas.',
+          operatingSystem: 'Cualquiera con un navegador actual',
+          browserRequirements: 'Requiere JavaScript y un navegador que sepa leer animaciones',
+          featureList: [
+            'Convierte un GIF, un APNG, un WebP animado o un video en un sticker o un emoji animado',
+            'Del video usa el tramo que elijas, hasta 15 s; se reproduce en la pestaña, que debe estar visible, y solo si tu navegador puede leerlo',
+            'Ajusta el peso a los límites que Discord publica, bajando primero lo menos visible',
+            'Dice cuándo no cabe, con el peso final y el límite',
+            'Conviene probar el archivo en Discord: no se garantiza que lo acepte',
+            'Descarga en ZIP o directo a una carpeta',
+            'Ninguna imagen sale del dispositivo',
+          ],
+        },
+      },
+      en: {
+        path: '/en/discord-stickers-emojis/',
+        title: 'Animated Discord stickers and emoji from a GIF, APNG, WebP or video | achica',
+        description:
+          'Drop a GIF, an APNG, an animated WebP or a video (MP4 or WebM, if your browser can play it) and get an animated sticker or emoji fitted to the file size Discord publishes, in your browser and without uploading anything. When it does not fit, it says so. No account, free and open source.',
+        ogTitle: 'achica: animated Discord stickers and emoji, with no upload',
+        ogDescription:
+          'A GIF, an APNG, an animated WebP or a video, fitted to the file size Discord publishes, in your browser. Not a byte of your files leaves your device.',
+        ogImage: '/og-en.png',
+        ogImageAlt: 'achica, batch image tools: three weight bars on light paper',
+        ogLocale: 'en_US',
+        jsonLd: {
+          name: 'achica: animated Discord stickers and emoji',
+          description:
+            'Fits a GIF, an APNG, an animated WebP or a video (MP4 or WebM, if the browser can play it) to the file size Discord publishes for an animated sticker or emoji. Runs entirely in the browser, with no backend and no account.',
+          operatingSystem: 'Any with a current browser',
+          browserRequirements: 'Requires JavaScript and a browser that can read animations',
+          featureList: [
+            'Turns a GIF, an APNG, an animated WebP or a video into an animated sticker or emoji',
+            'From a video it uses the segment you pick, up to 15 s; it plays in the tab, which must stay visible, and only if your browser can read it',
+            'Fits the file size to the limits Discord publishes, giving up the least visible things first',
+            'Says when it does not fit, with the final size and the limit',
+            'Worth testing the file on Discord: acceptance is not guaranteed',
             'Download as a ZIP or straight into a folder',
             'No image ever leaves the device',
           ],

@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import type { VideoSegment } from '../core/animation/video-segment'
 import { PERFILES, profilesByGroup, type Profile } from '../core/profiles'
 import {
   BUDGET_PRESETS,
@@ -11,6 +12,9 @@ import {
 } from './budget'
 import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
+import { CanvasChoice, RequirementLine } from './DiscordNotes'
+import { isSticker } from './tool-profiles'
+import { VideoFields } from './VideoFields'
 import { chip, PICKER_BUTTON, PICKER_PANEL, usePicker } from './usePicker'
 
 /**
@@ -41,6 +45,12 @@ type Props = {
   readonly profiles?: readonly Profile[]
   /** The weight ceiling belongs to the compressor alone (D53). */
   readonly showBudget?: boolean
+  /** Discord: the sticker's last-resort canvas. Offered only when a handler is given. */
+  readonly canvasReduction?: boolean
+  readonly onCanvasReduction?: (allowed: boolean) => void
+  /** Discord: which part of a video is used. Offered only when a handler is given. */
+  readonly video?: VideoSegment
+  readonly onVideo?: (video: VideoSegment) => void
 }
 
 const PNG_CHOICES: readonly {
@@ -77,6 +87,10 @@ export function DestinationPicker({
   onBudget,
   profiles = PERFILES,
   showBudget = true,
+  canvasReduction = false,
+  onCanvasReduction,
+  video,
+  onVideo,
 }: Props) {
   const copy = useCopy()
   const words = copy.destination
@@ -84,6 +98,7 @@ export function DestinationPicker({
   const [typed, setTyped] = useState('')
   const [invalid, setInvalid] = useState(false)
   const customId = useId()
+  const summary = summaryOf(showBudget ? withBudget(selected, budget) : selected, formatters, copy)
 
   return (
     <div className="relative" ref={container}>
@@ -92,12 +107,23 @@ export function DestinationPicker({
         onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
+        title={summary}
         className={PICKER_BUTTON}
       >
         <span className="text-ink-soft">{copy.toolbar.destination}</span>
         <span className="font-medium">{words.profile(selected).label}</span>
-        <span className="tnum text-[11px] text-ink-soft">
-          {summaryOf(showBudget ? withBudget(selected, budget) : selected, formatters, copy)}
+        {/*
+          A destination with somebody else's limit (Discord) names its limit in the
+          panel, in the weight column and in the button's title; on the button
+          itself it only fits where the toolbar has room (the folder and
+          download buttons need it at 1280 px).
+        */}
+        <span
+          className={`tnum text-[11px] text-ink-soft ${
+            selected.requirement === undefined ? '' : 'hidden min-[1400px]:inline'
+          }`}
+        >
+          {summary}
         </span>
       </button>
 
@@ -114,36 +140,55 @@ export function DestinationPicker({
               </div>
 
               {members.map((profile) => (
-                <button
-                  key={profile.id}
-                  type="button"
-                  onClick={() => {
-                    onSelect(profile)
-                    setOpen(false)
-                  }}
-                  aria-current={profile.id === selected.id}
-                  className={`grid w-full gap-0.5 px-3 py-2 text-left hover:bg-raised ${
-                    profile.id === selected.id ? 'bg-raised' : ''
-                  }`}
-                >
-                  <span className="flex items-baseline justify-between gap-3">
-                    <span className="text-[13px] leading-4 font-medium">
-                      {words.profile(profile).label}
+                // The source is a link, and a link cannot live inside the
+                // button: the two are siblings.
+                <div key={profile.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelect(profile)
+                      setOpen(false)
+                    }}
+                    aria-current={profile.id === selected.id}
+                    className={`grid w-full gap-0.5 px-3 py-2 text-left hover:bg-raised ${
+                      profile.id === selected.id ? 'bg-raised' : ''
+                    }`}
+                  >
+                    <span className="flex items-baseline justify-between gap-3">
+                      <span className="text-[13px] leading-4 font-medium">
+                        {words.profile(profile).label}
+                      </span>
+                      <span className="tnum text-[11px] text-ink-soft">
+                        {summaryOf(profile, formatters, copy)}
+                      </span>
                     </span>
-                    <span className="tnum text-[11px] text-ink-soft">
-                      {summaryOf(profile, formatters, copy)}
+                    <span className="text-xs leading-4 text-pretty text-ink-soft">
+                      {profile.requirement === undefined ? words.ourAdvice : words.theirLimit}
+                      {words.profile(profile).note === undefined
+                        ? ''
+                        : `. ${words.profile(profile).note}`}
                     </span>
-                  </span>
-                  <span className="text-xs leading-4 text-pretty text-ink-soft">
-                    {words.ourAdvice}
-                    {words.profile(profile).note === undefined
-                      ? ''
-                      : `. ${words.profile(profile).note}`}
-                  </span>
-                </button>
+                  </button>
+                  <RequirementLine profile={profile} />
+                </div>
               ))}
             </div>
           ))}
+
+          {profiles.some((profile) => profile.requirement !== undefined) ? (
+            <div className="border-t border-rule">
+              <p className="px-3 py-2 text-xs leading-4 text-pretty text-ink-soft">
+                {words.notAGuarantee}
+              </p>
+              {onCanvasReduction !== undefined && isSticker(selected) ? (
+                <CanvasChoice checked={canvasReduction} onChange={onCanvasReduction} />
+              ) : null}
+            </div>
+          ) : null}
+
+          {video !== undefined && onVideo !== undefined ? (
+            <VideoFields video={video} formatters={formatters} onChange={onVideo} />
+          ) : null}
 
           {showBudget ? (
             <div className="grid gap-2 border-t border-rule px-3 pt-2 pb-3">

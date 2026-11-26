@@ -20,6 +20,7 @@ const GROUPS: Readonly<Record<ProfileGroup, string>> = {
   Formato: 'Format',
   Metadatos: 'Metadata',
   Auditoría: 'Audit',
+  Discord: 'Discord',
 }
 
 /**
@@ -45,6 +46,18 @@ export const PROFILE_TEXT: Readonly<
   'auditoria-mismo-formato': {
     label: 'Same format and size',
     note: 'Recompresses each image without changing its format or its dimensions, so the saving is what swapping the file for a lighter one would give, with no change to the page. It assumes neither a new format nor the size an image is painted at.',
+  },
+  'discord-sticker-gif': {
+    label: 'Discord animated sticker (GIF)',
+    note: 'A square 320 × 320 px canvas with a transparent background and a GIF of up to 512,000 bytes. If it does not fit, it lowers the frames per second and the colours, and flags the result if it is still too heavy. GIF only has all-or-nothing transparency, so soft edges come out jagged.',
+  },
+  'discord-sticker-apng': {
+    label: 'Discord animated sticker (APNG)',
+    note: 'A square 320 × 320 px canvas and an APNG of up to 512,000 bytes, with soft transparency. It is saved as .png, because Discord rejects the .apng extension. If it does not fit, it lowers the frames per second and the colours.',
+  },
+  'discord-emoji-gif': {
+    label: 'Discord animated emoji (GIF)',
+    note: 'Fits inside 128 × 128 px without being enlarged, keeps its proportions and weighs up to 256,000 bytes. If it does not fit, it lowers the frames per second and the colours.',
   },
   miniatura: {
     label: 'Thumbnail',
@@ -94,6 +107,7 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is nothing to compress',
       tableLabel: 'Compression queue',
       weightHeader: 'Weight against the limit',
+      download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
       resultAlt: (name) => `${name}, compressed`,
     },
     redimensionar: {
@@ -105,6 +119,7 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is nothing to resize',
       tableLabel: 'Resize queue',
       weightHeader: 'Weight before and after',
+      download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
       resultAlt: (name) => `${name}, resized`,
     },
     convertir: {
@@ -116,6 +131,7 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is nothing to convert',
       tableLabel: 'Conversion queue',
       weightHeader: 'Weight before and after',
+      download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
       resultAlt: (name) => `${name}, converted`,
     },
     'quitar-exif': {
@@ -127,7 +143,23 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is nothing to clean',
       tableLabel: 'Cleaning queue',
       weightHeader: 'Weight before and after',
+      download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
       resultAlt: (name) => `${name}, cleaned`,
+    },
+    discord: {
+      heading: 'Drop the animation or video you want to turn into a Discord sticker or emoji here',
+      hint: 'GIF, APNG, animated WebP or video (MP4, WebM)',
+      dropNote: 'A video plays in this tab while it is prepared, so the tab has to stay visible.',
+      start: (pending, count) => `Prepare ${count} ${plural(pending, 'animation', 'animations')}`,
+      running: 'Preparing',
+      finished: (done, count) => `${count} ${plural(done, 'animation', 'animations')} ready`,
+      again: 'Prepare again',
+      emptyFile: 'Empty file, there is no animation to prepare',
+      tableLabel: 'Animation queue',
+      weightHeader: 'Weight against the Discord limit',
+      download: (done, count) =>
+        done === 1 ? 'Download 1 animation' : `Download ${count} as a ZIP`,
+      resultAlt: (name) => `${name}, fitted for Discord`,
     },
     auditar: {
       heading: 'Drop the HAR file of the page you want to measure here',
@@ -139,6 +171,7 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is nothing to measure',
       tableLabel: 'Images in the HAR',
       weightHeader: 'Weight before and after',
+      download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
       resultAlt: (name) => `${name}, recompressed`,
     },
   },
@@ -150,6 +183,7 @@ export const en: Copy = {
       redimensionar: 'Resize',
       convertir: 'Convert',
       'quitar-exif': 'Remove EXIF',
+      discord: 'Discord',
       auditar: 'Audit a page',
     },
   },
@@ -207,7 +241,6 @@ export const en: Copy = {
   toolbar: {
     destination: 'Destination',
     saveToFolder: 'Save to a folder',
-    download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
     cancel: 'Cancel',
     stripLabel: 'No re-encoding',
     stripTitle:
@@ -216,6 +249,13 @@ export const en: Copy = {
 
   destination: {
     ourAdvice: 'Our advice',
+    theirLimit: 'File size limit Discord publishes',
+    source: 'Source',
+    verifiedAt: (date) => `verified on ${date}`,
+    notAGuarantee:
+      'The file is fitted to the size limits Discord publishes, but there is no guarantee that Discord accepts it: worth testing it.',
+    canvasReduction: 'If it does not fit, reduce the canvas to 256 px',
+    canvasReductionNote: 'Discord accepted it in our tests, but its screen asks for 320 × 320',
     ceiling: (bytes) => `max. ${bytes}`,
     originalSize: 'original size',
     group: (group) => GROUPS[group],
@@ -276,6 +316,23 @@ export const en: Copy = {
     fixed: 'Quality is fixed, the one we recommend for each format.',
   },
 
+  video: {
+    title: 'Video',
+    onlyVideos:
+      "Only used for video files. Frames per second is a maximum: the result never goes above the video's own rate, so a 10 fps video comes out at 10 fps even if you ask for 15.",
+    start: 'Start (s)',
+    length: 'Length (s)',
+    fps: 'Frames per second (max)',
+    capNote: (seconds, frames) =>
+      `The cap of ${seconds} s and ${frames} frames is achica's, not Discord's: playing the segment takes as long as it lasts, and the frames are held in memory.`,
+    problems: {
+      empty: 'Type a number.',
+      notNumber: 'That is not a number. Type, for example, 2.5.',
+      negative: 'It cannot be negative.',
+    },
+    adjusted: (value) => `Adjusted to ${value}, the tool's limit.`,
+  },
+
   filters: {
     todos: 'All',
     fits: 'Fit with room',
@@ -310,6 +367,7 @@ export const en: Copy = {
     compare: 'Compare',
     download: 'Download',
     downloadTitle: (name) => `Download ${name}`,
+    limitBar: (weight, limit) => `came to ${weight}, against a limit of ${limit}`,
     bar: (from, weight, budget) =>
       budget === null
         ? `${from} came down to ${weight}, with no limit`
@@ -327,6 +385,24 @@ export const en: Copy = {
       keptOrientation
         ? 'It only had the orientation, which is kept: left as it was'
         : 'It had no metadata: left as it was',
+    animation: {
+      fps: (fps) => `${fps} fps`,
+      colors: (colors) => `${colors} colours`,
+      fullColor: 'full colour',
+      canvas: (size) => `canvas ${size}`,
+      steps: {
+        fps: (to) => `lowered to ${to} fps`,
+        palette: (colors) => `${colors}-colour palette`,
+        scale: (percent) => `size reduced to ${percent}%`,
+        canvas: (px) => `canvas reduced to ${px} px`,
+        diffOff: 'cropping to what changes turned off',
+      },
+      clip: (from, to, total) => `Segment from ${from} to ${to} s of ${total} s`,
+      otherDestination: 'made for another destination',
+      fits: 'Fits the limit',
+      over: (size, limit) =>
+        `Does not fit the limit of ${limit}: this is the smallest version that could be made (${size})`,
+    },
     stripped: (facts) =>
       facts.parts.includes('exif-unreadable')
         ? `Removed ${stripList(facts)}; the orientation could not be kept`
@@ -356,6 +432,16 @@ export const en: Copy = {
     excess: 'Over by',
     saved: 'Saved',
     time: 'Time in the worker',
+    frames: 'Frames',
+    duration: 'Duration',
+    fps: 'Frames per second',
+    colors: 'Colours',
+    clip: 'Video segment',
+    clipValue: (from, length, total) => `from ${from} s, ${length} s of ${total} s`,
+    processedWithOther: (limit) => `max. ${limit} (other destination)`,
+    adjusted: 'Adjusted',
+    adjustedNothing: 'nothing, it fitted as it was',
+    preview: 'Preview',
     stripTarget: 'remove metadata, no re-encoding',
     removed: 'Removed',
     removedList: (facts) => stripList(facts),
@@ -416,5 +502,31 @@ export const en: Copy = {
       `Damaged ${format}: the file is cut off or its structure is invalid, so its metadata could not be removed safely. Nothing was changed`,
     workerCrashed:
       'The browser stopped the process, probably for lack of memory. Try fewer files at a time',
+    animation: {
+      notAnimated:
+        'This image is not animated. Discord already rescales still images by itself: use Compress or Resize',
+      unsupportedBrowser: 'This browser cannot read animations. Try Chrome, Edge or Firefox',
+      unsupportedFormat:
+        'Only GIF, APNG and animated WebP animations can be read. For any other image use Compress or Convert',
+      corrupt: 'The animation is damaged or cut off, so it could not be read. Try another file',
+      tooLarge: 'The animation is too large. Try a shorter or smaller one',
+      resizeFailed: 'The frames could not be resized. Try a smaller animation',
+      compressionUnavailable:
+        'This browser cannot compress the APNG. Try Chrome, Edge or Firefox, or choose GIF',
+      encodeFailed: 'The output animation could not be generated',
+    },
+    video: {
+      codecUnsupported:
+        'This browser cannot read the codec of this video (for example, HEVC). Try Chrome, Edge or Firefox, or convert it to H.264',
+      stalled: 'Keep this tab visible while the video is being prepared, and try again',
+      noVideoTrack: 'The file has no picture, only audio. Choose an MP4 or WebM video',
+      unsupportedVideo: 'Only MP4 and WebM videos can be read. Convert the file to one of those',
+      // A decode that fails after the metadata loaded is what Firefox reports for HEVC,
+      // so this message cannot blame the file alone.
+      corrupt:
+        'The video could not be read: it may be damaged, or use a codec this browser does not play (for example HEVC, common in phone videos). Try Chrome or Edge, another file, or convert it to H.264',
+      aborted: 'Reading the video was cancelled',
+      internal: 'The video could not be prepared. Try again or try another file',
+    },
   },
 }

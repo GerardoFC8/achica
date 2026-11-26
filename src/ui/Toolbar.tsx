@@ -1,3 +1,4 @@
+import type { VideoSegment } from '../core/animation/video-segment'
 import type { OutputFormat } from '../core/codecs/encode'
 import type { Profile } from '../core/profiles'
 import type { BudgetChoice } from './budget'
@@ -22,6 +23,8 @@ type Props = {
   readonly budget: BudgetChoice
   readonly resize: ResizeChoice
   readonly format: OutputFormat
+  readonly canvasReduction: boolean
+  readonly video: VideoSegment
   readonly formatters: Formatters
   readonly pending: number
   readonly done: number
@@ -32,6 +35,8 @@ type Props = {
   readonly onBudget: (budget: BudgetChoice) => void
   readonly onResize: (choice: ResizeChoice) => void
   readonly onFormat: (format: OutputFormat) => void
+  readonly onCanvasReduction: (allowed: boolean) => void
+  readonly onVideo: (video: VideoSegment) => void
   readonly onStart: () => void
   readonly onCancelAll: () => void
   readonly onDownload: () => void
@@ -43,6 +48,8 @@ export function Toolbar({
   budget,
   resize,
   format,
+  canvasReduction,
+  video,
   formatters,
   pending,
   done,
@@ -52,6 +59,8 @@ export function Toolbar({
   onBudget,
   onResize,
   onFormat,
+  onCanvasReduction,
+  onVideo,
   onStart,
   onCancelAll,
   onDownload,
@@ -74,7 +83,7 @@ export function Toolbar({
         <ToolNav />
       </div>
 
-      {tool === 'comprimir' || tool === 'auditar' ? (
+      {tool === 'comprimir' || tool === 'auditar' || tool === 'discord' ? (
         <DestinationPicker
           selected={destination}
           budget={budget}
@@ -83,6 +92,8 @@ export function Toolbar({
           onBudget={onBudget}
           profiles={destinationsFor(tool)}
           showBudget={tool === 'comprimir'}
+          canvasReduction={canvasReduction}
+          {...(tool === 'discord' ? { onCanvasReduction, video, onVideo } : {})}
         />
       ) : tool === 'redimensionar' ? (
         <ResizePicker choice={resize} formatters={formatters} onChange={onResize} />
@@ -123,7 +134,7 @@ export function Toolbar({
             onClick={onDownload}
             className="h-8 rounded-sm bg-fits px-3.5 text-[13px] leading-4 font-medium text-paper hover:brightness-110 coarse:h-11"
           >
-            {toolbar.download(done, formatters.count(done))}
+            {words.download(done, formatters.count(done))}
           </button>
         </>
       ) : null}

@@ -1,4 +1,4 @@
-import type { OutputFormat } from '../core/codecs/encode'
+import { extensionOfKind, type OutputKind } from '../core/output-kind'
 
 /**
  * What each saved file is called.
@@ -9,18 +9,6 @@ import type { OutputFormat } from '../core/codecs/encode'
  * inside a ZIP an entry that some tools refuse and others quietly drop.
  */
 
-/**
- * The core calls it jpeg all the way through, because that is the format's
- * name. Everything outside writes .jpg, because that is what people and
- * operating systems expect to see.
- */
-const EXTENSIONS: Readonly<Record<OutputFormat, string>> = {
-  jpeg: 'jpg',
-  png: 'png',
-  webp: 'webp',
-  avif: 'avif',
-}
-
 /** The dot that starts a dotfile is part of the name, not an extension. */
 function splitExtension(name: string): { readonly stem: string; readonly extension: string } {
   const dot = name.lastIndexOf('.')
@@ -28,8 +16,13 @@ function splitExtension(name: string): { readonly stem: string; readonly extensi
   return { stem: name.slice(0, dot), extension: name.slice(dot + 1) }
 }
 
-export function outputName(sourceName: string, format: OutputFormat): string {
-  return `${splitExtension(sourceName).stem}.${EXTENSIONS[format]}`
+/**
+ * The name of a result. The extension comes from `extensionOfKind`: jpeg is
+ * written .jpg, and an APNG is a .png, because Discord marks .apng as an
+ * invalid asset.
+ */
+export function outputName(sourceName: string, kind: OutputKind): string {
+  return `${splitExtension(sourceName).stem}.${extensionOfKind(kind)}`
 }
 
 /**

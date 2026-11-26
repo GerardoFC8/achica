@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PERFILES } from '../../core/profiles'
+import { DISCORD_PERFILES, PERFILES } from '../../core/profiles'
 import { copyFor, en, es } from '.'
 import { PROFILE_TEXT } from './en'
 import { AUDIT_PROFILE } from '../tool-profiles'
@@ -32,6 +32,16 @@ describe('the English catalogue', () => {
       expect(PROFILE_TEXT[profile.id], profile.id).toBeDefined()
       expect(text.label).not.toBe(profile.label)
       expect(text.note?.length ?? 0).toBeGreaterThan(20)
+    }
+  })
+
+  it('names and explains the Discord destinations too', () => {
+    for (const profile of DISCORD_PERFILES) {
+      const text = en.destination.profile(profile)
+      expect(PROFILE_TEXT[profile.id], profile.id).toBeDefined()
+      expect(text.label).not.toBe(profile.label)
+      expect(text.note?.length ?? 0).toBeGreaterThan(20)
+      expect(en.destination.group(profile.group)).toBe('Discord')
     }
   })
 
@@ -100,5 +110,48 @@ describe('the reasons an image cannot be measured', () => {
     for (const sentence of [...sentencesOf(es.audit), ...sentencesOf(en.audit)]) {
       expect(sentence).not.toMatch(/tu página pesaría|your page would weigh/i)
     }
+  })
+})
+
+describe('the Discord tool, in both languages', () => {
+  it.each([es, en])('has every word of its screen in $lang', (copy) => {
+    const words = copy.tools.discord
+
+    for (const key of [
+      'heading',
+      'hint',
+      'running',
+      'again',
+      'emptyFile',
+      'tableLabel',
+      'weightHeader',
+    ] as const) {
+      expect((words[key] ?? '').length, key).toBeGreaterThan(3)
+    }
+    expect(words.start(2, '2')).toContain('2')
+    expect(words.finished(2, '2')).toContain('2')
+    expect(words.resultAlt('a.gif')).toContain('a.gif')
+    expect(copy.nav.tools.discord).toBe('Discord')
+  })
+
+  it('promises the weight and never the verdict of Discord', () => {
+    for (const copy of [es, en]) {
+      const said = [
+        copy.destination.theirLimit,
+        copy.destination.notAGuarantee,
+        copy.destination.canvasReductionNote,
+      ].join(' ')
+
+      expect(said).not.toMatch(/oficial|official|aprobad|approved|garantiza que lo acepta/i)
+    }
+    expect(es.destination.notAGuarantee).toMatch(/no se garantiza/)
+    expect(en.destination.notAGuarantee).toMatch(/no guarantee/)
+  })
+
+  it('says the honest sentence about the 256 px canvas, in both languages', () => {
+    expect(es.destination.canvasReductionNote).toBe(
+      'Discord lo aceptó en nuestras pruebas, pero su pantalla pide 320 × 320',
+    )
+    expect(en.destination.canvasReductionNote).toContain('320 × 320')
   })
 })

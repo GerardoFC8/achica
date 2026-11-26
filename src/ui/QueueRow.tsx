@@ -4,8 +4,9 @@ import type { ToolId } from '../tools/registry'
 import { useAudit } from '../state/audit-store'
 import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
-import { rowDetails, rowNote, savedRatio, weightBar, type RowKind } from './row-model'
-import { useTool } from './tool-context'
+import { appliedLimit, rowDetails, rowNote, savedRatio, weightBar, type RowKind } from './row-model'
+import { AnimationPreview } from './AnimationPreview'
+import { useTool, useToolWords } from './tool-context'
 import { STRIPE_TONE, TEXT_TONE } from './tone'
 import { WeightBar } from './WeightBar'
 
@@ -33,10 +34,17 @@ function describeBar(
 ): string {
   if (item.status !== 'done') return rowNote(item, formatters, copy, tool)
 
+  // The track is the limit itself, so the sentence names the limit the row
+  // was judged against (not the original, and not the selected destination's).
+  const limit = appliedLimit(item, profile)
+  if (item.outcome.animation !== undefined && limit !== undefined) {
+    return copy.row.limitBar(formatters.bytes(item.outcome.bytesAfter), formatters.bytes(limit))
+  }
+
   return copy.row.bar(
     formatters.bytes(item.bytesBefore),
     formatters.bytes(item.outcome.bytesAfter),
-    profile.maxBytes === undefined ? null : formatters.bytes(profile.maxBytes),
+    limit === undefined ? null : formatters.bytes(limit),
   )
 }
 
@@ -58,7 +66,8 @@ export function QueueRow({
   const running = item.status === 'pending' || item.status === 'running'
   const copy = useCopy()
   const tool = useTool()
-  const note = rowNote(item, formatters, copy, tool)
+  const words = useToolWords()
+  const note = rowNote(item, formatters, copy, tool, profile.maxBytes)
   const origin = useAudit((state) => state.audit?.origins.get(item.name))
   const details = expanded ? rowDetails(item, profile, formatters, copy, tool, origin) : []
 
@@ -151,8 +160,11 @@ export function QueueRow({
           ) : null}
           {item.status === 'done' ? (
             <>
-              {/* A cleaned file has the same pixels as its source: nothing to compare. */}
-              {profile.stripOnly === true ? null : (
+              {/*
+                A cleaned file has the same pixels as its source, and one animation
+                against another does not fit a slider: nothing to compare.
+              */}
+              {profile.stripOnly === true || tool === 'discord' ? null : (
                 <button
                   type="button"
                   onClick={onCompare}
@@ -175,21 +187,27 @@ export function QueueRow({
       </div>
 
       {expanded ? (
-        <dl className="grid gap-x-6 gap-y-0.5 border-t border-rule bg-raised px-4 py-2 md:grid-cols-[repeat(auto-fit,minmax(240px,1fr))]">
-          {details.map((detail) => (
-            <div key={detail.label} className="flex min-w-0 items-baseline gap-2">
-              <dt className="shrink-0 text-xs text-ink-soft">{detail.label}</dt>
-              <span className="flex-1 -translate-y-[3px] border-b border-dotted border-rule" />
-              <dd
-                className={`tnum min-w-0 shrink truncate text-xs ${
-                  detail.kind === undefined ? '' : TEXT_TONE[detail.kind]
-                }`}
-              >
-                {detail.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <div className="border-t border-rule bg-raised px-4 py-2">
+          {item.status === 'done' && item.outcome.animation !== undefined ? (
+            <AnimationPreview blob={item.blob} alt={words.resultAlt(item.name)} />
+          ) : null}
+          <dl className="grid gap-x-6 gap-y-0.5 md:grid-cols-[repeat(auto-fit,minmax(240px,1fr))]">
+            {details.map((detail) => (
+              <div key={detail.label} className="flex min-w-0 items-baseline gap-2">
+                <dt className="shrink-0 text-xs text-ink-soft">{detail.label}</dt>
+                <span className="flex-1 -translate-y-[3px] border-b border-dotted border-rule" />
+                <dd
+                  title={detail.value}
+                  className={`tnum min-w-0 shrink truncate text-xs ${
+                    detail.kind === undefined ? '' : TEXT_TONE[detail.kind]
+                  }`}
+                >
+                  {detail.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       ) : null}
     </div>
   )

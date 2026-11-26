@@ -274,6 +274,168 @@ async function verifyCleaned(entries, batch) {
 }
 
 /*
+ * Discord (S6a). The ZIP is read back and each file is judged by its own
+ * bytes, the way Discord would see it: the extension it is saved under, the
+ * signature, the size it declares and the weight. None of it trusts the
+ * interface's own verdict.
+ */
+const STICKER_LIMIT = 512_000
+const EMOJI_LIMIT = 256_000
+
+/** The logical screen of a GIF, from its header. */
+const gifScreen = (data) => ({ width: data.readUInt16LE(6), height: data.readUInt16LE(8) })
+
+const isPng = (data) => data.subarray(0, 8).toString('hex') === '89504e470d0a1a0a'
+
+/** A chunk of a PNG by name, found by walking the chunk list and not by searching the bytes. */
+function hasPngChunk(data, wanted) {
+  let at = 8
+  while (at + 8 <= data.length) {
+    const length = data.readUInt32BE(at)
+    if (data.toString('latin1', at + 4, at + 8) === wanted) return true
+    at += 12 + length
+  }
+  return false
+}
+
+/** A sticker as a GIF: .gif, GIF89a, a 320 x 320 screen, and under 512 000 bytes. */
+function verifyStickerGif(entries, batch) {
+  check('one entry per animation that could be made', entries.length === batch.done)
+  for (const entry of entries) {
+    const screen = gifScreen(entry.data)
+    check(`${entry.name} is a .gif`, entry.name.endsWith('.gif'))
+    check(`${entry.name} says GIF89a`, entry.data.toString('latin1', 0, 6) === 'GIF89a')
+    check(
+      `${entry.name} has a 320x320 screen`,
+      screen.width === 320 && screen.height === 320,
+      `${screen.width}x${screen.height}`,
+    )
+    check(
+      `${entry.name} weighs at most 512 000 bytes`,
+      entry.data.length <= STICKER_LIMIT,
+      `${entry.data.length}`,
+    )
+  }
+}
+
+/** A sticker as an APNG: saved as .png (never .apng), PNG signature, acTL, 320 x 320. */
+function verifyStickerApng(entries, batch) {
+  check('one entry per animation', entries.length === batch.done)
+  for (const entry of entries) {
+    check(`${entry.name} is a .png and not an .apng`, /\.png$/.test(entry.name))
+    check(`${entry.name} has the PNG signature`, isPng(entry.data))
+    check(`${entry.name} has an acTL chunk, so it animates`, hasPngChunk(entry.data, 'acTL'))
+    const size = dimensionsOf(entry.data)
+    check(
+      `${entry.name} is 320x320 in its IHDR`,
+      size !== null && size.width === 320 && size.height === 320,
+      `${size?.width}x${size?.height}`,
+    )
+    check(
+      `${entry.name} weighs at most 512 000 bytes`,
+      entry.data.length <= STICKER_LIMIT,
+      `${entry.data.length}`,
+    )
+  }
+}
+
+/** An emoji: a GIF no bigger than 128 px on either side, under 256 000 bytes. */
+function verifyEmoji(entries, batch) {
+  check('one file per animation', entries.length === batch.done)
+  for (const entry of entries) {
+    const screen = gifScreen(entry.data)
+    check(
+      `${entry.name} is a GIF`,
+      entry.name.endsWith('.gif') && entry.data.toString('latin1', 0, 6) === 'GIF89a',
+    )
+    check(
+      `${entry.name} fits inside 128x128`,
+      screen.width > 0 && screen.width <= 128 && screen.height > 0 && screen.height <= 128,
+      `${screen.width}x${screen.height}`,
+    )
+    check(
+      `${entry.name} weighs at most 256 000 bytes`,
+      entry.data.length <= EMOJI_LIMIT,
+      `${entry.data.length}`,
+    )
+  }
+}
+
+/**
+ * What a GIF says about its own timing: how many frames it has and how long
+ * they last, read by walking its blocks (not by trusting the interface). Each
+ * frame's delay is in hundredths of a second, as the format has it; a delay of
+ * zero is counted as the ten that every viewer shows instead.
+ */
+function gifTiming(data) {
+  let at = 13
+  if (data[10] & 0x80) at += 3 * 2 ** ((data[10] & 7) + 1)
+  let frames = 0
+  let hundredths = 0
+  let pending = 0
+  while (at < data.length && data[at] !== 0x3b) {
+    if (data[at] === 0x21) {
+      if (data[at + 1] === 0xf9) pending = data.readUInt16LE(at + 4) || 10
+      at += 2
+    } else if (data[at] === 0x2c) {
+      const flags = data[at + 9]
+      frames += 1
+      hundredths += pending
+      pending = 0
+      at += 10
+      if (flags & 0x80) at += 3 * 2 ** ((flags & 7) + 1)
+      at += 1
+    } else {
+      return { frames, ms: hundredths * 10, broken: true }
+    }
+    // Sub-blocks: a length, that many bytes, until a zero length.
+    while (at < data.length && data[at] !== 0) at += data[at] + 1
+    at += 1
+  }
+  return { frames, ms: hundredths * 10, broken: false }
+}
+
+/** The frame rate of the generated video fixtures (video-gray-steps.webm / .mp4). */
+const GRAY_STEPS_FPS = 8
+
+/**
+ * A video as a sticker GIF: what a sticker is, and in addition the segment that
+ * was asked for. Frames and duration are within 15 % (at least one frame) of
+ * the seconds and the rate chosen in the panel, where that rate is a MAXIMUM:
+ * the result never has more frames per second than the video itself, so the
+ * wanted count is seconds x min(rate asked, rate of the video).
+ */
+const verifyVideoGif = (seconds, fps, sourceFps) => (entries, batch) => {
+  verifyStickerGif(entries, batch)
+  for (const entry of entries) {
+    const timing = gifTiming(entry.data)
+    const wantedFrames = seconds * Math.min(fps, sourceFps)
+    const wantedMs = seconds * 1000
+    check(`${entry.name} is a well-formed GIF`, !timing.broken)
+    check(
+      `${entry.name} has about ${wantedFrames} frames (seconds x fps)`,
+      Math.abs(timing.frames - wantedFrames) <= Math.max(1, wantedFrames * 0.15),
+      `${timing.frames}`,
+    )
+    check(
+      `${entry.name} lasts about ${wantedMs} ms`,
+      Math.abs(timing.ms - wantedMs) <= wantedMs * 0.15,
+      `${timing.ms} ms`,
+    )
+  }
+}
+
+/** The failed row says what to do, in words, and the page is still standing. */
+async function verifyNotAnimatedRow(page, batch) {
+  const text = await page.locator('main').innerText()
+  check(
+    'the still image has its failed row, with the way out',
+    batch.notAnimated.test(text),
+    text.replace(/\s+/g, ' ').slice(0, 200),
+  )
+}
+
+/*
  * Full names in `expected`, not stems: the extension that comes out is what
  * each destination promises, so it is what gets checked.
  */
@@ -369,6 +531,99 @@ const BATCHES = [
     oxipng: false,
     verify: verifySignature('JPEG', isJpeg),
   },
+  {
+    // The default destination: the sticker as a GIF, the lightest and the one
+    // that went into every real test.
+    label: 'Discord, in Spanish, a sticker as GIF',
+    tool: 'discord',
+    language: 'es',
+    files: [fixture('generated/anim-opaque.gif'), fixture('generated/anim-wide.gif')],
+    done: 2,
+    expected: ['anim-opaque.gif', 'anim-wide.gif'],
+    oxipng: false,
+    verify: verifyStickerGif,
+  },
+  {
+    // A GIF-only source cannot be an APNG's only test: an APNG and an animated
+    // WebP come in, and a .png comes out, twice under the same stem.
+    label: 'Discord, in English, a sticker as APNG, from an APNG and an animated WebP',
+    tool: 'discord',
+    language: 'en',
+    destination: /Discord animated sticker \(APNG\)/,
+    files: [fixture('generated/anim.apng'), fixture('generated/anim.webp')],
+    done: 2,
+    expected: ['anim.png', 'anim-2.png'],
+    oxipng: false,
+    verify: verifyStickerApng,
+  },
+  {
+    // One finished file is handed over as itself, not wrapped in a ZIP.
+    label: 'Discord, in Spanish, an emoji',
+    tool: 'discord',
+    language: 'es',
+    destination: /Emoji animado de Discord/,
+    files: [fixture('generated/anim-wide.gif')],
+    done: 1,
+    expected: ['anim-wide.gif'],
+    oxipng: false,
+    verify: verifyEmoji,
+  },
+  {
+    // A still image in the batch: its row fails, with what to do, and the rest
+    // of the batch is made and saved.
+    label: 'Discord, in English, a still image among animations',
+    tool: 'discord',
+    language: 'en',
+    files: [
+      fixture('generated/static.png'),
+      fixture('generated/anim-delays.gif'),
+      fixture('generated/anim-transparent.gif'),
+    ],
+    done: 2,
+    expected: ['anim-delays.gif', 'anim-transparent.gif'],
+    oxipng: false,
+    verify: verifyStickerGif,
+    notAnimated: /not animated/,
+    page: verifyNotAnimatedRow,
+  },
+  {
+    // The fixture is 2 s long and 8 fps: the whole of it, and the 10 fps asked is a
+    // maximum, so it comes out at the video's own 8 (16 frames, 125 ms each).
+    label: 'Discord, in Spanish, a WebM video as a sticker, 0 to 2 s at 10 fps',
+    tool: 'discord',
+    language: 'es',
+    video: { start: '0', length: '2', fps: '10' },
+    files: [fixture('generated/video-gray-steps.webm')],
+    done: 1,
+    expected: ['video-gray-steps.gif'],
+    oxipng: false,
+    verify: verifyVideoGif(2, 10, GRAY_STEPS_FPS),
+  },
+  {
+    // Only the duration changes, at the default 15 fps (above the video's 8): a second, not two.
+    label: 'Discord, in English, the same video with the duration set to 1 s',
+    tool: 'discord',
+    language: 'en',
+    video: { length: '1' },
+    files: [fixture('generated/video-gray-steps.webm')],
+    done: 1,
+    expected: ['video-gray-steps.gif'],
+    oxipng: false,
+    verify: verifyVideoGif(1, 15, GRAY_STEPS_FPS),
+  },
+  {
+    // Only where this browser can play H.264; it says so when it cannot.
+    label: 'Discord, in Spanish, an MP4 video as a sticker, 0 to 1 s at 8 fps',
+    tool: 'discord',
+    language: 'es',
+    video: { start: '0', length: '1', fps: '8' },
+    needsMp4: true,
+    files: [fixture('generated/video-gray-steps.mp4')],
+    done: 1,
+    expected: ['video-gray-steps.gif'],
+    oxipng: false,
+    verify: verifyVideoGif(1, 8, GRAY_STEPS_FPS),
+  },
 ]
 
 /**
@@ -412,6 +667,15 @@ const WORDS = {
       busy: 'Limpiando',
       finished: (count) => `${count} imágenes limpiadas`,
     },
+    discord: {
+      title: /Discord/,
+      heading: /animación o el video que quieres convertir/,
+      start: /Preparar/,
+      busy: 'Preparando',
+      finished: (count) => `${count} ${count === 1 ? 'animación lista' : 'animaciones listas'}`,
+      single: /Descargar 1 animación/,
+      fields: { start: 'Inicio (s)', length: 'Duración (s)', fps: 'Fotogramas por segundo (máx.)' },
+    },
     auditar: {
       title: /HAR/,
       heading: /archivo HAR de la página/,
@@ -451,6 +715,15 @@ const WORDS = {
       start: /Clean/,
       busy: 'Cleaning',
       finished: (count) => `${count} images cleaned`,
+    },
+    discord: {
+      title: /Discord/,
+      heading: /animation or video you want to turn into/,
+      start: /Prepare/,
+      busy: 'Preparing',
+      finished: (count) => `${count} ${count === 1 ? 'animation' : 'animations'} ready`,
+      single: /Download 1 animation/,
+      fields: { start: 'Start (s)', length: 'Length (s)', fps: 'Frames per second (max)' },
     },
     auditar: {
       title: /HAR/,
@@ -536,6 +809,8 @@ async function runBatch(browser, batch, downloads) {
     const words = { ...common, ...common[toolId] }
 
     await page.goto(new URL(pathOf(language, toolId), base).href)
+    // The prerendered screen is usable to look at before the script has mounted.
+    await page.waitForSelector('body[data-ready="true"]', { timeout: 30_000 })
     check(
       'the work surface is the first screen',
       await page.getByRole('heading', { level: 1, name: words.heading }).isVisible(),
@@ -543,6 +818,19 @@ async function runBatch(browser, batch, downloads) {
 
     const isolated = await page.evaluate(() => globalThis.crossOriginIsolated)
     check('cross-origin isolated', isolated === true)
+
+    if (batch.needsMp4) {
+      // H.264 in MP4 is a codec the browser may not ship (Playwright's Chromium
+      // and Firefox often lack it): the page's own player is the judge.
+      const canPlay = await page.evaluate(() =>
+        document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"'),
+      )
+      if (canPlay === '') {
+        console.log('  SKIPPED this browser cannot play H.264 in MP4 (canPlayType is empty)')
+        return
+      }
+      check('this browser can play H.264 in MP4', true, canPlay)
+    }
 
     if (batch.destination) {
       await page.getByRole('button', { name: words.destination }).click()
@@ -583,9 +871,26 @@ async function runBatch(browser, batch, downloads) {
       )
     }
 
+    if (batch.video !== undefined) {
+      // The Video section of the destination panel, by its labels.
+      await page.getByRole('button', { name: words.destination }).click()
+      for (const [field, value] of Object.entries(batch.video)) {
+        await page.getByLabel(words.fields[field], { exact: true }).fill(value)
+      }
+      await page.keyboard.press('Escape')
+      check(
+        'the segment is set in the panel',
+        await page.getByRole('button', { name: words.destination }).isVisible(),
+      )
+    }
+
     // A batch either names fixture files or builds its own bytes.
     const inputs = batch.inputs?.() ?? batch.files
     const count = inputs.length
+    // Files that come out: a batch that includes one that cannot be made ends
+    // with fewer than it started with.
+    const finished = batch.done ?? count
+    const single = finished === 1
     await page.setInputFiles('input[type=file]', inputs)
     await page.getByRole('button', { name: words.start }).click()
     await page.waitForFunction(
@@ -602,20 +907,45 @@ async function runBatch(browser, batch, downloads) {
       words.saved === undefined
         ? 'the batch reports what it did'
         : 'the batch reports what it saved',
-      summary.includes(words.finished(count)) &&
+      summary.includes(words.finished(finished)) &&
         (words.saved === undefined || words.saved.test(summary)),
       summary,
     )
 
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 30_000 }),
-      page.getByRole('button', { name: words.zip }).click(),
+      page.getByRole('button', { name: single ? words.single : words.zip }).click(),
     ])
 
     const archive = join(downloads, download.suggestedFilename())
     await download.saveAs(archive)
 
     const bytes = await readFile(archive)
+
+    if (single) {
+      // One file is handed over as itself: its name and its bytes are the proof.
+      check(
+        'the one file comes out as itself, not in a ZIP',
+        bytes.subarray(0, 4).toString('hex') !== LOCAL_HEADER,
+      )
+      for (const entry of batch.expected) {
+        check(`the download is ${entry}`, download.suggestedFilename() === entry)
+      }
+      if (batch.verify !== undefined) {
+        await batch.verify([{ name: download.suggestedFilename(), data: bytes }], {
+          ...batch,
+          done: 1,
+        })
+      }
+      if (batch.page !== undefined) await batch.page(page, batch)
+      check('nothing threw on the page', errors.length === 0, errors.join('; '))
+      check(
+        'no byte left the device',
+        foreign.length === 0,
+        foreign.length === 0 ? '' : foreign.join(', '),
+      )
+      return
+    }
     // latin1 keeps every byte addressable as a character, which is what
     // scanning for the signatures below needs.
     const raw = bytes.toString('latin1')
@@ -624,7 +954,7 @@ async function runBatch(browser, batch, downloads) {
     check('the archive is complete', raw.includes(END_OF_DIRECTORY))
     check(
       'one entry per file',
-      raw.split(CENTRAL_ENTRY).length - 1 === count,
+      raw.split(CENTRAL_ENTRY).length - 1 === finished,
       `${raw.split(CENTRAL_ENTRY).length - 1} entries`,
     )
     for (const entry of batch.expected) {
@@ -632,6 +962,7 @@ async function runBatch(browser, batch, downloads) {
     }
 
     if (batch.verify !== undefined) await batch.verify(readZip(bytes), batch)
+    if (batch.page !== undefined) await batch.page(page, batch)
 
     check(
       batch.oxipng ? 'the PNG went through oxipng' : 'oxipng stayed unloaded',
@@ -878,6 +1209,8 @@ function watchRequests(page) {
 /** Opens the audit page, hands it a HAR file and waits for its images to be listed. */
 async function loadAuditPage(page, language, harPath, startName) {
   await page.goto(new URL(pathOf(language, 'auditar'), base).href)
+  // A file handed to the prerendered input before React mounts is dropped.
+  await page.waitForSelector('body[data-ready="true"]', { timeout: 30_000 })
   await page.setInputFiles('input[type=file]', harPath)
   await page.getByRole('button', { name: startName }).waitFor({ timeout: 30_000 })
 }

@@ -1,7 +1,7 @@
 import { PERFILES } from './catalogo'
 import type { Profile, ProfileGroup } from './types'
 
-export type { Profile, ProfileGroup } from './types'
+export type { ExternalProfile, OwnProfile, Profile, ProfileGroup, Requirement } from './types'
 export { toOutputPlan } from './types'
 export { PERFILES } from './catalogo'
 
@@ -23,3 +23,4 @@ export function profilesByGroup(
 
   return grouped
 }
+export { DISCORD_PERFILES } from './discord'

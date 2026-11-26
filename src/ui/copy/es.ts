@@ -30,6 +30,12 @@ export interface ToolWords {
   readonly start: (pending: number, count: string) => string
   /** What a row says while its file is being worked on. */
   readonly running: string
+  /** A short line under the heading, for a tool that takes a narrower set of inputs. */
+  readonly hint?: string
+  /** A plain fact the user needs before dropping, said under the hint. */
+  readonly dropNote?: string
+  /** The toolbar's download button once something is done: one file, or a ZIP. */
+  readonly download: (done: number, count: string) => string
   /** The totals line once something has finished. */
   readonly finished: (done: number, count: string) => string
   /** The selection action that runs the same files again. */
@@ -121,6 +127,8 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay nada que comprimir',
       tableLabel: 'Cola de compresión',
       weightHeader: 'Peso contra presupuesto',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, comprimida`,
     },
     redimensionar: {
@@ -133,6 +141,8 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay nada que redimensionar',
       tableLabel: 'Cola de redimensionado',
       weightHeader: 'Peso antes y después',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, redimensionada`,
     },
     convertir: {
@@ -145,6 +155,8 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay nada que convertir',
       tableLabel: 'Cola de conversión',
       weightHeader: 'Peso antes y después',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, convertida`,
     },
     'quitar-exif': {
@@ -157,7 +169,27 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay nada que limpiar',
       tableLabel: 'Cola de limpieza',
       weightHeader: 'Peso antes y después',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, limpiada`,
+    },
+    discord: {
+      heading:
+        'Arrastra aquí la animación o el video que quieres convertir en sticker o emoji de Discord',
+      hint: 'GIF, APNG, WebP animado o video (MP4, WebM)',
+      dropNote:
+        'Un video se reproduce en esta pestaña mientras se prepara, así que hay que mantenerla visible.',
+      start: (pending, count) => `Preparar ${count} ${plural(pending, 'animación', 'animaciones')}`,
+      running: 'Preparando',
+      finished: (done, count) =>
+        `${count} ${plural(done, 'animación lista', 'animaciones listas')}`,
+      again: 'Preparar de nuevo',
+      emptyFile: 'Archivo vacío, no hay ninguna animación que preparar',
+      tableLabel: 'Cola de animaciones',
+      weightHeader: 'Peso contra el límite de Discord',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 animación' : `Descargar ${count} en un ZIP`,
+      resultAlt: (name) => `${name}, ajustada para Discord`,
     },
     auditar: {
       heading: 'Arrastra aquí el archivo HAR de la página que quieres medir',
@@ -169,6 +201,8 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay nada que medir',
       tableLabel: 'Imágenes del HAR',
       weightHeader: 'Peso antes y después',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, recomprimida`,
     },
   } satisfies Record<ToolId, ToolWords>,
@@ -180,6 +214,7 @@ export const es = {
       redimensionar: 'Redimensionar',
       convertir: 'Convertir',
       'quitar-exif': 'Quitar EXIF',
+      discord: 'Discord',
       auditar: 'Auditar web',
     } satisfies Record<ToolId, string>,
   },
@@ -245,8 +280,6 @@ export const es = {
   toolbar: {
     destination: 'Destino',
     saveToFolder: 'Guardar en una carpeta',
-    download: (done: number, count: string) =>
-      done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
     cancel: 'Cancelar',
     stripLabel: 'Sin recodificar',
     stripTitle:
@@ -255,6 +288,15 @@ export const es = {
 
   destination: {
     ourAdvice: 'Recomendación nuestra',
+    /** Replaces "our advice" on a destination whose limit is somebody else's. */
+    theirLimit: 'Límite de peso que Discord publica',
+    source: 'Fuente',
+    verifiedAt: (date: string) => `verificado el ${date}`,
+    /** Said once, under the Discord destinations: the file fits the numbers, not the verdict. */
+    notAGuarantee:
+      'El archivo se ajusta a los límites de peso que Discord publica, pero no se garantiza que lo acepte: conviene probarlo.',
+    canvasReduction: 'Si no entra, reducir el lienzo a 256 px',
+    canvasReductionNote: 'Discord lo aceptó en nuestras pruebas, pero su pantalla pide 320 × 320',
     ceiling: (bytes: string) => `máx. ${bytes}`,
     originalSize: 'tamaño original',
     group: (group: ProfileGroup): string => group,
@@ -319,6 +361,26 @@ export const es = {
     fixed: 'La calidad es fija y es la que recomendamos para cada formato.',
   },
 
+  /** The Discord panel's section for cutting a video (the tool's own numbers, not Discord's). */
+  video: {
+    title: 'Video',
+    onlyVideos:
+      'Solo cuenta para los archivos de video. Los fotogramas por segundo son un máximo: el resultado nunca supera a los del propio video, así que un video de 10 fps sale a 10 fps aunque pidas 15.',
+    start: 'Inicio (s)',
+    length: 'Duración (s)',
+    fps: 'Fotogramas por segundo (máx.)',
+    /** Why there is a cap, and whose it is. */
+    capNote: (seconds: string, frames: string) =>
+      `El tope de ${seconds} s y ${frames} fotogramas es de achica, no de Discord: reproducir el tramo lleva tanto tiempo como dure, y los fotogramas se guardan en memoria.`,
+    problems: {
+      empty: 'Escribe un número.',
+      notNumber: 'Eso no es un número. Escribe, por ejemplo, 2,5.',
+      negative: 'No puede ser negativo.',
+    },
+    /** A valid number that was cut to the tool's bounds. */
+    adjusted: (value: string) => `Se ajustó a ${value}, el límite de la herramienta.`,
+  },
+
   filters: {
     todos: 'Todos',
     fits: 'Entraron con margen',
@@ -354,6 +416,8 @@ export const es = {
     compare: 'Comparar',
     download: 'Descargar',
     downloadTitle: (name: string) => `Descargar ${name}`,
+    /** The bar of a destination with an absolute limit: the track is the limit. */
+    limitBar: (weight: string, limit: string) => `quedó en ${weight}, con un límite de ${limit}`,
     bar: (from: string, weight: string, budget: string | null) =>
       budget === null
         ? `${from} quedó en ${weight}, sin presupuesto`
@@ -374,6 +438,27 @@ export const es = {
       keptOrientation
         ? 'Solo tenía la orientación, que se conserva: quedó igual'
         : 'No tenía metadatos: quedó igual',
+    /** What an animation came out as, and what it gave up to fit its budget. */
+    animation: {
+      fps: (fps: string) => `${fps} fps`,
+      colors: (colors: number) => `${colors} colores`,
+      fullColor: 'color completo',
+      canvas: (size: string) => `lienzo ${size}`,
+      steps: {
+        fps: (to: string) => `se bajó a ${to} fps`,
+        palette: (colors: number) => `paleta de ${colors} colores`,
+        scale: (percent: number) => `tamaño reducido al ${percent} %`,
+        canvas: (px: number) => `lienzo reducido a ${px} px`,
+        diffOff: 'recorte por diferencias desactivado',
+      },
+      /** Which part of a video was kept: a choice the user made, not a failure. */
+      clip: (from: string, to: string, total: string) => `Tramo de ${from} a ${to} s de ${total} s`,
+      /** Said when the selected destination is no longer the one the row was made for. */
+      otherDestination: 'procesada con otro destino',
+      fits: 'Entra en el límite',
+      over: (size: string, limit: string) =>
+        `No entra en el límite de ${limit}: es la versión más pequeña que se pudo hacer (${size})`,
+    },
     stripped: (facts: StripFacts) =>
       facts.parts.includes('exif-unreadable')
         ? `Se quitó ${stripList(facts)}; no se pudo conservar la orientación`
@@ -403,6 +488,18 @@ export const es = {
     excess: 'Exceso',
     saved: 'Ahorro',
     time: 'Tiempo en el worker',
+    frames: 'Fotogramas',
+    duration: 'Duración',
+    fps: 'Fotogramas por segundo',
+    colors: 'Colores',
+    clip: 'Tramo del video',
+    clipValue: (from: string, length: string, total: string) =>
+      `desde ${from} s, ${length} s de ${total} s`,
+    /** The target line of a row made for another destination: its own limit, said as such. */
+    processedWithOther: (limit: string) => `máx. ${limit} (otro destino)`,
+    adjusted: 'Se ajustó',
+    adjustedNothing: 'nada, entró tal cual',
+    preview: 'Vista previa',
     stripTarget: 'quitar metadatos, sin recodificar',
     removed: 'Se quitó',
     removedList: (facts: StripFacts) => stripList(facts),
@@ -465,6 +562,37 @@ export const es = {
       `${format} dañado: el archivo está cortado o su estructura no es válida, así que no se pudieron quitar los metadatos con seguridad. No se cambió nada`,
     workerCrashed:
       'El navegador cortó el proceso, probablemente por falta de memoria. Prueba con menos archivos a la vez',
+    animation: {
+      notAnimated:
+        'Esta imagen no está animada. Discord ya reescala las estáticas por su cuenta: usa Comprimir o Redimensionar',
+      unsupportedBrowser:
+        'Este navegador no puede leer animaciones. Prueba con Chrome, Edge o Firefox',
+      unsupportedFormat:
+        'Solo se leen animaciones GIF, APNG y WebP animado. Para otro tipo de imagen usa Comprimir o Convertir',
+      corrupt:
+        'La animación está dañada o cortada, así que no se pudo leer. Prueba con otro archivo',
+      tooLarge: 'La animación es demasiado grande. Prueba con una más corta o más pequeña',
+      resizeFailed:
+        'No se pudo cambiar el tamaño de los fotogramas. Prueba con una animación más pequeña',
+      compressionUnavailable:
+        'Este navegador no puede comprimir el APNG. Prueba con Chrome, Edge o Firefox, o elige GIF',
+      encodeFailed: 'No se pudo generar la animación de salida',
+    },
+    /** A video that could not be turned into frames. */
+    video: {
+      codecUnsupported:
+        'Este navegador no puede leer el códec de este video (por ejemplo, HEVC). Prueba con Chrome, Edge o Firefox, o conviértelo a H.264',
+      stalled: 'Mantén esta pestaña visible mientras se prepara el video y vuelve a intentarlo',
+      noVideoTrack: 'El archivo no tiene imagen, solo audio. Elige un video MP4 o WebM',
+      unsupportedVideo:
+        'Solo se leen videos MP4 y WebM. Convierte el archivo a uno de esos formatos',
+      // A decode that fails after the metadata loaded is what Firefox reports for HEVC,
+      // so this message cannot blame the file alone.
+      corrupt:
+        'No se pudo leer el video: puede estar dañado o usar un códec que este navegador no reproduce (por ejemplo, HEVC, frecuente en videos de móvil). Prueba con Chrome o Edge, con otro archivo, o conviértelo a H.264',
+      aborted: 'Se canceló la lectura del video',
+      internal: 'No se pudo preparar el video. Vuelve a intentarlo o prueba con otro archivo',
+    },
   },
 }
 

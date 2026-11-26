@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Animated Discord stickers and emoji from a GIF, APNG, WebP or video | achica</title>
+    <meta
+      name="description"
+      content="Drop a GIF, an APNG, an animated WebP or a video (MP4 or WebM, if your browser can play it) and get an animated sticker or emoji fitted to the file size Discord publishes, in your browser and without uploading anything. When it does not fit, it says so. No account, free and open source."
+    />
+    <link rel="canonical" href="https://achica.gfcode.dev/en/discord-stickers-emojis/" />
+    <link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/stickers-emojis-discord/" />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://achica.gfcode.dev/en/discord-stickers-emojis/"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://achica.gfcode.dev/stickers-emojis-discord/"
+    />
+    <meta name="theme-color" content="#f2f1ec" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!--
+      Read by the link previews of WhatsApp, X, LinkedIn and Slack, none of
+      which run JavaScript. Absolute URLs because a crawler resolves nothing.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="achica" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="es_ES" />
+    <meta property="og:url" content="https://achica.gfcode.dev/en/discord-stickers-emojis/" />
+    <meta
+      property="og:title"
+      content="achica: animated Discord stickers and emoji, with no upload"
+    />
+    <meta
+      property="og:description"
+      content="A GIF, an APNG, an animated WebP or a video, fitted to the file size Discord publishes, in your browser. Not a byte of your files leaves your device."
+    />
+    <meta property="og:image" content="https://achica.gfcode.dev/og-en.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="achica, batch image tools: three weight bars on light paper"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "achica: animated Discord stickers and emoji",
+        "url": "https://achica.gfcode.dev/en/discord-stickers-emojis/",
+        "description": "Fits a GIF, an APNG, an animated WebP or a video (MP4 or WebM, if the browser can play it) to the file size Discord publishes for an animated sticker or emoji. Runs entirely in the browser, with no backend and no account.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Any with a current browser",
+        "browserRequirements": "Requires JavaScript and a browser that can read animations",
+        "inLanguage": "en",
+        "isAccessibleForFree": true,
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+          "Turns a GIF, an APNG, an animated WebP or a video into an animated sticker or emoji",
+          "From a video it uses the segment you pick, up to 15 s; it plays in the tab, which must stay visible, and only if your browser can read it",
+          "Fits the file size to the limits Discord publishes, giving up the least visible things first",
+          "Says when it does not fit, with the final size and the limit",
+          "Worth testing the file on Discord: acceptance is not guaranteed",
+          "Download as a ZIP or straight into a folder",
+          "No image ever leaves the device"
+        ]
+      }
+    </script>
+  </head>
+  <body data-tool="discord">
+    <!--
+      Empty in the source. The build fills it with the first screen rendered
+      ahead of time (scripts/prerender.mjs), so the page reads the same before
+      and after the script runs, and to readers that never run it.
+    -->
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
