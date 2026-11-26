@@ -585,7 +585,10 @@ export const es = {
       noVideoTrack: 'El archivo no tiene imagen, solo audio. Elige un video MP4 o WebM',
       unsupportedVideo:
         'Solo se leen videos MP4 y WebM. Convierte el archivo a uno de esos formatos',
-      corrupt: 'El video está dañado o cortado, así que no se pudo leer. Prueba con otro archivo',
+      // A decode that fails after the metadata loaded is what Firefox reports for HEVC,
+      // so this message cannot blame the file alone.
+      corrupt:
+        'No se pudo leer el video: puede estar dañado o usar un códec que este navegador no reproduce (por ejemplo, HEVC, frecuente en videos de móvil). Prueba con Chrome o Edge, con otro archivo, o conviértelo a H.264',
       aborted: 'Se canceló la lectura del video',
       internal: 'No se pudo preparar el video. Vuelve a intentarlo o prueba con otro archivo',
     },

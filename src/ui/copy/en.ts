@@ -520,7 +520,10 @@ export const en: Copy = {
       stalled: 'Keep this tab visible while the video is being prepared, and try again',
       noVideoTrack: 'The file has no picture, only audio. Choose an MP4 or WebM video',
       unsupportedVideo: 'Only MP4 and WebM videos can be read. Convert the file to one of those',
-      corrupt: 'The video is damaged or cut off, so it could not be read. Try another file',
+      // A decode that fails after the metadata loaded is what Firefox reports for HEVC,
+      // so this message cannot blame the file alone.
+      corrupt:
+        'The video could not be read: it may be damaged, or use a codec this browser does not play (for example HEVC, common in phone videos). Try Chrome or Edge, another file, or convert it to H.264',
       aborted: 'Reading the video was cancelled',
       internal: 'The video could not be prepared. Try again or try another file',
     },
