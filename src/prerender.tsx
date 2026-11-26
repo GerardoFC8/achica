@@ -15,11 +15,11 @@ import { loadTool } from './tools/loaders'
  * replaces it with the live tree; the markup is the same, so nothing moves.
  */
 export async function render(language: string, toolId: string): Promise<string> {
-  const { App } = await loadTool(toolId)
+  const { App, tool } = await loadTool(toolId)
 
   return renderToString(
     <CopyProvider value={copyFor(language)}>
-      <App />
+      <App tool={tool} />
     </CopyProvider>,
   )
 }

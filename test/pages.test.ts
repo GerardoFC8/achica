@@ -3,13 +3,16 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { loaders } from '../src/tools/loaders'
 import { listPages, renderPage, renderSitemap, type Registry } from '../src/tools/pages'
-import { REGISTRY, type Tool } from '../src/tools/registry'
+import { REGISTRY, TOOL_IDS, type Tool } from '../src/tools/registry'
 
 const ROOT = join(import.meta.dirname, '..')
 
 /** The working tree may be CRLF (core.autocrlf); the generator writes LF. */
 const read = (file: string): string =>
   readFileSync(join(ROOT, file), 'utf8').replaceAll('\r\n', '\n')
+
+/** A long tag is laid out one attribute per line, which is not what these checks are about. */
+const flat = (html: string): string => html.replaceAll(/\s+/g, ' ')
 
 /**
  * A tool that does not exist, injected next to the real ones: it proves the
@@ -99,11 +102,11 @@ describe('the registry', () => {
 
       it('has reciprocal hreflang: each page names its twins and every twin names it back', () => {
         for (const { tool, language, locale } of pages) {
-          const html = renderPage(registry, tool, language)
+          const html = flat(renderPage(registry, tool, language))
           for (const other of registry.languages) {
             const href = `${registry.site.origin}${tool.locales[other].path}`
             expect(html).toContain(`hreflang="${other}" href="${href}"`)
-            expect(renderPage(registry, tool, other)).toContain(
+            expect(flat(renderPage(registry, tool, other))).toContain(
               `hreflang="${language}" href="${registry.site.origin}${locale.path}"`,
             )
           }
@@ -116,6 +119,28 @@ describe('the registry', () => {
 
   it('has a loader for every real tool', () => {
     for (const tool of REGISTRY.tools) expect(loaders).toHaveProperty(tool.id)
+  })
+
+  it('lists exactly the ids of ToolId, in the same order', () => {
+    expect(REGISTRY.tools.map((tool) => tool.id)).toEqual([...TOOL_IDS])
+  })
+
+  it('pins the routes of the real tools and keeps every page declaring its own tool', () => {
+    const routes = REGISTRY.tools.map((tool) => [tool.locales.es.path, tool.locales.en.path])
+    expect(routes).toEqual([
+      ['/', '/en/'],
+      ['/redimensionar-imagenes/', '/en/resize-images/'],
+      ['/convertir-imagenes/', '/en/convert-images/'],
+    ])
+
+    for (const { tool, language } of listPages(REGISTRY)) {
+      expect(renderPage(REGISTRY, tool, language)).toContain(`<body data-tool="${tool.id}">`)
+    }
+  })
+
+  it('names no platform and quotes no size nobody can source', () => {
+    const text = JSON.stringify(REGISTRY.tools)
+    expect(text).not.toMatch(/instagram|facebook|whatsapp|tiktok|youtube|heic/i)
   })
 })
 

@@ -1,3 +1,4 @@
+import { flattenOnWhite, hasTransparency } from './alpha'
 import { searchQualityForBudget } from './budget'
 import { decodeImage, type DecodeError } from './codecs/decode'
 import {
@@ -8,7 +9,7 @@ import {
   type OutputFormat,
 } from './codecs/encode'
 import { detectSupportedFormat, type DetectionError } from './detect'
-import { fitWithin, isSameSize, resampleImage, scaleBy, type Dimensions } from './resize'
+import { isSameSize, resampleImage, resolveTargetSize, scaleBy, type Dimensions } from './resize'
 import { err, ok, type Result } from './result'
 
 /**
@@ -29,6 +30,11 @@ export type OutputPlan = {
   readonly maxBytes?: number
   readonly maxWidth?: number
   readonly maxHeight?: number
+  /**
+   * Factor in (0, 1) applied to the decoded size before the limits above.
+   * Never enlarges; see `resolveTargetSize` for how invalid values behave.
+   */
+  readonly scale?: number
   readonly minQuality?: number
   /** Used only when there is no budget to search against. */
   readonly quality?: number
@@ -168,8 +174,22 @@ export async function processImage(
   // The plan's own dimension limits apply first. Anything past this point is
   // the budget loop choosing to go smaller than was asked for.
   let image = decoded.value
-  const requested = fitWithin(image, plan)
+  const requested = resolveTargetSize(image, plan)
   if (!isSameSize(image, requested)) image = await resampleImage(image, requested)
+
+  /*
+   * JPEG cannot hold transparency, so an image headed there is composited on
+   * white once, here, and not inside the encode callback: the budget search
+   * encodes the same pixels many times and flattening each attempt would be
+   * pure waste. It runs after the resize because that is fewer pixels, and the
+   * shrink loop further down resamples the flattened image, which stays opaque.
+   * Called again when a lossless file switches to the fallback format, since
+   * that format may be JPEG too. Every other output keeps its alpha.
+   */
+  const flattenForJpeg = (): void => {
+    if (format === 'jpeg' && hasTransparency(image)) image = flattenOnWhite(image)
+  }
+  flattenForJpeg()
 
   let encodes = 0
   let encodeFailure: EncodeError | null = null
@@ -229,6 +249,7 @@ export async function processImage(
 
       format = fallback
       convertedForBudget = true
+      flattenForJpeg()
     }
 
     /*

@@ -28,6 +28,22 @@ async function load(name: string): Promise<ArrayBuffer> {
 }
 
 describe('processImage', () => {
+  it('halves both dimensions with scale 0.5', async () => {
+    const source = await decodeImage('jpeg', await load('Landscape_6.jpg'))
+    if (!source.ok) throw new Error(source.error.detail)
+
+    const result = await processImage(await load('Landscape_6.jpg'), {
+      format: 'jpeg',
+      quality: 70,
+      scale: 0.5,
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.width).toBe(Math.round(source.value.width / 2))
+    expect(result.value.height).toBe(Math.round(source.value.height / 2))
+  })
+
   it('compresses a photo and reports both weights', async () => {
     const result = await processImage(await load('Landscape_6.jpg'), {
       format: 'keep',

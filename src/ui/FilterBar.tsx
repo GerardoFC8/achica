@@ -1,4 +1,5 @@
 import { useCopy } from './copy'
+import { useToolWords } from './tool-context'
 import type { Formatters } from './format'
 import type { FilterCounts, FilterId } from './queue-view'
 
@@ -14,6 +15,7 @@ const FILTERS: readonly { readonly id: FilterId; readonly dot: string }[] = [
   { id: 'fits', dot: 'bg-fits' },
   { id: 'tight', dot: 'bg-tight' },
   { id: 'over', dot: 'bg-over' },
+  { id: 'done', dot: 'bg-ink' },
   { id: 'failed', dot: 'bg-over' },
   { id: 'cancelled', dot: 'bg-ink-soft' },
   { id: 'pending', dot: 'bg-rule' },
@@ -43,6 +45,7 @@ export function FilterBar({
   onSave,
 }: Props) {
   const { filters, selection } = useCopy()
+  const words = useToolWords()
 
   return (
     <div className="flex min-h-9 flex-wrap items-center gap-x-1 gap-y-1.5 border-b border-rule px-4 py-1.5">
@@ -80,7 +83,7 @@ export function FilterBar({
             onClick={onRecompress}
             className="h-6 rounded-sm border border-rule px-2 text-xs whitespace-nowrap hover:border-ink-soft coarse:h-11"
           >
-            {selection.recompress}
+            {words.again}
           </button>
           {selectedDone > 0 ? (
             <button

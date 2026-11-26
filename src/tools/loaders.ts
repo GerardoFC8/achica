@@ -9,21 +9,32 @@
  */
 
 import type { ComponentType } from 'react'
+import { isToolId, type ToolId } from './registry'
 
 export interface ToolModule {
-  /** The tool's screen. */
-  App: ComponentType
+  /** The tool's screen. One component serves every tool; the id says which one it is. */
+  App: ComponentType<{ readonly tool: ToolId }>
 }
 
-export const loaders: Record<string, () => Promise<ToolModule>> = {
-  comprimir: () => import('../ui/App'),
+/** What a page gets back: its module and the id it was validated as. */
+export interface LoadedTool extends ToolModule {
+  readonly tool: ToolId
+}
+
+// Typed by id: a tool in the registry without a loader does not compile.
+// Today they all share one screen; a tool with its own would import its own.
+const screen = (): Promise<ToolModule> => import('../ui/App')
+
+export const loaders: Record<ToolId, () => Promise<ToolModule>> = {
+  comprimir: screen,
+  redimensionar: screen,
+  convertir: screen,
 }
 
 /** Resolves a tool's module from the id a page declares in `<body data-tool>`. */
-export function loadTool(id: string | undefined): Promise<ToolModule> {
-  const load = id === undefined ? undefined : loaders[id]
-  if (load === undefined) {
-    return Promise.reject(new Error(`No tool is registered under data-tool="${id ?? ''}"`))
+export async function loadTool(id: string | undefined): Promise<LoadedTool> {
+  if (id === undefined || !isToolId(id)) {
+    throw new Error(`No tool is registered under data-tool="${id ?? ''}"`)
   }
-  return load()
+  return { ...(await loaders[id]()), tool: id }
 }

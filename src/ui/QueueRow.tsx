@@ -1,8 +1,10 @@
 import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
+import type { ToolId } from '../tools/registry'
 import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
 import { rowDetails, rowNote, savedRatio, weightBar, type RowKind } from './row-model'
+import { useTool } from './tool-context'
 import { STRIPE_TONE, TEXT_TONE } from './tone'
 import { WeightBar } from './WeightBar'
 
@@ -26,8 +28,9 @@ function describeBar(
   profile: Profile,
   formatters: Formatters,
   copy: Copy,
+  tool: ToolId,
 ): string {
-  if (item.status !== 'done') return rowNote(item, formatters, copy)
+  if (item.status !== 'done') return rowNote(item, formatters, copy, tool)
 
   return copy.row.bar(
     formatters.bytes(item.bytesBefore),
@@ -53,8 +56,9 @@ export function QueueRow({
   const tone = TEXT_TONE[kind]
   const running = item.status === 'pending' || item.status === 'running'
   const copy = useCopy()
-  const note = rowNote(item, formatters, copy)
-  const details = expanded ? rowDetails(item, profile, formatters, copy) : []
+  const tool = useTool()
+  const note = rowNote(item, formatters, copy, tool)
+  const details = expanded ? rowDetails(item, profile, formatters, copy, tool) : []
 
   const after = item.status === 'done' ? formatters.bytes(item.outcome.bytesAfter) : '—'
   const savedText = saved === null ? '' : formatters.percent(saved)
@@ -125,7 +129,7 @@ export function QueueRow({
           <WeightBar
             bar={weightBar(item, profile)}
             kind={kind}
-            description={describeBar(item, profile, formatters, copy)}
+            description={describeBar(item, profile, formatters, copy, tool)}
           />
         </div>
 

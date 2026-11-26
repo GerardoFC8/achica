@@ -1,8 +1,14 @@
+import type { OutputFormat } from '../core/codecs/encode'
 import type { Profile } from '../core/profiles'
 import type { BudgetChoice } from './budget'
 import { useCopy } from './copy'
 import { DestinationPicker } from './DestinationPicker'
 import type { Formatters } from './format'
+import { FormatPicker } from './FormatPicker'
+import type { ResizeChoice } from './resize-choice'
+import { ResizePicker } from './ResizePicker'
+import { useTool, useToolWords } from './tool-context'
+import { ToolNav } from './ToolNav'
 
 /**
  * A toolbar, not a header: the app's name, the one decision the user makes,
@@ -10,8 +16,11 @@ import type { Formatters } from './format'
  */
 
 type Props = {
-  readonly profile: Profile
+  /** The compressor's destination; the other tools ignore it. */
+  readonly destination: Profile
   readonly budget: BudgetChoice
+  readonly resize: ResizeChoice
+  readonly format: OutputFormat
   readonly formatters: Formatters
   readonly pending: number
   readonly done: number
@@ -20,6 +29,8 @@ type Props = {
   readonly canUseFolder: boolean
   readonly onSelectProfile: (profile: Profile) => void
   readonly onBudget: (budget: BudgetChoice) => void
+  readonly onResize: (choice: ResizeChoice) => void
+  readonly onFormat: (format: OutputFormat) => void
   readonly onStart: () => void
   readonly onCancelAll: () => void
   readonly onDownload: () => void
@@ -27,8 +38,10 @@ type Props = {
 }
 
 export function Toolbar({
-  profile,
+  destination,
   budget,
+  resize,
+  format,
   formatters,
   pending,
   done,
@@ -36,24 +49,43 @@ export function Toolbar({
   canUseFolder,
   onSelectProfile,
   onBudget,
+  onResize,
+  onFormat,
   onStart,
   onCancelAll,
   onDownload,
   onSaveToFolder,
 }: Props) {
-  const { toolbar } = useCopy()
+  const copy = useCopy()
+  const { toolbar } = copy
+  const tool = useTool()
+  const words = useToolWords()
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-rule px-4">
-      <p className="text-[15px] leading-5 font-semibold tracking-tight">achica</p>
+    // Wraps instead of overflowing: below md the navigation drops to a second
+    // thin line (order-last, full width); from md up it sits beside the name.
+    <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-x-4 border-b border-rule px-4">
+      <p className="flex h-14 items-center text-[15px] leading-5 font-semibold tracking-tight">
+        achica
+      </p>
 
-      <DestinationPicker
-        selected={profile}
-        budget={budget}
-        formatters={formatters}
-        onSelect={onSelectProfile}
-        onBudget={onBudget}
-      />
+      <div className="order-last basis-full md:order-none md:basis-auto">
+        <ToolNav />
+      </div>
+
+      {tool === 'comprimir' ? (
+        <DestinationPicker
+          selected={destination}
+          budget={budget}
+          formatters={formatters}
+          onSelect={onSelectProfile}
+          onBudget={onBudget}
+        />
+      ) : tool === 'redimensionar' ? (
+        <ResizePicker choice={resize} formatters={formatters} onChange={onResize} />
+      ) : (
+        <FormatPicker selected={format} formatters={formatters} onSelect={onFormat} />
+      )}
 
       <div className="flex-1" />
 
@@ -98,7 +130,7 @@ export function Toolbar({
           onClick={onStart}
           className="h-8 rounded-sm bg-ink px-3.5 text-[13px] leading-4 font-medium text-paper hover:bg-ink-soft coarse:h-11"
         >
-          {toolbar.compress(pending, formatters.count(pending))}
+          {words.start(pending, formatters.count(pending))}
         </button>
       ) : null}
     </header>

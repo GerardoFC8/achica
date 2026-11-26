@@ -38,9 +38,20 @@ export interface ToolLocale {
   }
 }
 
-export interface Tool {
+/**
+ * The tools the site has, in the order the navigation lists them. The one
+ * place a tool's id is born: `ToolId` derives from it, and the registry, the
+ * loaders and the copy are typed against it, so a tool added here and
+ * forgotten there fails to compile.
+ */
+export const TOOL_IDS = ['comprimir', 'redimensionar', 'convertir'] as const
+
+export type ToolId = (typeof TOOL_IDS)[number]
+
+/** Generic so a test can inject a tool that is not one of the real ids. */
+export interface Tool<Id extends string = string> {
   /** Stable identifier. The page declares it in `<body data-tool>`; loaders.ts keys on it. */
-  id: string
+  id: Id
   /** schema.org `applicationCategory`, shared by every language. */
   applicationCategory: string
   locales: Record<Language, ToolLocale>
@@ -58,7 +69,7 @@ export const SITE = {
   defaultLanguage: 'es' as Language,
 } as const
 
-export const TOOLS: readonly Tool[] = [
+export const TOOLS: readonly Tool<ToolId>[] = [
   {
     id: 'comprimir',
     applicationCategory: 'MultimediaApplication',
@@ -119,7 +130,130 @@ export const TOOLS: readonly Tool[] = [
       },
     },
   },
+  {
+    id: 'redimensionar',
+    applicationCategory: 'MultimediaApplication',
+    locales: {
+      es: {
+        path: '/redimensionar-imagenes/',
+        title: 'Redimensionar imágenes por lote, sin subirlas | achica',
+        description:
+          'Reduce el tamaño de muchas imágenes a la vez en tu navegador, por porcentaje o por una caja máxima. Sin recortar, sin ampliar y sin subirlas a ningún servidor. Sin cuentas, gratis y de código abierto.',
+        ogTitle: 'achica: redimensiona muchas imágenes a la vez, sin subirlas',
+        ogDescription:
+          'Por porcentaje o por caja máxima, en tu navegador y sin cuentas. Ningún byte de tus imágenes sale de tu dispositivo.',
+        ogImage: '/og.png',
+        ogImageAlt:
+          'achica, herramientas de imagen por lote: tres barras de peso sobre papel claro',
+        ogLocale: 'es_ES',
+        jsonLd: {
+          name: 'achica: redimensionar imágenes',
+          description:
+            'Redimensionador de imágenes por lote que corre entero en el navegador. Sin backend, sin cuentas y sin límite de archivos.',
+          operatingSystem: 'Cualquiera con un navegador actual',
+          browserRequirements: 'Requiere JavaScript y WebAssembly',
+          featureList: [
+            'Redimensionado por lote sin límite de archivos',
+            'Por porcentaje o por una caja máxima de ancho y alto',
+            'Sin recortar y sin ampliar: solo reduce',
+            'JPEG, PNG, WebP y AVIF',
+            'Descarga en ZIP o directo a una carpeta',
+            'Ninguna imagen sale del dispositivo',
+          ],
+        },
+      },
+      en: {
+        path: '/en/resize-images/',
+        title: 'Resize images in bulk, without uploading them | achica',
+        description:
+          'Make many images smaller at once in your browser, by percentage or inside a maximum box. No cropping, no upscaling and no uploading anywhere. No account, free and open source.',
+        ogTitle: 'achica: resize many images at once, without uploading them',
+        ogDescription:
+          'By percentage or inside a maximum box, in your browser with no account. Not a byte of your images leaves your device.',
+        ogImage: '/og-en.png',
+        ogImageAlt: 'achica, batch image tools: three weight bars on light paper',
+        ogLocale: 'en_US',
+        jsonLd: {
+          name: 'achica: resize images',
+          description:
+            'Batch image resizer that runs entirely in the browser. No backend, no account and no file limit.',
+          operatingSystem: 'Any with a current browser',
+          browserRequirements: 'Requires JavaScript and WebAssembly',
+          featureList: [
+            'Batch resizing with no file limit',
+            'By percentage or inside a maximum width and height',
+            'No cropping and no upscaling: it only makes images smaller',
+            'JPEG, PNG, WebP and AVIF',
+            'Download as a ZIP or straight into a folder',
+            'No image ever leaves the device',
+          ],
+        },
+      },
+    },
+  },
+  {
+    id: 'convertir',
+    applicationCategory: 'MultimediaApplication',
+    locales: {
+      es: {
+        path: '/convertir-imagenes/',
+        title: 'Convertir imágenes por lote entre JPEG, PNG, WebP y AVIF | achica',
+        description:
+          'Cambia el formato de muchas imágenes a la vez entre JPEG, PNG, WebP y AVIF, en tu navegador y sin subirlas a ningún servidor. Sin cuentas, gratis y de código abierto.',
+        ogTitle: 'achica: convierte muchas imágenes a la vez, sin subirlas',
+        ogDescription:
+          'JPEG, PNG, WebP y AVIF, en tu navegador y sin cuentas. Ningún byte de tus imágenes sale de tu dispositivo.',
+        ogImage: '/og.png',
+        ogImageAlt:
+          'achica, herramientas de imagen por lote: tres barras de peso sobre papel claro',
+        ogLocale: 'es_ES',
+        jsonLd: {
+          name: 'achica: convertir imágenes',
+          description:
+            'Conversor de formato de imágenes por lote que corre entero en el navegador. Sin backend, sin cuentas y sin límite de archivos.',
+          operatingSystem: 'Cualquiera con un navegador actual',
+          browserRequirements: 'Requiere JavaScript y WebAssembly',
+          featureList: [
+            'Conversión por lote sin límite de archivos',
+            'Entre JPEG, PNG, WebP y AVIF',
+            'Descarga en ZIP o directo a una carpeta',
+            'Ninguna imagen sale del dispositivo',
+          ],
+        },
+      },
+      en: {
+        path: '/en/convert-images/',
+        title: 'Convert images in bulk between JPEG, PNG, WebP and AVIF | achica',
+        description:
+          'Change the format of many images at once between JPEG, PNG, WebP and AVIF, in your browser and without uploading them anywhere. No account, free and open source.',
+        ogTitle: 'achica: convert many images at once, without uploading them',
+        ogDescription:
+          'JPEG, PNG, WebP and AVIF, in your browser with no account. Not a byte of your images leaves your device.',
+        ogImage: '/og-en.png',
+        ogImageAlt: 'achica, batch image tools: three weight bars on light paper',
+        ogLocale: 'en_US',
+        jsonLd: {
+          name: 'achica: convert images',
+          description:
+            'Batch image format converter that runs entirely in the browser. No backend, no account and no file limit.',
+          operatingSystem: 'Any with a current browser',
+          browserRequirements: 'Requires JavaScript and WebAssembly',
+          featureList: [
+            'Batch conversion with no file limit',
+            'Between JPEG, PNG, WebP and AVIF',
+            'Download as a ZIP or straight into a folder',
+            'No image ever leaves the device',
+          ],
+        },
+      },
+    },
+  },
 ]
 
 /** The registry as one value, for the consumers that take it whole. */
 export const REGISTRY = { languages: LANGUAGES, site: SITE, tools: TOOLS }
+
+/** Narrows a string a page declared to a tool the site actually has. */
+export function isToolId(value: string): value is ToolId {
+  return (TOOL_IDS as readonly string[]).includes(value)
+}

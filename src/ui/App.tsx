@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
+import type { OutputFormat } from '../core/codecs/encode'
 import { PERFILES, type Profile } from '../core/profiles'
+import type { ToolId } from '../tools/registry'
 import { totalsOf } from '../state/queue'
 import { queueActions, useQueue } from '../state/queue-store'
-import { NO_BUDGET, planFor, withBudget, type BudgetChoice } from './budget'
+import { NO_BUDGET, type BudgetChoice } from './budget'
 import { Comparator } from './Comparator'
 import { DropZone } from './DropZone'
 import { FilterBar } from './FilterBar'
+import { DEFAULT_FORMAT } from './format-choice'
 import {
   buildRows,
   countsOf,
@@ -15,6 +18,9 @@ import {
   type SortKey,
 } from './queue-view'
 import { QueueTable } from './QueueTable'
+import { DEFAULT_RESIZE, type ResizeChoice } from './resize-choice'
+import { ToolProvider } from './tool-context'
+import { planForTool, profileForTool, type ToolChoices } from './tool-profiles'
 import { Toolbar } from './Toolbar'
 import { TotalsBar } from './TotalsBar'
 import { useFormatters } from './useFormatters'
@@ -34,15 +40,35 @@ const toggle = (set: ReadonlySet<string>, id: string): Set<string> => {
   return next
 }
 
-export function App() {
+type Props = {
+  /** Which tool this screen is. Required: there is no tool to fall back to. */
+  readonly tool: ToolId
+}
+
+export function App({ tool }: Props) {
+  return (
+    <ToolProvider value={tool}>
+      <Screen tool={tool} />
+    </ToolProvider>
+  )
+}
+
+function Screen({ tool }: Props) {
   const formatters = useFormatters()
   const items = useQueue((state) => state.items)
   const save = useSave(formatters)
 
   const [destination, setDestination] = useState<Profile>(() => PERFILES[0] as Profile)
   const [budget, setBudget] = useState<BudgetChoice>(NO_BUDGET)
-  // What every row is measured against: the destination with the ceiling in.
-  const profile = useMemo(() => withBudget(destination, budget), [destination, budget])
+  const [resize, setResize] = useState<ResizeChoice>(DEFAULT_RESIZE)
+  const [format, setFormat] = useState<OutputFormat>(DEFAULT_FORMAT)
+  const choices = useMemo<ToolChoices>(
+    () => ({ destination, budget, resize, format }),
+    [destination, budget, resize, format],
+  )
+  // What every row is measured against: the tool's own choice, with the weight
+  // ceiling in for the compressor.
+  const profile = useMemo(() => profileForTool(tool, choices), [tool, choices])
   const [filter, setFilter] = useState<FilterId>('todos')
   const [sortKey, setSortKey] = useState<SortKey>('orden')
   const [direction, setDirection] = useState<SortDirection>('asc')
@@ -50,7 +76,7 @@ export function App() {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [comparing, setComparing] = useState<string | null>(null)
 
-  const rows = useMemo(() => buildRows(items, profile), [items, profile])
+  const rows = useMemo(() => buildRows(items, profile, tool), [items, profile, tool])
   const counts = useMemo(() => countsOf(rows), [rows])
   const visible = useMemo(
     () => visibleRows(rows, { filter, sortKey, direction }),
@@ -78,8 +104,10 @@ export function App() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-paper text-ink">
       <Toolbar
-        profile={destination}
+        destination={destination}
         budget={budget}
+        resize={resize}
+        format={format}
         formatters={formatters}
         pending={pending}
         done={done}
@@ -87,7 +115,9 @@ export function App() {
         canUseFolder={save.canUseFolder}
         onSelectProfile={setDestination}
         onBudget={setBudget}
-        onStart={() => queueActions.start(planFor(destination, budget))}
+        onResize={setResize}
+        onFormat={setFormat}
+        onStart={() => queueActions.start(planForTool(tool, choices))}
         onCancelAll={queueActions.cancelAll}
         onDownload={() => void save.download(items)}
         onSaveToFolder={() => void save.toFolder(items)}
@@ -106,7 +136,7 @@ export function App() {
               selectedDone={selectedDone}
               onFilter={setFilter}
               onSave={() => void save.download(selectedItems)}
-              onRecompress={() => queueActions.requeue(selectedIds, planFor(destination, budget))}
+              onRecompress={() => queueActions.requeue(selectedIds, planForTool(tool, choices))}
               onRemove={() => {
                 queueActions.remove(selectedIds)
                 setSelected(new Set())

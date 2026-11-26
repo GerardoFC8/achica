@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
+import { pathFor } from '../tools/links'
 import { useCopy } from './copy'
+import { useTool, useToolWords } from './tool-context'
 import { filesFromDrop } from './dropped-files'
 
 /**
@@ -16,6 +18,8 @@ type Props = {
 
 export function DropZone({ onFiles }: Props) {
   const copy = useCopy()
+  const tool = useTool()
+  const words = useToolWords()
   const [over, setOver] = useState(false)
   const input = useRef<HTMLInputElement>(null)
 
@@ -42,7 +46,7 @@ export function DropZone({ onFiles }: Props) {
           The page's one heading. It names the task in the words people search
           with, and it is still the invitation the empty screen has to be.
         */}
-        <h1 className="text-[15px] leading-5 font-semibold">{copy.drop.heading}</h1>
+        <h1 className="text-[15px] leading-5 font-semibold">{words.heading}</h1>
         <button
           type="button"
           onClick={() => input.current?.click()}
@@ -55,10 +59,11 @@ export function DropZone({ onFiles }: Props) {
 
         {/*
           A plain link and not a switch: each language is its own page, so a
-          crawler follows it and a visitor can share either one (D54).
+          crawler follows it and a visitor can share either one (D54). It leads to
+          the same tool's twin page, not to the other language's front door.
         */}
         <a
-          href={copy.otherLanguage.href}
+          href={pathFor(tool, copy.otherLanguage.lang)}
           hrefLang={copy.otherLanguage.lang}
           lang={copy.otherLanguage.lang}
           className="mt-4 text-xs leading-4 text-ink-soft underline underline-offset-[3px] hover:text-ink coarse:min-h-11"

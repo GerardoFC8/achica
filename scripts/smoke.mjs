@@ -13,10 +13,13 @@
  * Playwright sees every request the browser makes, which is the instrument
  * that claim always needed.
  *
- * Two batches per browser, because the product has two paths through it. The
- * default destination converts to WebP; the others keep the format, and a PNG
- * kept as PNG is packed by oxipng (D50). Running only the default would ship
- * the second path without it ever touching the build (D51).
+ * Several batches per browser, because the product has several paths through
+ * it. The compressor's default destination converts to WebP; the others keep
+ * the format, and a PNG kept as PNG is packed by oxipng (D50). Running only the
+ * default would ship the second path without it ever touching the build (D51).
+ * The resize and convert tools each get their own page and their own batches,
+ * and those read the result back out of the ZIP: the dimensions of every
+ * image, and the signature of every converted file.
  *
  * Before any browser, the page is read from Node with no JavaScript at all:
  * that is what a crawler or a link preview gets, and it has to carry the
@@ -38,6 +41,7 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { inflateRawSync } from 'node:zlib'
 import { chromium, firefox } from 'playwright'
 import { preview } from 'vite'
 import { listPages, urlForPath } from '../src/tools/pages.ts'
@@ -45,6 +49,91 @@ import { REGISTRY } from '../src/tools/registry.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const fixture = (path) => join(ROOT, 'test', 'fixtures', path)
+
+/**
+ * What is inside a ZIP, read from its central directory with Node's own zlib:
+ * no dependency, and no trust in the local headers, which a streaming writer
+ * may leave without sizes.
+ */
+function readZip(bytes) {
+  const end = bytes.lastIndexOf(Buffer.from('PK\x05\x06', 'latin1'))
+  if (end < 0) throw new Error('no end-of-directory record')
+
+  const count = bytes.readUInt16LE(end + 10)
+  let at = bytes.readUInt32LE(end + 16)
+  const entries = []
+
+  for (let i = 0; i < count; i++) {
+    const method = bytes.readUInt16LE(at + 10)
+    const size = bytes.readUInt32LE(at + 20)
+    const nameLength = bytes.readUInt16LE(at + 28)
+    const extraLength = bytes.readUInt16LE(at + 30)
+    const commentLength = bytes.readUInt16LE(at + 32)
+    const local = bytes.readUInt32LE(at + 42)
+    const name = bytes.toString('utf8', at + 46, at + 46 + nameLength)
+
+    const start = local + 30 + bytes.readUInt16LE(local + 26) + bytes.readUInt16LE(local + 28)
+    const raw = bytes.subarray(start, start + size)
+    entries.push({ name, data: method === 0 ? raw : inflateRawSync(raw) })
+
+    at += 46 + nameLength + extraLength + commentLength
+  }
+  return entries
+}
+
+/** Width and height from a PNG's IHDR, or from a JPEG's first SOF marker. */
+function dimensionsOf(data) {
+  if (data.subarray(0, 8).toString('hex') === '89504e470d0a1a0a') {
+    return { width: data.readUInt32BE(16), height: data.readUInt32BE(20) }
+  }
+  if (data[0] === 0xff && data[1] === 0xd8) {
+    let at = 2
+    while (at + 9 < data.length) {
+      if (data[at] !== 0xff) throw new Error('lost the JPEG marker stream')
+      const marker = data[at + 1]
+      // SOF0..SOF15, except DHT (C4), JPG (C8) and DAC (CC), which are not frames.
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+        return { width: data.readUInt16BE(at + 7), height: data.readUInt16BE(at + 5) }
+      }
+      at += 2 + data.readUInt16BE(at + 2)
+    }
+  }
+  return null
+}
+
+const isJpeg = (data) => data[0] === 0xff && data[1] === 0xd8
+const isWebp = (data) =>
+  data.toString('latin1', 0, 4) === 'RIFF' && data.toString('latin1', 8, 12) === 'WEBP'
+
+/** The entry that came out of a given input, matched by its stem. */
+const stemOf = (name) => name.replace(/\.[^.]+$/, '')
+
+/** Every converted file says what it is in its first bytes, not only in its name. */
+const verifySignature = (format, test) => (entries, batch) => {
+  for (const entry of entries) {
+    check(`${entry.name} is really ${format}`, test(entry.data))
+  }
+  check('one entry per input', entries.length === batch.files.length)
+}
+
+/** The resize batch: every image comes out at half its original sides. */
+async function verifyHalved(entries, batch) {
+  for (const file of batch.files) {
+    const stem = stemOf(file.split(/[\\/]/).pop())
+    const entry = entries.find((candidate) => stemOf(candidate.name) === stem)
+    const before = dimensionsOf(await readFile(file))
+    const after = entry === undefined ? null : dimensionsOf(entry.data)
+
+    check(
+      `${stem} is half its size`,
+      before !== null &&
+        after !== null &&
+        after.width === Math.round(before.width / 2) &&
+        after.height === Math.round(before.height / 2),
+      `${before?.width}x${before?.height} -> ${after?.width}x${after?.height}`,
+    )
+  }
+}
 
 /*
  * Full names in `expected`, not stems: the extension that comes out is what
@@ -81,40 +170,115 @@ const BATCHES = [
     expected: ['Landscape_6.jpg', 'no-exif.jpg'],
     oxipng: false,
   },
+  {
+    // Fixtures with even sides and no EXIF rotation, so half is exact and the
+    // header's width and height are the ones the user sees.
+    label: 'resize, in Spanish, at the default 50 %',
+    tool: 'redimensionar',
+    language: 'es',
+    files: [
+      fixture('generated/no-exif.jpg'),
+      fixture('vendor/pngsuite/basn6a08.png'),
+      fixture('vendor/pngsuite/basi2c08.png'),
+    ],
+    expected: ['no-exif.jpg', 'basn6a08.png', 'basi2c08.png'],
+    oxipng: true,
+    verify: verifyHalved,
+  },
+  {
+    label: 'convert, in English, to the default WebP',
+    tool: 'convertir',
+    language: 'en',
+    files: [
+      fixture('vendor/exif-orientation/Landscape_6.jpg'),
+      fixture('generated/no-exif.jpg'),
+      fixture('vendor/pngsuite/basn6a08.png'),
+    ],
+    expected: ['Landscape_6.webp', 'no-exif.webp', 'basn6a08.webp'],
+    oxipng: false,
+    verify: verifySignature('WebP', isWebp),
+  },
+  {
+    // A PNG with an alpha channel is the case that matters: JPEG has none, so
+    // the pipeline composes it over white (it must not fail or go black).
+    label: 'convert, in Spanish, to JPEG, with a transparent PNG',
+    tool: 'convertir',
+    language: 'es',
+    format: /^JPEG/,
+    files: [fixture('vendor/pngsuite/basn6a08.png'), fixture('vendor/pngsuite/basi2c08.png')],
+    expected: ['basn6a08.jpg', 'basi2c08.jpg'],
+    oxipng: false,
+    verify: verifySignature('JPEG', isJpeg),
+  },
 ]
 
 /**
- * What each page says, so the same run reads both languages. The route of each
- * language comes from the registry (D57), not from here: `pathOf` below.
+ * What each page says, so the same run reads both languages and every tool.
+ * The route of each page comes from the registry (D57), not from here: `pathOf`
+ * below.
+ *
+ * `saved` is the compressor's alone: it is the only tool whose totals promise a
+ * saving, and a converted PNG may legitimately weigh more.
  */
 const WORDS = {
   es: {
-    title: /comprimir/i,
-    heading: /imágenes que quieres comprimir/,
     destination: /^Destino/,
-    compress: /Comprimir/,
-    compressing: 'Comprimiendo',
-    compressed: (count) => `${count} imágenes comprimidas`,
-    saved: /% menos/,
     zip: /Descargar .* en un ZIP/,
+    comprimir: {
+      title: /comprimir/i,
+      heading: /imágenes que quieres comprimir/,
+      start: /Comprimir/,
+      busy: 'Comprimiendo',
+      finished: (count) => `${count} imágenes comprimidas`,
+      saved: /% menos/,
+    },
+    redimensionar: {
+      title: /redimensionar/i,
+      heading: /imágenes que quieres redimensionar/,
+      start: /Redimensionar/,
+      busy: 'Redimensionando',
+      finished: (count) => `${count} imágenes redimensionadas`,
+    },
+    convertir: {
+      title: /convertir/i,
+      heading: /imágenes que quieres convertir/,
+      start: /Convertir/,
+      busy: 'Convirtiendo',
+      finished: (count) => `${count} imágenes convertidas`,
+    },
   },
   en: {
-    title: /compress/i,
-    heading: /images you want to compress/,
     destination: /^Destination/,
-    compress: /Compress/,
-    compressing: 'Compressing',
-    compressed: (count) => `${count} images compressed`,
-    saved: /% smaller/,
     zip: /Download .* as a ZIP/,
+    comprimir: {
+      title: /compress/i,
+      heading: /images you want to compress/,
+      start: /Compress/,
+      busy: 'Compressing',
+      finished: (count) => `${count} images compressed`,
+      saved: /% smaller/,
+    },
+    redimensionar: {
+      title: /resize/i,
+      heading: /images you want to resize/,
+      start: /Resize/,
+      busy: 'Resizing',
+      finished: (count) => `${count} images resized`,
+    },
+    convertir: {
+      title: /convert/i,
+      heading: /images you want to convert/,
+      start: /Convert/,
+      busy: 'Converting',
+      finished: (count) => `${count} images converted`,
+    },
   },
 }
 
-/** The compressor's route in a language, from the registry. */
-const compressor = REGISTRY.tools.find((tool) => tool.id === 'comprimir')
-const pathOf = (language) => {
-  const locale = compressor?.locales[language]
-  if (locale === undefined) throw new Error(`the registry has no compressor in ${language}`)
+/** A tool's route in a language, from the registry. */
+const pathOf = (language, toolId = 'comprimir') => {
+  const locale = REGISTRY.tools.find((tool) => tool.id === toolId)?.locales[language]
+  if (locale === undefined) throw new Error(`the registry has no ${toolId} in ${language}`)
   return locale.path
 }
 
@@ -176,9 +340,12 @@ async function runBatch(browser, batch, downloads) {
     const errors = []
     page.on('pageerror', (error) => errors.push(error.message))
 
-    const words = WORDS[batch.language ?? 'es']
+    const language = batch.language ?? 'es'
+    const toolId = batch.tool ?? 'comprimir'
+    const common = WORDS[language]
+    const words = { ...common, ...common[toolId] }
 
-    await page.goto(new URL(pathOf(batch.language ?? 'es'), base).href)
+    await page.goto(new URL(pathOf(language, toolId), base).href)
     check(
       'the work surface is the first screen',
       await page.getByRole('heading', { level: 1, name: words.heading }).isVisible(),
@@ -187,7 +354,7 @@ async function runBatch(browser, batch, downloads) {
     const isolated = await page.evaluate(() => globalThis.crossOriginIsolated)
     check('cross-origin isolated', isolated === true)
 
-    if (batch.destination !== null) {
+    if (batch.destination) {
       await page.getByRole('button', { name: words.destination }).click()
       await page.getByRole('button', { name: batch.destination }).click()
       check(
@@ -195,6 +362,20 @@ async function runBatch(browser, batch, downloads) {
         await page
           .getByRole('button', {
             name: new RegExp(`${words.destination.source}.*${batch.destination.source}`),
+          })
+          .isVisible(),
+      )
+    }
+
+    if (batch.format !== undefined) {
+      // The converter's picker: its options are the formats themselves.
+      await page.getByRole('button', { name: words.destination }).click()
+      await page.getByRole('button', { name: batch.format }).click()
+      check(
+        'the format switches',
+        await page
+          .getByRole('button', {
+            name: new RegExp(`${words.destination.source}.*${batch.format.source.slice(1)}`),
           })
           .isVisible(),
       )
@@ -213,10 +394,10 @@ async function runBatch(browser, batch, downloads) {
     }
 
     await page.setInputFiles('input[type=file]', batch.files)
-    await page.getByRole('button', { name: words.compress }).click()
+    await page.getByRole('button', { name: words.start }).click()
     await page.waitForFunction(
       (busy) => !(document.body.textContent ?? '').includes(busy),
-      words.compressing,
+      words.busy,
       { timeout: 120_000 },
     )
 
@@ -225,8 +406,11 @@ async function runBatch(browser, batch, downloads) {
     // about the number the user came for.
     const summary = (await page.locator('footer').innerText()).replace(/\s+/g, ' ')
     check(
-      'the batch reports what it saved',
-      summary.includes(words.compressed(batch.files.length)) && words.saved.test(summary),
+      words.saved === undefined
+        ? 'the batch reports what it did'
+        : 'the batch reports what it saved',
+      summary.includes(words.finished(batch.files.length)) &&
+        (words.saved === undefined || words.saved.test(summary)),
       summary,
     )
 
@@ -253,6 +437,8 @@ async function runBatch(browser, batch, downloads) {
     for (const entry of batch.expected) {
       check(`the archive holds ${entry}`, raw.includes(entry))
     }
+
+    if (batch.verify !== undefined) await batch.verify(readZip(bytes), batch)
 
     check(
       batch.oxipng ? 'the PNG went through oxipng' : 'oxipng stayed unloaded',
@@ -282,7 +468,8 @@ async function runBatch(browser, batch, downloads) {
  * a browser would run the script and hide an empty page behind the live one.
  */
 async function runDiscoverability() {
-  for (const [language, words] of Object.entries(WORDS)) {
+  for (const [language, all] of Object.entries(WORDS)) {
+    const words = all.comprimir
     const path = pathOf(language)
     console.log(`\nwithout JavaScript, ${path}: what crawlers and link previews read`)
 

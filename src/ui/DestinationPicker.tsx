@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import { PERFILES, profilesByGroup, type Profile } from '../core/profiles'
 import {
   BUDGET_PRESETS,
@@ -11,6 +11,7 @@ import {
 } from './budget'
 import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
+import { chip, PICKER_BUTTON, PICKER_PANEL, usePicker } from './usePicker'
 
 /**
  * The product's differentiator, as a control.
@@ -67,45 +68,19 @@ function summaryOf(profile: Profile, formatters: Formatters, copy: Copy): string
 export function DestinationPicker({ selected, budget, formatters, onSelect, onBudget }: Props) {
   const copy = useCopy()
   const words = copy.destination
-  const [open, setOpen] = useState(false)
+  const { open, setOpen, toggle, panelId, container } = usePicker()
   const [typed, setTyped] = useState('')
   const [invalid, setInvalid] = useState(false)
-  const panelId = useId()
   const customId = useId()
-  const container = useRef<HTMLDivElement>(null)
-
-  // Numbers in the mono face, words in the interface one, as everywhere else.
-  const chip = (active: boolean, numeric: boolean): string =>
-    `${numeric ? 'tnum text-[11px]' : 'text-xs'} h-7 rounded-sm border px-2 leading-4 coarse:h-11 ${
-      active ? 'border-ink bg-ink text-paper' : 'border-rule hover:border-ink-soft'
-    }`
-
-  useEffect(() => {
-    if (!open) return
-
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    const onPointer = (event: PointerEvent): void => {
-      if (!container.current?.contains(event.target as Node)) setOpen(false)
-    }
-
-    document.addEventListener('keydown', onKey)
-    document.addEventListener('pointerdown', onPointer)
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.removeEventListener('pointerdown', onPointer)
-    }
-  }, [open])
 
   return (
     <div className="relative" ref={container}>
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
-        className="flex h-8 items-center gap-2 rounded-sm border border-rule px-2.5 text-[13px] leading-4 hover:border-ink-soft coarse:h-11"
+        className={PICKER_BUTTON}
       >
         <span className="text-ink-soft">{copy.toolbar.destination}</span>
         <span className="font-medium">{words.profile(selected).label}</span>
@@ -119,10 +94,7 @@ export function DestinationPicker({ selected, budget, formatters, onSelect, onBu
         button would run off the right side.
       */}
       {open ? (
-        <div
-          id={panelId}
-          className="fixed inset-x-4 top-14 z-40 max-h-[calc(100dvh-4.5rem)] overflow-y-auto border sm:absolute sm:inset-x-auto sm:top-9 sm:left-0 sm:max-h-[calc(100dvh-4rem)] sm:w-80 border-rule bg-paper shadow-[0_8px_24px_rgba(22,24,26,0.12)]"
-        >
+        <div id={panelId} className={PICKER_PANEL}>
           {[...profilesByGroup(PERFILES)].map(([group, members]) => (
             <div key={group} className="border-b border-rule last:border-b-0">
               <div className="px-3 pt-2 pb-1 text-[11px] leading-4 tracking-wider text-ink-soft uppercase">

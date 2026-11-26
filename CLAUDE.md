@@ -45,6 +45,8 @@ Después de la v1: la primera pantalla viaja prerenderizada en el HTML con metad
 
 **Rumbo vigente (D56):** achica pasa a ser una suite de herramientas de imagen, cada una con su ruta (`/quitar-exif`, `/censurar-imagen`, `/stickers-emojis-discord`, `/auditar-imagenes-web`, y las demás). El editor y el video ya no son no objetivos de la sección 3, pero las reglas permanentes de arriba siguen mandando: `core/` puro, cero peticiones de red, una fase a la vez, y ninguna dependencia o licencia nueva sin justificarla en el mismo commit.
 
+Hechas: S0, la base de páginas generadas desde `src/tools/registry.ts` (D57), y S1, Redimensionar y Convertir sobre la misma cola (D58). Sigue S2, quitar EXIF por bytes. Las landings tipo `/png-a-webp` y HEIC (S4) están aplazadas.
+
 Nada de lo que sigue está empezado y ninguno es deuda; son las puertas que la v1 dejó abiertas a propósito:
 
 - **Reciclar workers** para bajar el pico de memoria (anotado en D31, no implementado).

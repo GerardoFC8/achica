@@ -5,6 +5,7 @@ import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-react'
 import { queueStore } from '../state/queue-store'
+import { saveList } from './save-list'
 import { CopyProvider, en } from './copy'
 import { App } from './App'
 
@@ -41,7 +42,7 @@ beforeEach(() => {
 
 describe('the empty screen', () => {
   it('is the work surface, not a landing page', async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
 
     await expect
       .element(
@@ -57,7 +58,7 @@ describe('the empty screen', () => {
 
 describe('the queue', () => {
   it('lists what was added without compressing any of it', async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
 
     queueStore.getState().add([await fixture('Landscape_6.jpg')])
 
@@ -69,7 +70,7 @@ describe('the queue', () => {
   })
 
   it('compresses the batch when asked, and says by how much', { timeout: 40_000 }, async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
     queueStore.getState().add([await fixture('Landscape_6.jpg')])
 
     await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
@@ -83,7 +84,7 @@ describe('the queue', () => {
   })
 
   it('offers to save only once there is something to save', { timeout: 40_000 }, async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
     queueStore.getState().add([await fixture('Landscape_6.jpg')])
 
     // Nothing to save yet: a save button on an empty result is a dead end.
@@ -105,7 +106,7 @@ describe('the queue', () => {
   })
 
   it('blames the file that failed and finishes the rest', { timeout: 40_000 }, async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
     queueStore.getState().add([await fixture('xd0n2c08.png'), await fixture('Landscape_6.jpg')])
 
     await userEvent.click(page.getByRole('button', { name: /Comprimir 2 imágenes/ }))
@@ -120,7 +121,7 @@ describe('the English page', () => {
   it('speaks English from the heading to the totals', { timeout: 40_000 }, async () => {
     const { container } = await render(
       <CopyProvider value={en}>
-        <App />
+        <App tool="comprimir" />
       </CopyProvider>,
     )
 
@@ -147,7 +148,7 @@ describe('the English page', () => {
 
 describe('the weight ceiling', () => {
   it('reaches the worker and holds every file under it', { timeout: 60_000 }, async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
     queueStore.getState().add([await fixture('Landscape_6.jpg')])
 
     await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
@@ -166,7 +167,7 @@ describe('the weight ceiling', () => {
   })
 
   it('takes a ceiling typed by hand, and says when it is not one', async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
 
     await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
     await userEvent.fill(page.getByLabelText('Otro'), 'mucho')
@@ -180,7 +181,7 @@ describe('the weight ceiling', () => {
   })
 
   it('asks what to do with a PNG only where the answer can matter', async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
     await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
 
     // No ceiling yet: nothing to decide.
@@ -199,7 +200,7 @@ describe('the weight ceiling', () => {
 
 describe('the comparator', () => {
   it('puts both pictures in exactly the same box', { timeout: 40_000 }, async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
     queueStore.getState().add([await fixture('Landscape_6.jpg')])
     await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
     await expect.element(page.getByText(/imagen comprimida/), { timeout: 30_000 }).toBeVisible()
@@ -229,7 +230,7 @@ describe('the comparator', () => {
   })
 
   it('moves the curtain only when the curtain is grabbed', { timeout: 40_000 }, async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
     queueStore.getState().add([await fixture('Landscape_6.jpg')])
     await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
     await expect.element(page.getByText(/imagen comprimida/), { timeout: 30_000 }).toBeVisible()
@@ -255,7 +256,7 @@ describe('the comparator', () => {
   })
 
   it('lets the keyboard move the curtain', { timeout: 40_000 }, async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
     queueStore.getState().add([await fixture('Landscape_6.jpg')])
     await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
     await expect.element(page.getByText(/imagen comprimida/), { timeout: 30_000 }).toBeVisible()
@@ -271,7 +272,7 @@ describe('the comparator', () => {
   })
 
   it('closes with the keyboard and gives focus back', { timeout: 40_000 }, async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
     queueStore.getState().add([await fixture('Landscape_6.jpg')])
     await userEvent.click(page.getByRole('button', { name: /Comprimir 1 imagen/ }))
     await expect.element(page.getByText(/imagen comprimida/), { timeout: 30_000 }).toBeVisible()
@@ -286,7 +287,7 @@ describe('the comparator', () => {
 
 describe('the destination picker', () => {
   it('offers only our own advice, and names the one profile that converts', async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
 
     await userEvent.click(page.getByRole('button', { name: /Destino/ }))
 
@@ -300,12 +301,199 @@ describe('the destination picker', () => {
   })
 
   it('closes with the keyboard', async () => {
-    render(<App />)
+    render(<App tool="comprimir" />)
     await userEvent.click(page.getByRole('button', { name: /Destino/ }))
     await expect.element(page.getByText('Adjunto de correo')).toBeVisible()
 
     await userEvent.keyboard('{Escape}')
 
     await expect.element(page.getByText('Adjunto de correo')).not.toBeInTheDocument()
+  })
+})
+
+describe('the other tools', () => {
+  it('resize halves the picture and says so in its own words', { timeout: 60_000 }, async () => {
+    render(<App tool="redimensionar" />)
+
+    await expect
+      .element(page.getByRole('heading', { level: 1, name: /quieres redimensionar/ }))
+      .toBeVisible()
+    // Its own picker, starting at 50 %, and none of the compressor's weight ceiling.
+    await expect.element(page.getByRole('button', { name: /^Destino.*50 %/ })).toBeVisible()
+    await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
+    await expect.element(page.getByText('Tope por archivo')).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+
+    const file = await fixture('Landscape_6.jpg')
+    const original = await createImageBitmap(file)
+    queueStore.getState().add([file])
+
+    await userEvent.click(page.getByRole('button', { name: /Redimensionar 1 imagen/ }))
+    await expect
+      .element(page.getByText(/1 imagen redimensionada/), { timeout: 50_000 })
+      .toBeVisible()
+
+    const item = queueStore.getState().items[0]
+    expect(item?.status).toBe('done')
+    if (item?.status !== 'done') return
+
+    expect(Math.abs(item.outcome.width - original.width / 2)).toBeLessThanOrEqual(1)
+    expect(Math.abs(item.outcome.height - original.height / 2)).toBeLessThanOrEqual(1)
+    expect(item.outcome.format).toBe('jpeg')
+
+    // The row states the new size, not the old one. Thousands separators vary
+    // by locale, so compare the digits.
+    const rowText = (page.getByRole('table').element().textContent ?? '').replace(
+      /(?<=\d)[.,\s\u00a0\u202f](?=\d{3}\b)/g,
+      '',
+    )
+    expect(rowText).toContain(`${item.outcome.width} × ${item.outcome.height}`)
+    // Nothing here judges weight: no verdict chip of the compressor.
+    await expect.element(page.getByText('No entraron')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', { name: /^Terminados/ })).toBeVisible()
+  })
+
+  it(
+    'convert writes WebP files, and a file that grew is not a failure',
+    { timeout: 60_000 },
+    async () => {
+      render(<App tool="convertir" />)
+
+      await expect
+        .element(page.getByRole('heading', { level: 1, name: /quieres convertir/ }))
+        .toBeVisible()
+
+      queueStore.getState().add([await fixture('Landscape_6.jpg')])
+      await userEvent.click(page.getByRole('button', { name: /Convertir 1 imagen/ }))
+      await expect.element(page.getByText(/1 imagen convertida/), { timeout: 50_000 }).toBeVisible()
+
+      const items = queueStore.getState().items
+      const [first] = saveList(items)
+      expect(first?.name).toBe('Landscape_6.webp')
+      const item = items[0]
+      if (item?.status === 'done') expect(item.outcome.format).toBe('webp')
+
+      await expect.element(page.getByText('No entraron')).not.toBeInTheDocument()
+    },
+  )
+
+  it(
+    'resize by a maximum width keeps the proportions and never passes the limit',
+    { timeout: 60_000 },
+    async () => {
+      render(<App tool="redimensionar" />)
+
+      const file = await fixture('Landscape_6.jpg')
+      const original = await createImageBitmap(file)
+      // The check means nothing if the picture already fits.
+      expect(original.width).toBeGreaterThan(400)
+      queueStore.getState().add([file])
+
+      await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
+      await userEvent.click(page.getByRole('button', { name: 'Tamaño máximo' }))
+      await userEvent.fill(page.getByLabelText('Ancho'), '400')
+      await userEvent.click(page.getByRole('button', { name: 'Usar' }))
+      await userEvent.keyboard('{Escape}')
+      await expect
+        .element(page.getByRole('button', { name: /^Destino.*máx\. 400 px de ancho/ }))
+        .toBeVisible()
+
+      await userEvent.click(page.getByRole('button', { name: /Redimensionar 1 imagen/ }))
+      await expect
+        .element(page.getByText(/1 imagen redimensionada/), { timeout: 50_000 })
+        .toBeVisible()
+
+      const item = queueStore.getState().items[0]
+      expect(item?.status).toBe('done')
+      if (item?.status !== 'done') return
+
+      expect(item.outcome.width).toBeLessThanOrEqual(400)
+      expect(item.outcome.width).toBe(400)
+      // Same shape as the original, to within a pixel of rounding.
+      const expectedHeight = (original.height * item.outcome.width) / original.width
+      expect(Math.abs(item.outcome.height - expectedHeight)).toBeLessThanOrEqual(1)
+      expect(item.outcome.format).toBe('jpeg')
+
+      // The row says the new size, in digits only so locale separators do not matter.
+      const rowText = (page.getByRole('table').element().textContent ?? '').replace(
+        /(?<=\d)[.,\s\u00a0\u202f](?=\d{3}\b)/g,
+        '',
+      )
+      expect(rowText).toContain(`${item.outcome.width} × ${item.outcome.height}`)
+    },
+  )
+
+  it(
+    'convert to JPEG turns a transparent PNG into a .jpg composed over white',
+    { timeout: 60_000 },
+    async () => {
+      render(<App tool="convertir" />)
+
+      // The default is WebP; the picker says so before anything is chosen.
+      await expect.element(page.getByRole('button', { name: /^Destino.*WebP/ })).toBeVisible()
+
+      queueStore.getState().add([await fixture('basn6a08.png')])
+
+      await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
+      await userEvent.click(page.getByRole('button', { name: /^JPEG/ }))
+      await expect.element(page.getByRole('button', { name: /^Destino.*JPEG/ })).toBeVisible()
+
+      await userEvent.click(page.getByRole('button', { name: /Convertir 1 imagen/ }))
+      await expect.element(page.getByText(/1 imagen convertida/), { timeout: 50_000 }).toBeVisible()
+
+      const items = queueStore.getState().items
+      const [first] = saveList(items)
+      expect(first?.name).toBe('basn6a08.jpg')
+
+      const item = items[0]
+      expect(item?.status).toBe('done')
+      if (item?.status !== 'done') return
+      expect(item.outcome.format).toBe('jpeg')
+      // JPEG signature: the bytes really are a JPEG, not a renamed PNG.
+      const head = new Uint8Array(await item.blob.slice(0, 3).arrayBuffer())
+      expect([...head]).toEqual([0xff, 0xd8, 0xff])
+      // The row says what the destination asked for, not "any size".
+      await userEvent.click(page.getByRole('button', { name: 'basn6a08.png' }))
+      await expect.element(page.getByText('mismas dimensiones, JPEG')).toBeVisible()
+    },
+  )
+
+  it('shows the tool navigation, with the current one marked and not a link', async () => {
+    render(<App tool="convertir" />)
+
+    const nav = page.getByRole('navigation', { name: 'Herramientas' })
+    await expect.element(nav).toBeVisible()
+    await expect.element(nav.getByRole('link', { name: 'Comprimir' })).toHaveAttribute('href', '/')
+    await expect
+      .element(nav.getByRole('link', { name: 'Redimensionar' }))
+      .toHaveAttribute('href', '/redimensionar-imagenes/')
+    await expect.element(nav.getByRole('link', { name: 'Convertir' })).not.toBeInTheDocument()
+    await expect.element(nav.getByText('Convertir')).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('points the language link at the twin page of the same tool', async () => {
+    render(
+      <CopyProvider value={en}>
+        <App tool="redimensionar" />
+      </CopyProvider>,
+    )
+
+    await expect
+      .element(page.getByRole('link', { name: 'Español' }))
+      .toHaveAttribute('href', '/redimensionar-imagenes/')
+  })
+
+  it('keeps the navigation inside a phone-width toolbar', async () => {
+    await page.viewport(375, 812)
+    try {
+      render(<App tool="comprimir" />)
+      await expect.element(page.getByRole('navigation', { name: 'Herramientas' })).toBeVisible()
+
+      const header = page.getByRole('banner').element()
+      expect(header.scrollWidth).toBeLessThanOrEqual(header.clientWidth)
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth)
+    } finally {
+      await page.viewport(414, 896)
+    }
   })
 })

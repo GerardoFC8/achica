@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resize images in bulk, without uploading them | achica</title>
+    <meta
+      name="description"
+      content="Make many images smaller at once in your browser, by percentage or inside a maximum box. No cropping, no upscaling and no uploading anywhere. No account, free and open source."
+    />
+    <link rel="canonical" href="https://achica.gfcode.dev/en/resize-images/" />
+    <link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/redimensionar-imagenes/" />
+    <link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/resize-images/" />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://achica.gfcode.dev/redimensionar-imagenes/"
+    />
+    <meta name="theme-color" content="#f2f1ec" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!--
+      Read by the link previews of WhatsApp, X, LinkedIn and Slack, none of
+      which run JavaScript. Absolute URLs because a crawler resolves nothing.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="achica" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="es_ES" />
+    <meta property="og:url" content="https://achica.gfcode.dev/en/resize-images/" />
+    <meta
+      property="og:title"
+      content="achica: resize many images at once, without uploading them"
+    />
+    <meta
+      property="og:description"
+      content="By percentage or inside a maximum box, in your browser with no account. Not a byte of your images leaves your device."
+    />
+    <meta property="og:image" content="https://achica.gfcode.dev/og-en.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="achica, batch image tools: three weight bars on light paper"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "achica: resize images",
+        "url": "https://achica.gfcode.dev/en/resize-images/",
+        "description": "Batch image resizer that runs entirely in the browser. No backend, no account and no file limit.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Any with a current browser",
+        "browserRequirements": "Requires JavaScript and WebAssembly",
+        "inLanguage": "en",
+        "isAccessibleForFree": true,
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+          "Batch resizing with no file limit",
+          "By percentage or inside a maximum width and height",
+          "No cropping and no upscaling: it only makes images smaller",
+          "JPEG, PNG, WebP and AVIF",
+          "Download as a ZIP or straight into a folder",
+          "No image ever leaves the device"
+        ]
+      }
+    </script>
+  </head>
+  <body data-tool="redimensionar">
+    <!--
+      Empty in the source. The build fills it with the first screen rendered
+      ahead of time (scripts/prerender.mjs), so the page reads the same before
+      and after the script runs, and to readers that never run it.
+    -->
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

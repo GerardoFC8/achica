@@ -13,4 +13,24 @@
     <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/" />
     <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/" />
   </url>
+  <url>
+    <loc>https://achica.gfcode.dev/redimensionar-imagenes/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/redimensionar-imagenes/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/resize-images/" />
+  </url>
+  <url>
+    <loc>https://achica.gfcode.dev/en/resize-images/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/redimensionar-imagenes/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/resize-images/" />
+  </url>
+  <url>
+    <loc>https://achica.gfcode.dev/convertir-imagenes/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/convertir-imagenes/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/convert-images/" />
+  </url>
+  <url>
+    <loc>https://achica.gfcode.dev/en/convert-images/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/convertir-imagenes/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/convert-images/" />
+  </url>
 </urlset>

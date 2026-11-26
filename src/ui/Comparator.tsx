@@ -4,6 +4,7 @@ import type { QueueItem } from '../state/queue'
 import { useCopy } from './copy'
 import type { Formatters } from './format'
 import { rowKind } from './row-model'
+import { useTool, useToolWords } from './tool-context'
 import { TEXT_TONE } from './tone'
 
 /**
@@ -29,6 +30,8 @@ type Props = {
 
 export function Comparator({ item, profile, formatters, onClose }: Props) {
   const copy = useCopy()
+  const tool = useTool()
+  const words = useToolWords()
   const [split, setSplit] = useState(50)
   const [actualSize, setActualSize] = useState(false)
   const [urls, setUrls] = useState<{ before: string; after: string } | null>(null)
@@ -88,7 +91,7 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
     event.preventDefault()
   }
 
-  const kind = rowKind(item, profile)
+  const kind = rowKind(item, profile, tool)
   const { outcome } = item
 
   return (
@@ -175,7 +178,7 @@ export function Comparator({ item, profile, formatters, onClose }: Props) {
               />
               <img
                 src={urls.after}
-                alt={copy.compare.compressed(item.name)}
+                alt={words.resultAlt(item.name)}
                 style={{ clipPath: `inset(0 0 0 ${split}%)` }}
                 className="absolute inset-0 size-full object-contain"
               />

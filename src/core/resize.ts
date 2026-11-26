@@ -65,6 +65,33 @@ export function scaleBy(source: Dimensions, factor: number): Dimensions {
   }
 }
 
+export type ResizeSpec = Bounds & {
+  /**
+   * A factor applied to the decoded dimensions. Only values in (0, 1) shrink.
+   * Anything else (1 or more, 0, negative, NaN, Infinity) is ignored rather
+   * than rejected: the interface cannot know the decoded size, so a stale or
+   * nonsensical factor degrades to "leave it alone", which is the same stance
+   * `fitWithin` takes with bounds larger than the image.
+   */
+  readonly scale?: number
+}
+
+/**
+ * The size an image should be resized to under a scale and/or bounds.
+ *
+ * The scale applies first and the bounds then constrain the scaled result, so
+ * "50% but no wider than 800" on a 3000px photo yields 800, and on a 1200px
+ * photo yields 600. Never enlarges, like `fitWithin`.
+ */
+export function resolveTargetSize(source: Dimensions, spec: ResizeSpec): Dimensions {
+  const { scale } = spec
+  const shrinks = scale !== undefined && Number.isFinite(scale) && scale > 0 && scale < 1
+
+  const scaled = shrinks ? scaleBy(source, scale) : source
+
+  return fitWithin(scaled, spec)
+}
+
 export function isSameSize(a: Dimensions, b: Dimensions): boolean {
   return a.width === b.width && a.height === b.height
 }

@@ -12,14 +12,14 @@ if (mount === null) {
 
 // Each page states its language in <html lang> and its tool in <body
 // data-tool>, and the interface follows the page rather than the browser
-// (D54, D57).
+// (D54, D57). loadTool throws with a clear message if the tool is unknown.
 const copy = copyFor(document.documentElement.lang)
-const { App } = await loadTool(document.body.dataset['tool'])
+const { App, tool } = await loadTool(document.body.dataset['tool'])
 
 createRoot(mount).render(
   <StrictMode>
     <CopyProvider value={copy}>
-      <App />
+      <App tool={tool} />
     </CopyProvider>
   </StrictMode>,
 )

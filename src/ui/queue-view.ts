@@ -1,5 +1,6 @@
 import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
+import type { ToolId } from '../tools/registry'
 import { rowKind, savedRatio, type RowKind } from './row-model'
 
 /**
@@ -10,7 +11,8 @@ import { rowKind, savedRatio, type RowKind } from './row-model'
  * by saving or filtering to "no entraron" stops being a nicety.
  */
 
-export type FilterId = 'todos' | 'fits' | 'tight' | 'over' | 'failed' | 'cancelled' | 'pending'
+export type FilterId =
+  'todos' | 'fits' | 'tight' | 'over' | 'done' | 'failed' | 'cancelled' | 'pending'
 
 export type SortKey = 'orden' | 'name' | 'before' | 'after' | 'saved' | 'time'
 
@@ -31,8 +33,12 @@ export type ViewOptions = {
 
 export type FilterCounts = Readonly<Record<FilterId, number>>
 
-export function buildRows(items: readonly QueueItem[], profile: Profile): readonly ViewRow[] {
-  return items.map((item, index) => ({ item, index, kind: rowKind(item, profile) }))
+export function buildRows(
+  items: readonly QueueItem[],
+  profile: Profile,
+  tool: ToolId,
+): readonly ViewRow[] {
+  return items.map((item, index) => ({ item, index, kind: rowKind(item, profile, tool) }))
 }
 
 export function countsOf(rows: readonly ViewRow[]): FilterCounts {
@@ -41,6 +47,7 @@ export function countsOf(rows: readonly ViewRow[]): FilterCounts {
     fits: 0,
     tight: 0,
     over: 0,
+    done: 0,
     failed: 0,
     cancelled: 0,
     pending: 0,

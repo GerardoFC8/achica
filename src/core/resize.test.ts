@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fitWithin, isSameSize, scaleBy } from './resize'
+import { fitWithin, isSameSize, resolveTargetSize, scaleBy } from './resize'
 
 const photo = { width: 1800, height: 1200 }
 const portrait = { width: 1200, height: 1800 }
@@ -101,5 +101,60 @@ describe('isSameSize', () => {
   it('compares both dimensions', () => {
     expect(isSameSize(photo, { width: 1800, height: 1200 })).toBe(true)
     expect(isSameSize(photo, { width: 1800, height: 1201 })).toBe(false)
+  })
+})
+
+describe('resolveTargetSize', () => {
+  const wide = { width: 1000, height: 500 }
+
+  it('applies a percentage scale', () => {
+    expect(resolveTargetSize(wide, { scale: 0.5 })).toEqual({ width: 500, height: 250 })
+  })
+
+  it('pins a tiny scale at one pixel per side', () => {
+    expect(resolveTargetSize(wide, { scale: 0.0001 })).toEqual({ width: 1, height: 1 })
+  })
+
+  it('never enlarges: a scale of 1 or more changes nothing', () => {
+    expect(resolveTargetSize(wide, { scale: 1 })).toEqual(wide)
+    expect(resolveTargetSize(wide, { scale: 2 })).toEqual(wide)
+  })
+
+  it('ignores values that are not a usable factor instead of throwing', () => {
+    for (const scale of [0, -0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(resolveTargetSize(wide, { scale }), String(scale)).toEqual(wide)
+    }
+  })
+
+  it('behaves like fitWithin when there is no scale', () => {
+    expect(resolveTargetSize(wide, { maxWidth: 400 })).toEqual(fitWithin(wide, { maxWidth: 400 }))
+    expect(resolveTargetSize(wide, {})).toEqual(wide)
+  })
+
+  it('applies the scale first and the bounds to the result', () => {
+    // 50% of 1000 is 500, still wider than 300, so the bound binds.
+    expect(resolveTargetSize(wide, { scale: 0.5, maxWidth: 300 })).toEqual({
+      width: 300,
+      height: 150,
+    })
+    // 50% is already inside the bound, so the bound does nothing.
+    expect(resolveTargetSize(wide, { scale: 0.5, maxWidth: 800 })).toEqual({
+      width: 500,
+      height: 250,
+    })
+  })
+
+  it('keeps the aspect ratio', () => {
+    const result = resolveTargetSize({ width: 1800, height: 1200 }, { scale: 0.4 })
+
+    expect(result).toEqual({ width: 720, height: 480 })
+    expect(result.width / result.height).toBeCloseTo(1.5, 5)
+  })
+
+  it('does not hand back the source object', () => {
+    const image = { width: 10, height: 10, data: new Uint8ClampedArray(400) }
+
+    expect(resolveTargetSize(image, { scale: 1 })).toEqual({ width: 10, height: 10 })
+    expect(resolveTargetSize(image, { scale: 1 })).not.toHaveProperty('data')
   })
 })

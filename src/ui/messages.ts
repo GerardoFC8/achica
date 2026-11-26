@@ -1,4 +1,5 @@
 import type { JobError } from '../workers/protocol'
+import type { ToolId } from '../tools/registry'
 import type { Copy } from './copy'
 
 /**
@@ -25,12 +26,12 @@ const FORMAT_NAMES: Readonly<Record<string, string>> = {
 /** How a format is written in a sentence, which is not how its extension is. */
 export const formatName = (format: string): string => FORMAT_NAMES[format] ?? format.toUpperCase()
 
-export function describeJobError(error: JobError, copy: Copy): string {
+export function describeJobError(error: JobError, copy: Copy, tool: ToolId): string {
   const { errors } = copy
 
   switch (error.code) {
     case 'empty-file':
-      return errors.emptyFile
+      return copy.tools[tool].emptyFile
 
     case 'unknown-format':
       return errors.unknownFormat

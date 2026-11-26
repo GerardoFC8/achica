@@ -1,4 +1,5 @@
 import type { Profile } from '../core/profiles'
+import type { ToolId } from '../tools/registry'
 import type { QueueItem } from '../state/queue'
 import type { Copy } from './copy'
 import type { Formatters } from './format'
@@ -13,7 +14,13 @@ import { describeJobError, formatName } from './messages'
  * here.
  */
 
-export type RowKind = 'pending' | 'running' | 'fits' | 'tight' | 'over' | 'failed' | 'cancelled'
+/*
+ * `done` is the neutral verdict: finished, with nothing to judge. The tools
+ * that do not weigh their result (resize, convert) end here, because for them
+ * a file that grew is not a failure: JPEG to PNG grows by nature (D58).
+ */
+export type RowKind =
+  'pending' | 'running' | 'fits' | 'tight' | 'over' | 'done' | 'failed' | 'cancelled'
 
 export type WeightBar = {
   /** Final weight as a fraction of the original, clamped to the track. */
@@ -42,8 +49,12 @@ function budgetMark(item: QueueItem, profile: Profile): number | null {
   return profile.maxBytes / item.bytesBefore
 }
 
-export function rowKind(item: QueueItem, profile: Profile): RowKind {
+export function rowKind(item: QueueItem, profile: Profile, tool: ToolId): RowKind {
   if (item.status !== 'done') return item.status
+
+  // Only the compressor judges weight. The saving column still carries the
+  // real sign, so a file that grew reads as grown, just not as a failure.
+  if (tool !== 'comprimir') return 'done'
 
   const fill = item.bytesBefore > 0 ? item.outcome.bytesAfter / item.bytesBefore : 0
   const mark = budgetMark(item, profile)
@@ -82,18 +93,18 @@ export function weightBar(item: QueueItem, profile: Profile): WeightBar | null {
   }
 }
 
-export function rowNote(item: QueueItem, formatters: Formatters, copy: Copy): string {
+export function rowNote(item: QueueItem, formatters: Formatters, copy: Copy, tool: ToolId): string {
   const { note } = copy
 
   switch (item.status) {
     case 'pending':
       return note.pending
     case 'running':
-      return note.running
+      return copy.tools[tool].running
     case 'cancelled':
       return note.cancelled
     case 'failed':
-      return describeJobError(item.error, copy)
+      return describeJobError(item.error, copy, tool)
     case 'done': {
       const { outcome } = item
       const size = formatters.dimensions(outcome.width, outcome.height)
@@ -134,12 +145,29 @@ function describeTarget(profile: Profile, formatters: Formatters, copy: Copy): s
   const { details } = copy
   if (profile.maxBytes !== undefined) return details.ceiling(formatters.bytes(profile.maxBytes))
 
-  const bound = profile.maxWidth ?? profile.maxHeight
-  const size = bound === undefined ? details.anySize : details.maxSize(bound)
+  /*
+   * What the profile leaves untouched has its own words. "Any size" is true of
+   * a destination that sets no bound, but it would be a wrong thing to say of
+   * a conversion (which keeps the dimensions on purpose) or of a percentage
+   * (which is a bound, just not one in pixels).
+   */
+  let size: string
+  if (profile.scale !== undefined) size = details.scale(Math.round(profile.scale * 100))
+  else if (profile.maxWidth !== undefined && profile.maxHeight !== undefined)
+    size = details.maxBox(profile.maxWidth, profile.maxHeight)
+  else {
+    const bound = profile.maxWidth ?? profile.maxHeight
+    size =
+      bound !== undefined
+        ? details.maxSize(bound)
+        : profile.group === 'Formato'
+          ? details.sameSize
+          : details.anySize
+  }
 
   return profile.format === 'keep'
     ? `${size}, ${details.originalFormat}`
-    : `${size}, ${profile.format.toUpperCase()}`
+    : `${size}, ${formatName(profile.format)}`
 }
 
 /**
@@ -155,6 +183,7 @@ export function rowDetails(
   profile: Profile,
   formatters: Formatters,
   copy: Copy,
+  tool: ToolId,
 ): readonly RowDetail[] {
   const { details } = copy
   const target: RowDetail = {
@@ -166,7 +195,11 @@ export function rowDetails(
     // The message in full, because the row truncates it and it is the only
     // content a failed row has. The code goes with it for a bug report.
     return [
-      { label: details.whatHappened, value: describeJobError(item.error, copy), kind: 'failed' },
+      {
+        label: details.whatHappened,
+        value: describeJobError(item.error, copy, tool),
+        kind: 'failed',
+      },
       { label: details.code, value: item.error.code },
       { label: details.source, value: formatters.bytes(item.bytesBefore) },
     ]
@@ -183,7 +216,7 @@ export function rowDetails(
   }
 
   const { outcome } = item
-  const kind = rowKind(item, profile)
+  const kind = rowKind(item, profile, tool)
   const ceiling =
     profile.maxBytes === undefined ? null : Math.min(profile.maxBytes, item.bytesBefore)
   const margin = ceiling === null ? null : ceiling - outcome.bytesAfter

@@ -16,6 +16,8 @@ const GROUPS: Readonly<Record<ProfileGroup, string>> = {
   Correo: 'Email',
   Mensajería: 'Messaging',
   Miniatura: 'Thumbnail',
+  Tamaño: 'Size',
+  Formato: 'Format',
 }
 
 /**
@@ -48,10 +50,54 @@ export const en: Copy = {
   lang: 'en',
   numberLocale: 'en-US',
 
-  otherLanguage: { label: 'Español', href: '/', lang: 'es' },
+  otherLanguage: { label: 'Español', lang: 'es' },
+
+  tools: {
+    comprimir: {
+      heading: 'Drop the images you want to compress here',
+      start: (pending, count) => `Compress ${count} ${plural(pending, 'image', 'images')}`,
+      finished: (done, count) => `${count} ${plural(done, 'image', 'images')} compressed`,
+      running: 'Compressing',
+      again: 'Recompress',
+      emptyFile: 'Empty file, there is nothing to compress',
+      tableLabel: 'Compression queue',
+      weightHeader: 'Weight against the limit',
+      resultAlt: (name) => `${name}, compressed`,
+    },
+    redimensionar: {
+      heading: 'Drop the images you want to resize here',
+      start: (pending, count) => `Resize ${count} ${plural(pending, 'image', 'images')}`,
+      running: 'Resizing',
+      finished: (done, count) => `${count} ${plural(done, 'image', 'images')} resized`,
+      again: 'Resize again',
+      emptyFile: 'Empty file, there is nothing to resize',
+      tableLabel: 'Resize queue',
+      weightHeader: 'Weight before and after',
+      resultAlt: (name) => `${name}, resized`,
+    },
+    convertir: {
+      heading: 'Drop the images you want to convert here',
+      start: (pending, count) => `Convert ${count} ${plural(pending, 'image', 'images')}`,
+      running: 'Converting',
+      finished: (done, count) => `${count} ${plural(done, 'image', 'images')} converted`,
+      again: 'Convert again',
+      emptyFile: 'Empty file, there is nothing to convert',
+      tableLabel: 'Conversion queue',
+      weightHeader: 'Weight before and after',
+      resultAlt: (name) => `${name}, converted`,
+    },
+  },
+
+  nav: {
+    label: 'Tools',
+    tools: {
+      comprimir: 'Compress',
+      redimensionar: 'Resize',
+      convertir: 'Convert',
+    },
+  },
 
   drop: {
-    heading: 'Drop the images you want to compress here',
     pick: 'or choose files',
     promise: 'Nothing leaves your device',
   },
@@ -61,7 +107,6 @@ export const en: Copy = {
     saveToFolder: 'Save to a folder',
     download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
     cancel: 'Cancel',
-    compress: (pending, count) => `Compress ${count} ${plural(pending, 'image', 'images')}`,
   },
 
   destination: {
@@ -80,11 +125,58 @@ export const en: Copy = {
     pngKeep: 'Keep it as PNG and shrink its dimensions',
   },
 
+  resize: {
+    modeLabel: 'How to reduce',
+    percent: 'Percentage',
+    box: 'Maximum size',
+    otherPercent: 'Other',
+    percentUnit: '%',
+    width: 'Width',
+    height: 'Height',
+    pixelsUnit: 'px',
+    use: 'Use',
+    boxHint: 'Type the width, the height or both.',
+    presetWidth: (px) => `${px} px wide`,
+    summaryPercent: (percent) => `${percent}%`,
+    summaryBox: (width, height) =>
+      width !== null && height !== null
+        ? `max. ${width} × ${height} px`
+        : width !== null
+          ? `max. ${width} px wide`
+          : `max. ${height ?? 0} px tall`,
+    invalidPercent: (min, max) => `Type a whole number between ${min} and ${max}.`,
+    invalidBox: (min, max) =>
+      `Type whole numbers of pixels, between ${min} and ${max}, for the width, the height or both.`,
+    rules:
+      'It only makes images smaller: one that is already under the limit stays as it is. Proportions are kept and nothing is cropped.',
+    fixed: (quality) =>
+      `Each file keeps its format. Quality is fixed: ${quality} for the lossy formats.`,
+  },
+
+  format: {
+    title: 'Output format',
+    names: {
+      jpeg: 'JPEG',
+      png: 'PNG',
+      webp: 'WebP',
+      avif: 'AVIF',
+    },
+    notes: {
+      jpeg: 'Has no transparency: it is placed over white.',
+      png: 'Lossless and keeps transparency; usually heavier.',
+      webp: 'Light, and keeps transparency.',
+      avif: 'Usually the lightest; slower to encode, especially in large batches.',
+    },
+    lossless: 'lossless',
+    fixed: 'Quality is fixed, the one we recommend for each format.',
+  },
+
   filters: {
     todos: 'All',
     fits: 'Fit with room',
     tight: 'Just fit',
     over: 'Did not fit',
+    done: 'Done',
     failed: 'Failed',
     cancelled: 'Cancelled',
     pending: 'Queued',
@@ -92,15 +184,12 @@ export const en: Copy = {
 
   selection: {
     selected: (count) => `${count} selected`,
-    recompress: 'Recompress',
     download: (count) => `Download ${count}`,
     remove: 'Remove',
   },
 
   table: {
-    label: 'Compression queue',
     selectAll: 'Select everything visible',
-    weight: 'Weight against the limit',
     columns: {
       name: 'File',
       before: 'Before',
@@ -124,7 +213,6 @@ export const en: Copy = {
 
   note: {
     pending: 'Queued',
-    running: 'Compressing',
     cancelled: 'Cancelled',
     shrunk: (size) => `Shrunk to ${size} to fit`,
     converted: (size, format) => `${size} · turned into ${format} to fit`,
@@ -135,6 +223,9 @@ export const en: Copy = {
     target: 'Destination asks for',
     ceiling: (bytes) => `max. ${bytes}`,
     anySize: 'any size',
+    sameSize: 'same dimensions',
+    scale: (percent) => `${percent}% of the width and height`,
+    maxBox: (width, height) => `max. ${width} × ${height} px`,
     maxSize: (px) => `max. ${px} px`,
     originalFormat: 'original format',
     whatHappened: 'What happened',
@@ -153,14 +244,15 @@ export const en: Copy = {
   },
 
   totals: {
-    compressed: (done, count) => `${count} ${plural(done, 'image', 'images')} compressed`,
     queued: (queued, count) => `${count} ${plural(queued, 'image', 'images')} in the queue`,
     less: (percent) => `${percent} smaller`,
+    more: (percent) => `${percent} larger`,
     clear: 'Clear the queue',
     segments: {
       fits: 'with room',
       tight: 'just fit',
       over: 'did not fit',
+      done: 'done',
       failed: 'failed',
       cancelled: 'cancelled',
     },
@@ -181,14 +273,12 @@ export const en: Copy = {
     before: 'before',
     after: 'after',
     original: (name) => `${name}, original`,
-    compressed: (name) => `${name}, compressed`,
     curtain: 'Comparison curtain',
     curtainValue: (percent) => `${percent}% of the width`,
     hint: 'Drag the curtain across to see before and after, or move it with the arrow keys. Compression artefacts only show at 1:1.',
   },
 
   errors: {
-    emptyFile: 'Empty file, there is nothing to compress',
     unknownFormat: 'Not an image that can be recognised',
     heic: 'iPhone HEIC photos are not supported in this version. Export them as JPEG from the phone',
     unsupported: (format) =>

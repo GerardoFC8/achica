@@ -11,18 +11,28 @@ import { describeJobError } from './messages'
 
 describe('describeJobError', () => {
   it('tells an iPhone user what to do about HEIC', () => {
-    const message = describeJobError({ code: 'unsupported-format', format: 'heic' }, es)
+    const message = describeJobError(
+      { code: 'unsupported-format', format: 'heic' },
+      es,
+      'comprimir',
+    )
 
     expect(message).toContain('HEIC')
     expect(message).toContain('JPEG')
   })
 
   it('names the format that is not supported', () => {
-    expect(describeJobError({ code: 'unsupported-format', format: 'tiff' }, es)).toContain('TIFF')
+    expect(
+      describeJobError({ code: 'unsupported-format', format: 'tiff' }, es, 'comprimir'),
+    ).toContain('TIFF')
   })
 
   it('does not blame the image when the worker died', () => {
-    const message = describeJobError({ code: 'worker-crashed', detail: 'out of memory' }, es)
+    const message = describeJobError(
+      { code: 'worker-crashed', detail: 'out of memory' },
+      es,
+      'comprimir',
+    )
 
     expect(message).toContain('memoria')
     expect(message).not.toContain('out of memory')
@@ -32,6 +42,7 @@ describe('describeJobError', () => {
     const message = describeJobError(
       { code: 'decode-failed', format: 'png', detail: 'bad IHDR' },
       es,
+      'comprimir',
     )
 
     expect(message).toContain('PNG')
@@ -51,7 +62,7 @@ describe('describeJobError', () => {
 
     for (const copy of [es, en]) {
       for (const error of codes) {
-        const message = describeJobError(error, copy)
+        const message = describeJobError(error, copy, 'comprimir')
         expect(message.length).toBeGreaterThan(10)
         expect(message).not.toContain('undefined')
       }
