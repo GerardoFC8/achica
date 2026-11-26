@@ -1,6 +1,9 @@
 import type { JobError } from '../workers/protocol'
 import type { ToolId } from '../tools/registry'
+import { MAX_ENTRIES } from '../core/har'
 import type { Copy } from './copy'
+import type { Formatters } from './format'
+import { MAX_HAR_BYTES, type IntakeError } from './har-intake'
 
 /**
  * A typed code becomes a sentence here, and only here.
@@ -53,5 +56,33 @@ export function describeJobError(error: JobError, copy: Copy, tool: ToolId): str
 
     case 'worker-crashed':
       return errors.workerCrashed
+  }
+}
+
+/** A rejected HAR, in words that say what to do about it. */
+export function describeIntakeError(
+  error: IntakeError,
+  copy: Copy,
+  formatters: Formatters,
+): string {
+  const { errors } = copy.audit
+
+  switch (error.code) {
+    case 'not-json':
+      return errors.notJson
+    case 'not-har':
+      return errors.notHar
+    case 'too-many-entries':
+      return errors.tooManyEntries(formatters.count(error.count), formatters.count(MAX_ENTRIES))
+    case 'too-large':
+      return errors.tooLarge(formatters.bytes(error.bytes), formatters.bytes(MAX_HAR_BYTES))
+    case 'several-files':
+      return errors.severalFiles
+    case 'read-failed':
+      return errors.readFailed
+    case 'no-images': {
+      const base = errors.noImages(error.imageEntries, formatters.count(error.imageEntries))
+      return error.noContent ? `${base}. ${errors.noImagesNoContent}` : base
+    }
   }
 }

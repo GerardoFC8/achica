@@ -3,6 +3,7 @@ import type { RowKind } from '../row-model'
 import type { FilterId, SortKey } from '../queue-view'
 import type { ToolId } from '../../tools/registry'
 import type { OutputFormat } from '../../core/codecs/encode'
+import type { SkipReason } from '../../core/har'
 
 /**
  * Every sentence the interface says, in Spanish, the base language (D54).
@@ -158,6 +159,18 @@ export const es = {
       weightHeader: 'Peso antes y después',
       resultAlt: (name) => `${name}, limpiada`,
     },
+    auditar: {
+      heading: 'Arrastra aquí el archivo HAR de la página que quieres medir',
+      start: (pending, count) =>
+        `Medir el ahorro de ${count} ${plural(pending, 'imagen', 'imágenes')}`,
+      running: 'Midiendo',
+      finished: (done, count) => `${count} ${plural(done, 'imagen medida', 'imágenes medidas')}`,
+      again: 'Medir de nuevo',
+      emptyFile: 'Archivo vacío, no hay nada que medir',
+      tableLabel: 'Imágenes del HAR',
+      weightHeader: 'Peso antes y después',
+      resultAlt: (name) => `${name}, recomprimida`,
+    },
   } satisfies Record<ToolId, ToolWords>,
 
   nav: {
@@ -167,12 +180,66 @@ export const es = {
       redimensionar: 'Redimensionar',
       convertir: 'Convertir',
       'quitar-exif': 'Quitar EXIF',
+      auditar: 'Auditar web',
     } satisfies Record<ToolId, string>,
   },
 
   drop: {
     pick: 'o elige archivos',
     promise: 'Nada sale de tu dispositivo',
+  },
+
+  audit: {
+    pick: 'o elige un archivo',
+    howTo:
+      'Exporta el HAR desde la pestaña Red de las herramientas de desarrollo de tu navegador, con el contenido de las respuestas incluido.',
+    privacy:
+      'El archivo se lee en tu navegador, y las cookies y las cabeceras no se muestran ni se guardan.',
+    warning: 'Un HAR puede llevar datos de tu sesión: no conviene compartirlo.',
+    reading: 'Leyendo el HAR',
+    errors: {
+      notJson:
+        'Este archivo no es JSON, así que no es un HAR. Expórtalo de nuevo desde la pestaña Red de las herramientas de desarrollo',
+      notHar:
+        'Es un JSON, pero no un HAR: no trae la lista de peticiones. Expórtalo desde la pestaña Red de las herramientas de desarrollo',
+      tooManyEntries: (count: string, max: string) =>
+        `El HAR tiene ${count} peticiones y el máximo son ${max}. Exporta uno de una sola visita a la página`,
+      tooLarge: (size: string, max: string) =>
+        `El archivo pesa ${size} y el máximo son ${max}. Exporta un HAR de una sola visita a la página`,
+      noImages: (entries: number, count: string) =>
+        entries === 0
+          ? 'El HAR no trae ninguna petición de imagen. Comprueba que lo exportaste después de cargar la página'
+          : `El HAR trae ${count} ${plural(entries, 'imagen', 'imágenes')}, pero ${plural(entries, 'no se puede medir', 'ninguna se puede medir')}`,
+      noImagesNoContent:
+        'Algunas respuestas salieron sin contenido: vuelve a exportar el HAR con el contenido de las respuestas incluido',
+      severalFiles: 'Arrastra un solo archivo HAR a la vez',
+      readFailed:
+        'No se pudo leer el archivo. Si es muy grande, el navegador puede haberse quedado sin memoria: prueba con un HAR más pequeño',
+    },
+    summary: {
+      line: (
+        measurable: number,
+        count: string,
+        total: string,
+        weight: string,
+        destination: string,
+      ) =>
+        `${count} ${plural(measurable, 'imagen medible', 'imágenes medibles')} de ${total} en el HAR · pesan ${weight} · destino «${destination}»`,
+      alreadyFine: (n: number, count: string) =>
+        `${count} ${plural(n, 'ya estaba bien', 'ya estaban bien')}`,
+      skippedTitle: (_n: number, count: string) => `No medibles: ${count}`,
+      duplicates: (n: number, count: string) =>
+        `${count} ${plural(n, 'petición repetida ignorada', 'peticiones repetidas ignoradas')}`,
+      unknownType: 'tipo desconocido',
+      reasons: {
+        'no-content': 'sin contenido en el HAR: vuelve a exportarlo con el contenido incluido',
+        cached: 'servida desde la caché del navegador, no hay contenido que medir',
+        'unsupported-format': 'formato que achica no optimiza todavía (SVG, GIF…)',
+        'unreadable-content': 'contenido ilegible',
+        partial: 'descarga parcial: es solo un trozo del archivo',
+        'failed-request': 'petición fallida',
+      } satisfies Record<SkipReason, string>,
+    },
   },
 
   toolbar: {
@@ -296,6 +363,8 @@ export const es = {
   note: {
     pending: 'En cola',
     cancelled: 'Cancelado',
+    /** The audit's verdict for an image that did not come out lighter. */
+    alreadyFine: 'Ya estaba bien: no se reduce',
     shrunk: (size: string) => `Se redujo a ${size} para entrar`,
     converted: (size: string, format: string) => `${size} · pasó a ${format} para entrar`,
     convertedAndShrunk: (size: string, format: string) =>
@@ -323,6 +392,7 @@ export const es = {
     whatHappened: 'Qué pasó',
     code: 'Código',
     source: 'Origen',
+    harUrl: 'Dirección en el HAR',
     progress: 'Avance',
     progressUnknown: 'no medible dentro de un archivo',
     output: 'Salida',

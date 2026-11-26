@@ -17,7 +17,7 @@ import type { OutputPlan } from '../pipeline'
  */
 
 export type ProfileGroup =
-  'Web' | 'Correo' | 'Mensajería' | 'Miniatura' | 'Tamaño' | 'Formato' | 'Metadatos'
+  'Web' | 'Correo' | 'Mensajería' | 'Miniatura' | 'Tamaño' | 'Formato' | 'Metadatos' | 'Auditoría'
 
 export type Profile = {
   readonly id: string

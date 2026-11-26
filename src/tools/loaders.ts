@@ -30,6 +30,7 @@ export const loaders: Record<ToolId, () => Promise<ToolModule>> = {
   redimensionar: screen,
   convertir: screen,
   'quitar-exif': screen,
+  auditar: screen,
 }
 
 /** Resolves a tool's module from the id a page declares in `<body data-tool>`. */

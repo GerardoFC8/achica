@@ -44,7 +44,13 @@ export interface ToolLocale {
  * loaders and the copy are typed against it, so a tool added here and
  * forgotten there fails to compile.
  */
-export const TOOL_IDS = ['comprimir', 'redimensionar', 'convertir', 'quitar-exif'] as const
+export const TOOL_IDS = [
+  'comprimir',
+  'redimensionar',
+  'convertir',
+  'quitar-exif',
+  'auditar',
+] as const
 
 export type ToolId = (typeof TOOL_IDS)[number]
 
@@ -302,6 +308,65 @@ export const TOOLS: readonly Tool<ToolId>[] = [
             'No re-encoding: the pixels do not change',
             'JPEG, PNG and WebP; AVIF not yet',
             'Keeps the colour profile and the orientation',
+            'Download as a ZIP or straight into a folder',
+            'No image ever leaves the device',
+          ],
+        },
+      },
+    },
+  },
+  {
+    id: 'auditar',
+    applicationCategory: 'MultimediaApplication',
+    locales: {
+      es: {
+        path: '/auditar-imagenes-web/',
+        title: 'Medir el ahorro de las imágenes de una web con un HAR, sin subirlo | achica',
+        description:
+          'Arrastra un archivo HAR de tu página y mide cuánto ahorrarías recomprimiendo sus imágenes con achica, en tu navegador y sin subir nada. JPEG, PNG, WebP y AVIF; lo que no se puede medir se lista con el motivo. Sin cuentas, gratis y de código abierto.',
+        ogTitle: 'achica: mide cuánto ahorrarías en las imágenes de una página, sin subir nada',
+        ogDescription:
+          'Arrastra un HAR de tu página: se lee en tu navegador y ningún byte sale de tu dispositivo. JPEG, PNG, WebP y AVIF.',
+        ogImage: '/og.png',
+        ogImageAlt:
+          'achica, herramientas de imagen por lote: tres barras de peso sobre papel claro',
+        ogLocale: 'es_ES',
+        jsonLd: {
+          name: 'achica: auditar imágenes de una web',
+          description:
+            'Mide cuánto ahorrarías recomprimiendo las imágenes de un archivo HAR. Corre entero en el navegador, sin backend y sin cuentas.',
+          operatingSystem: 'Cualquiera con un navegador actual',
+          browserRequirements: 'Requiere JavaScript y WebAssembly',
+          featureList: [
+            'Lee un archivo HAR de tu página en tu navegador, sin subirlo',
+            'Recomprime sus imágenes JPEG, PNG, WebP y AVIF y mide el ahorro',
+            'Lista lo que no puede medir, con el motivo',
+            'Descarga en ZIP o directo a una carpeta',
+            'Ninguna imagen sale del dispositivo',
+          ],
+        },
+      },
+      en: {
+        path: '/en/audit-web-images/',
+        title: 'Measure the savings on the images of a page from a HAR, no upload | achica',
+        description:
+          'Drop a HAR file of your page and measure how much you would save by recompressing its images with achica, in your browser and without uploading anything. JPEG, PNG, WebP and AVIF; whatever cannot be measured is listed with the reason. No account, free and open source.',
+        ogTitle: 'achica: measure how much you would save on the images of a page, with no upload',
+        ogDescription:
+          'Drop a HAR of your page: it is read in your browser and not a byte leaves your device. JPEG, PNG, WebP and AVIF.',
+        ogImage: '/og-en.png',
+        ogImageAlt: 'achica, batch image tools: three weight bars on light paper',
+        ogLocale: 'en_US',
+        jsonLd: {
+          name: 'achica: audit web images',
+          description:
+            'Measures how much you would save by recompressing the images in a HAR file. Runs entirely in the browser, with no backend and no account.',
+          operatingSystem: 'Any with a current browser',
+          browserRequirements: 'Requires JavaScript and WebAssembly',
+          featureList: [
+            'Reads a HAR file of your page in your browser, without uploading it',
+            'Recompresses its JPEG, PNG, WebP and AVIF images and measures the saving',
+            'Lists what it cannot measure, with the reason',
             'Download as a ZIP or straight into a folder',
             'No image ever leaves the device',
           ],

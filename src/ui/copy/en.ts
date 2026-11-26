@@ -19,6 +19,7 @@ const GROUPS: Readonly<Record<ProfileGroup, string>> = {
   Tamaño: 'Size',
   Formato: 'Format',
   Metadatos: 'Metadata',
+  Auditoría: 'Audit',
 }
 
 /**
@@ -40,6 +41,10 @@ export const PROFILE_TEXT: Readonly<
   mensajeria: {
     label: 'Messaging app',
     note: 'Messaging apps recompress whatever you send them. Handing them something already light keeps it from being squeezed twice.',
+  },
+  'auditoria-mismo-formato': {
+    label: 'Same format and size',
+    note: 'Recompresses each image without changing its format or its dimensions, so the saving is what swapping the file for a lighter one would give, with no change to the page. It assumes neither a new format nor the size an image is painted at.',
   },
   miniatura: {
     label: 'Thumbnail',
@@ -124,6 +129,18 @@ export const en: Copy = {
       weightHeader: 'Weight before and after',
       resultAlt: (name) => `${name}, cleaned`,
     },
+    auditar: {
+      heading: 'Drop the HAR file of the page you want to measure here',
+      start: (pending, count) =>
+        `Measure the saving on ${count} ${plural(pending, 'image', 'images')}`,
+      running: 'Measuring',
+      finished: (done, count) => `${count} ${plural(done, 'image', 'images')} measured`,
+      again: 'Measure again',
+      emptyFile: 'Empty file, there is nothing to measure',
+      tableLabel: 'Images in the HAR',
+      weightHeader: 'Weight before and after',
+      resultAlt: (name) => `${name}, recompressed`,
+    },
   },
 
   nav: {
@@ -133,12 +150,58 @@ export const en: Copy = {
       redimensionar: 'Resize',
       convertir: 'Convert',
       'quitar-exif': 'Remove EXIF',
+      auditar: 'Audit a page',
     },
   },
 
   drop: {
     pick: 'or choose files',
     promise: 'Nothing leaves your device',
+  },
+
+  audit: {
+    pick: 'or choose a file',
+    howTo:
+      'Export the HAR from the Network tab of your browser developer tools, with the response contents included.',
+    privacy:
+      'The file is read in your browser, and cookies and headers are neither shown nor stored.',
+    warning: 'A HAR can carry your session data: it is best not to share it.',
+    reading: 'Reading the HAR',
+    errors: {
+      notJson:
+        'This file is not JSON, so it is not a HAR. Export it again from the Network tab of your developer tools',
+      notHar:
+        'It is JSON, but not a HAR: it has no list of requests. Export it from the Network tab of your developer tools',
+      tooManyEntries: (count, max) =>
+        `The HAR has ${count} requests and the maximum is ${max}. Export one from a single visit to the page`,
+      tooLarge: (size, max) =>
+        `The file weighs ${size} and the maximum is ${max}. Export a HAR from a single visit to the page`,
+      noImages: (entries, count) =>
+        entries === 0
+          ? 'The HAR has no image requests. Check that you exported it after the page had loaded'
+          : `The HAR has ${count} ${plural(entries, 'image', 'images')}, but ${plural(entries, 'it cannot be measured', 'none can be measured')}`,
+      noImagesNoContent:
+        'Some responses came out with no content: export the HAR again with the response contents included',
+      severalFiles: 'Drop a single HAR file at a time',
+      readFailed:
+        'The file could not be read. If it is very large, the browser may have run out of memory: try a smaller HAR',
+    },
+    summary: {
+      line: (measurable, count, total, weight, destination) =>
+        `${count} measurable ${plural(measurable, 'image', 'images')} out of ${total} in the HAR · ${weight} in total · destination “${destination}”`,
+      alreadyFine: (n, count) => `${count} ${plural(n, 'was', 'were')} already fine`,
+      skippedTitle: (_n, count) => `Not measurable: ${count}`,
+      duplicates: (n, count) => `${count} repeated ${plural(n, 'request', 'requests')} ignored`,
+      unknownType: 'unknown type',
+      reasons: {
+        'no-content': 'no content in the HAR: export it again with the contents included',
+        cached: 'served from the browser cache, so there is no content to measure',
+        'unsupported-format': 'a format achica does not optimise yet (SVG, GIF…)',
+        'unreadable-content': 'unreadable content',
+        partial: 'partial download: only a piece of the file',
+        'failed-request': 'failed request',
+      },
+    },
   },
 
   toolbar: {
@@ -256,6 +319,7 @@ export const en: Copy = {
   note: {
     pending: 'Queued',
     cancelled: 'Cancelled',
+    alreadyFine: 'Already fine: not reduced',
     shrunk: (size) => `Shrunk to ${size} to fit`,
     converted: (size, format) => `${size} · turned into ${format} to fit`,
     convertedAndShrunk: (size, format) => `Turned into ${format} and shrunk to ${size} to fit`,
@@ -281,6 +345,7 @@ export const en: Copy = {
     whatHappened: 'What happened',
     code: 'Code',
     source: 'Source',
+    harUrl: 'Address in the HAR',
     progress: 'Progress',
     progressUnknown: 'not measurable within a file',
     output: 'Output',

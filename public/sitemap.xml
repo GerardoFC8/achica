@@ -43,4 +43,14 @@
     <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/quitar-exif/" />
     <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/remove-exif/" />
   </url>
+  <url>
+    <loc>https://achica.gfcode.dev/auditar-imagenes-web/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/auditar-imagenes-web/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/audit-web-images/" />
+  </url>
+  <url>
+    <loc>https://achica.gfcode.dev/en/audit-web-images/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/auditar-imagenes-web/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/audit-web-images/" />
+  </url>
 </urlset>

@@ -6,7 +6,7 @@ import { createFormatters, DEFAULT_LOCALE } from './format'
 import { profileForFormat } from './format-choice'
 import { profileForResize } from './resize-choice'
 import type { RemovedMetadata } from '../core/metadata'
-import { STRIP_PROFILE } from './tool-profiles'
+import { AUDIT_PROFILE, STRIP_PROFILE } from './tool-profiles'
 import { rowDetails, rowKind, rowNote, savedRatio, weightBar } from './row-model'
 
 /**
@@ -394,5 +394,52 @@ describe('Quitar EXIF', () => {
 
     const empty = rowDetails(cleaned(report({})), profile, formatters, en, 'quitar-exif')
     expect(empty.find((row) => row.label === 'Removed')?.value).toBe('nothing')
+  })
+})
+
+describe('the audit reads an image that did not improve as already fine', () => {
+  const formatters = createFormatters(DEFAULT_LOCALE)
+  const note = (item: QueueItem, tool: 'auditar' | 'convertir', copy = es): string =>
+    rowNote(item, formatters, copy, tool)
+
+  it('says so when the output is heavier', () => {
+    expect(note(done(1_000, 1_200), 'auditar')).toBe('Ya estaba bien: no se reduce')
+    expect(note(done(1_000, 1_200), 'auditar', en)).toBe('Already fine: not reduced')
+  })
+
+  it('says so when the output weighs exactly the same', () => {
+    expect(note(done(1_000, 1_000), 'auditar')).toBe('Ya estaba bien: no se reduce')
+  })
+
+  it('says nothing of the kind about an image that got lighter', () => {
+    expect(note(done(1_000, 400), 'auditar')).not.toContain('Ya estaba bien')
+  })
+
+  it('is neutral, not a failure, in the verdict', () => {
+    expect(rowKind(done(1_000, 1_200), AUDIT_PROFILE, 'auditar')).toBe('done')
+    expect(rowKind(done(1_000, 400), AUDIT_PROFILE, 'auditar')).toBe('done')
+  })
+
+  it('is the audit alone: another tool describes a grown file by its size', () => {
+    expect(note(done(1_000, 1_200), 'convertir')).not.toContain('Ya estaba bien')
+  })
+
+  it('shows where the file came from, as text, when the audit knows', () => {
+    const rows = rowDetails(
+      done(1_000, 400),
+      AUDIT_PROFILE,
+      formatters,
+      es,
+      'auditar',
+      'https://example.com/img/a.jpg',
+    )
+
+    expect(rows[0]).toEqual({
+      label: 'Dirección en el HAR',
+      value: 'https://example.com/img/a.jpg',
+    })
+    expect(
+      rowDetails(done(1_000, 400), AUDIT_PROFILE, formatters, es, 'auditar')[0]?.label,
+    ).not.toBe('Dirección en el HAR')
   })
 })

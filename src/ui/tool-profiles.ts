@@ -1,6 +1,6 @@
 import type { OutputFormat } from '../core/codecs/encode'
 import type { OutputPlan } from '../core/pipeline'
-import { toOutputPlan, type Profile } from '../core/profiles'
+import { PERFILES, toOutputPlan, type Profile } from '../core/profiles'
 import type { ToolId } from '../tools/registry'
 import { planFor, withBudget, type BudgetChoice } from './budget'
 import { profileForFormat } from './format-choice'
@@ -36,6 +36,34 @@ export const STRIP_PROFILE: Profile = {
   note: 'Quita EXIF, ubicación GPS, XMP, IPTC, comentarios y datos añadidos tras la imagen sin recodificar: los píxeles no cambian. Conserva el perfil de color y la orientación.',
 }
 
+/**
+ * The auditor's own default destination (D60). The compressor's default mixes
+ * recompressing, changing the format and shrinking, and an audit cannot assume
+ * any of that: a `.webp` does not replace a `.jpg` without touching the HTML,
+ * and a HAR does not say what size each image is painted at. So the default is
+ * the one thing that can be applied blindly, the same format and the same
+ * size, at the quality the catalogue's destinations use.
+ */
+export const AUDIT_PROFILE: Profile = {
+  id: 'auditoria-mismo-formato',
+  label: 'Mismo formato y tamaño',
+  group: 'Auditoría',
+  format: 'keep',
+  quality: 78,
+  stripMetadata: true,
+  note: 'Recomprime cada imagen sin cambiar su formato ni sus dimensiones, así que el ahorro es el de sustituir el archivo por uno más ligero sin tocar la página. No supone ni el formato nuevo ni el tamaño al que se pinta.',
+}
+
+/** The destinations a tool offers, first one being its default. */
+export function destinationsFor(tool: ToolId): readonly Profile[] {
+  return tool === 'auditar' ? [AUDIT_PROFILE, ...PERFILES] : PERFILES
+}
+
+/** The destination a tool starts on. */
+export function defaultDestination(tool: ToolId): Profile {
+  return destinationsFor(tool)[0] ?? AUDIT_PROFILE
+}
+
 /** The profile every row is measured against. */
 export function profileForTool(tool: ToolId, choices: ToolChoices): Profile {
   switch (tool) {
@@ -47,6 +75,9 @@ export function profileForTool(tool: ToolId, choices: ToolChoices): Profile {
       return profileForFormat(choices.format)
     case 'quitar-exif':
       return STRIP_PROFILE
+    case 'auditar':
+      // No weight ceiling: it belongs to the compressor alone.
+      return choices.destination
   }
 }
 

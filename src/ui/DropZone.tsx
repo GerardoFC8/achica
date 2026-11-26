@@ -14,13 +14,17 @@ import { filesFromDrop } from './dropped-files'
 
 type Props = {
   readonly onFiles: (files: readonly File[]) => void
+  /** The audit reads a HAR: while it is read, and why the last one was refused. */
+  readonly reading?: boolean
+  readonly error?: string | null
 }
 
-export function DropZone({ onFiles }: Props) {
+export function DropZone({ onFiles, reading = false, error = null }: Props) {
   const copy = useCopy()
   const tool = useTool()
   const words = useToolWords()
   const [over, setOver] = useState(false)
+  const audit = tool === 'auditar'
   const input = useRef<HTMLInputElement>(null)
 
   return (
@@ -34,6 +38,13 @@ export function DropZone({ onFiles }: Props) {
         onDrop={(event) => {
           event.preventDefault()
           setOver(false)
+          // The audit takes one file, never a folder or a pile of images, and
+          // the flat list is all it needs to say so.
+          if (audit) {
+            const dropped = [...event.dataTransfer.files]
+            if (dropped.length > 0) onFiles(dropped)
+            return
+          }
           void filesFromDrop(event.dataTransfer).then((files) => {
             if (files.length > 0) onFiles(files)
           })
@@ -52,10 +63,28 @@ export function DropZone({ onFiles }: Props) {
           onClick={() => input.current?.click()}
           className="text-[13px] leading-4 underline underline-offset-[3px] coarse:min-h-11"
         >
-          {copy.drop.pick}
+          {audit ? copy.audit.pick : copy.drop.pick}
         </button>
         {/* A quiet fact about the tool, not a claim about the tool. */}
         <p className="text-xs leading-4 text-ink-soft">{copy.drop.promise}</p>
+
+        {audit ? (
+          <div className="grid max-w-prose gap-1 text-center text-xs leading-4 text-balance text-ink-soft">
+            <p>{copy.audit.howTo}</p>
+            <p>{copy.audit.privacy}</p>
+            <p>{copy.audit.warning}</p>
+          </div>
+        ) : null}
+        {reading ? (
+          <p role="status" className="text-[13px] leading-4">
+            {copy.audit.reading}
+          </p>
+        ) : null}
+        {error === null ? null : (
+          <p role="alert" className="max-w-prose text-center text-[13px] leading-4 text-over">
+            {error}
+          </p>
+        )}
 
         {/*
           A plain link and not a switch: each language is its own page, so a
@@ -74,8 +103,8 @@ export function DropZone({ onFiles }: Props) {
         <input
           ref={input}
           type="file"
-          accept="image/*"
-          multiple
+          accept={audit ? '.har,.json,application/json' : 'image/*'}
+          multiple={!audit}
           className="sr-only"
           onChange={(event) => {
             const picked = [...(event.target.files ?? [])]

@@ -208,7 +208,17 @@ export function createQueueStore(deps: QueueDeps): StoreApi<QueueState> {
   return store
 }
 
-export function totalsOf(items: readonly QueueItem[]): QueueTotals {
+export type TotalsOptions = {
+  /**
+   * Count what replacing only the images that came out lighter would save: a
+   * file that did not shrink contributes its original weight on both sides, so
+   * the batch never reports a loss for an image nobody would swap. The audit
+   * uses it (D60); every other tool counts the real output.
+   */
+  readonly onlyLighter?: boolean
+}
+
+export function totalsOf(items: readonly QueueItem[], options: TotalsOptions = {}): QueueTotals {
   let done = 0
   let failed = 0
   let cancelled = 0
@@ -222,7 +232,10 @@ export function totalsOf(items: readonly QueueItem[]): QueueTotals {
       // Only finished files count towards the saving. Adding the weight of a
       // file that produced nothing would report a failed batch as a triumph.
       bytesBefore += item.outcome.bytesBefore
-      bytesAfter += item.outcome.bytesAfter
+      bytesAfter +=
+        options.onlyLighter === true
+          ? Math.min(item.outcome.bytesBefore, item.outcome.bytesAfter)
+          : item.outcome.bytesAfter
       continue
     }
 

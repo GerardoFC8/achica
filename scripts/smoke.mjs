@@ -38,7 +38,8 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -47,6 +48,7 @@ import { chromium, firefox } from 'playwright'
 import { preview } from 'vite'
 import { listPages, urlForPath } from '../src/tools/pages.ts'
 import { REGISTRY } from '../src/tools/registry.ts'
+import { entry as harEntry, har as harDocument } from '../test/helpers/har-builders.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const fixture = (path) => join(ROOT, 'test', 'fixtures', path)
@@ -410,6 +412,13 @@ const WORDS = {
       busy: 'Limpiando',
       finished: (count) => `${count} imágenes limpiadas`,
     },
+    auditar: {
+      title: /HAR/,
+      heading: /archivo HAR de la página/,
+      start: /Medir el ahorro/,
+      busy: 'Midiendo',
+      finished: (count) => `${count} imágenes medidas`,
+    },
   },
   en: {
     destination: /^Destination/,
@@ -442,6 +451,13 @@ const WORDS = {
       start: /Clean/,
       busy: 'Cleaning',
       finished: (count) => `${count} images cleaned`,
+    },
+    auditar: {
+      title: /HAR/,
+      heading: /HAR file of the page/,
+      start: /Measure the saving/,
+      busy: 'Measuring',
+      finished: (count) => `${count} images measured`,
     },
   },
 }
@@ -745,6 +761,370 @@ async function runRegistryPages() {
   }
 }
 
+/*
+ * The audit (D60), in two flows against the built page.
+ *
+ * The first reads a HAR that a real browser recorded: a local server serves a
+ * page with a JPEG, a PNG, a WebP, an image used twice, an SVG and a 404, a
+ * Playwright context records it with the contents embedded, and that file is
+ * the audit's input. The audit page must then measure what is measurable, list
+ * the SVG and the 404 with their reasons, ship the right names in the ZIP, and
+ * ask the recorded server for nothing at all.
+ *
+ * The second reads a HAR written by hand with every secret a HAR can carry
+ * planted as a sentinel. None of them may reach the page's HTML, the names in
+ * the ZIP or the network, and the hosts the HAR names must never be asked for.
+ */
+
+const AUDIT_WORDS = {
+  es: {
+    destinationLabel: 'Mismo formato y tamaño',
+    line: (measurable, total) => `${measurable} imágenes medibles de ${total} en el HAR`,
+    skippedTitle: (count) => `No medibles: ${count}`,
+    unsupported: 'formato que achica no optimiza todavía',
+    failed: 'petición fallida',
+    noContent: 'sin contenido en el HAR',
+    ignored: /peticiones? repetidas? ignoradas?/,
+  },
+  en: {
+    destinationLabel: 'Same format and size',
+    line: (measurable, total) => `${measurable} measurable images out of ${total} in the HAR`,
+    skippedTitle: (count) => `Not measurable: ${count}`,
+    unsupported: 'a format achica does not optimise yet',
+    failed: 'failed request',
+    noContent: 'no content in the HAR',
+    ignored: /repeated requests? ignored/,
+  },
+}
+
+/** A tiny server that plays the page whose HAR gets recorded, and counts every hit. */
+async function startRecordedSite() {
+  const files = {
+    '/img/photo.jpg': ['image/jpeg', await readFile(fixture('generated/no-exif.jpg'))],
+    '/img/logo.png': ['image/png', await readFile(fixture('vendor/pngsuite/basn6a08.png'))],
+    '/img/pic.webp': ['image/webp', await readFile(fixture('generated/sample.webp'))],
+    '/img/icon.svg': [
+      'image/svg+xml',
+      Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>'),
+    ],
+  }
+  const page = [
+    '<!doctype html><meta charset="utf-8"><title>recorded</title>',
+    '<img src="/img/photo.jpg"><img src="/img/photo.jpg"><img src="/img/logo.png">',
+    '<img src="/img/pic.webp"><img src="/img/icon.svg"><img src="/img/missing.jpg">',
+  ].join('')
+
+  const hits = []
+  const server = createServer((request, response) => {
+    hits.push(request.url)
+    // Every visit refetches, so the same URL can be recorded twice.
+    const headers = { 'Cache-Control': 'no-store' }
+    const served = files[request.url ?? '']
+    if (served !== undefined) {
+      response.writeHead(200, { ...headers, 'Content-Type': served[0] })
+      response.end(served[1])
+    } else if (request.url === '/') {
+      response.writeHead(200, { ...headers, 'Content-Type': 'text/html; charset=utf-8' })
+      response.end(page)
+    } else {
+      // The missing image answers 404 as an image: a browser records the
+      // content type the server sent, and a 404 page in HTML is not an image entry.
+      response.writeHead(404, { ...headers, 'Content-Type': 'image/jpeg' })
+      response.end()
+    }
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address()
+  return {
+    origin: `http://127.0.0.1:${port}`,
+    hits,
+    close: () => new Promise((resolve) => server.close(resolve)),
+  }
+}
+
+/** Records the HAR a real browser writes for that page, with the bodies embedded. */
+async function recordHar(engine, site, directory) {
+  const path = join(directory, 'recorded.har')
+  const browser = await engine.launch()
+  try {
+    const context = await browser.newContext({ recordHar: { path, content: 'embed' } })
+    const page = await context.newPage()
+    for (let visit = 0; visit < 2; visit += 1) {
+      await page.goto(`${site.origin}/`, { waitUntil: 'networkidle' })
+    }
+    // The HAR is written when the context closes.
+    await context.close()
+  } finally {
+    await browser.close()
+  }
+  return path
+}
+
+/** Watches every request a page makes, and keeps the ones that left its own origin. */
+function watchRequests(page) {
+  const foreign = []
+  const all = []
+  page.on('request', (request) => {
+    const url = request.url()
+    if (!/^https?:/.test(url)) return
+    all.push(url)
+    if (!url.startsWith(origin)) foreign.push(url)
+  })
+  const errors = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  return { foreign, all, errors }
+}
+
+/** Opens the audit page, hands it a HAR file and waits for its images to be listed. */
+async function loadAuditPage(page, language, harPath, startName) {
+  await page.goto(new URL(pathOf(language, 'auditar'), base).href)
+  await page.setInputFiles('input[type=file]', harPath)
+  await page.getByRole('button', { name: startName }).waitFor({ timeout: 30_000 })
+}
+
+/** Runs the measurement and downloads the ZIP; returns the entries read back from it. */
+async function measureAndZip(page, words, count, downloads) {
+  await page.getByRole('button', { name: words.start }).click()
+  await page.waitForFunction(
+    (busy) => !(document.body.textContent ?? '').includes(busy),
+    words.busy,
+    { timeout: 120_000 },
+  )
+  const footer = (await page.locator('footer').innerText()).replace(/\s+/g, ' ')
+  check('the footer reports the images measured', footer.includes(words.finished(count)), footer)
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download', { timeout: 30_000 }),
+    page.getByRole('button', { name: words.zip }).click(),
+  ])
+  const archive = join(downloads, download.suggestedFilename())
+  await download.saveAs(archive)
+  return { footer, bytes: await readFile(archive) }
+}
+
+async function runRecordedHar(engineName, engine, language, downloads) {
+  const site = await startRecordedSite()
+  const all = WORDS[language]
+  const words = { ...all, ...all.auditar }
+  const audit = AUDIT_WORDS[language]
+
+  try {
+    const harPath = await recordHar(engine, site, downloads)
+    const hitsWhileRecording = site.hits.length
+    const recorded = JSON.parse(await readFile(harPath, 'utf8'))
+    const entries = recorded.log.entries
+
+    // How Playwright writes embedded content: base64 text, with the encoding said.
+    const jpegEntry = entries.find((item) => item.request.url.endsWith('/img/photo.jpg'))
+    check(
+      `${engineName}: Playwright embeds the body as base64 text`,
+      jpegEntry?.response.content.encoding === 'base64' &&
+        typeof jpegEntry.response.content.text === 'string',
+      JSON.stringify({
+        encoding: jpegEntry?.response.content.encoding,
+        mimeType: jpegEntry?.response.content.mimeType,
+      }),
+    )
+    const svgEntry = entries.find((item) => item.request.url.endsWith('/img/icon.svg'))
+    const missingEntry = entries.find((item) => item.request.url.endsWith('/img/missing.jpg'))
+    console.log(
+      `  note the HAR has ${entries.length} entries; photo.jpg x${entries.filter((item) => item.request.url.endsWith('/photo.jpg')).length}; svg encoding=${svgEntry?.response.content.encoding ?? 'text'} mime=${svgEntry?.response.content.mimeType}; 404 mime=${missingEntry?.response.content.mimeType}`,
+    )
+
+    const browser = await engine.launch()
+    try {
+      const page = await browser.newPage({ acceptDownloads: true })
+      const watched = watchRequests(page)
+
+      await loadAuditPage(page, language, harPath, words.start)
+
+      // Measurable: the JPEG, the PNG and the WebP. The repeated one counts once.
+      const body = (await page.locator('body').innerText()).replace(/\s+/g, ' ')
+      check(
+        'the summary counts 3 measurable images of 5 in the HAR',
+        body.includes(audit.line(3, 5)) && body.includes(audit.destinationLabel),
+        body.slice(0, 400),
+      )
+      // The SVG and the 404 are listed, as text, with their reasons.
+      await page.getByText(audit.skippedTitle(2)).click()
+      const listed = (await page.locator('section').first().innerText()).replace(/\s+/g, ' ')
+      check('the repeated request is counted as ignored', audit.ignored.test(listed), listed)
+
+      const svgUrl = `${site.origin}/img/icon.svg`
+      const missingUrl = `${site.origin}/img/missing.jpg`
+      check('the SVG is listed with its address', listed.includes(svgUrl), listed)
+      check('the SVG says why', listed.includes(audit.unsupported), listed)
+      check('the 404 is listed with its address', listed.includes(missingUrl), listed)
+      check('the 404 says why', listed.includes(audit.failed), listed)
+
+      // Nothing in the page points at the recorded server.
+      const pointers = await page.evaluate((host) => {
+        const found = []
+        for (const element of document.querySelectorAll('*')) {
+          for (const attribute of ['href', 'src', 'srcset', 'action']) {
+            const value = element.getAttribute(attribute)
+            if (value !== null && value.includes(host))
+              found.push(`${element.tagName} ${attribute}`)
+          }
+        }
+        return found
+      }, new URL(site.origin).host)
+      check(
+        'no link or picture points at the recorded server',
+        pointers.length === 0,
+        pointers.join(', '),
+      )
+
+      const { bytes } = await measureAndZip(page, words, 3, downloads)
+      const names = readZip(bytes)
+        .map((entry) => entry.name)
+        .toSorted()
+      check(
+        'the ZIP holds the three measurable images, by their names',
+        names.join(',') === 'logo.png,photo.jpg,pic.webp',
+        names.join(','),
+      )
+
+      check('nothing threw on the page', watched.errors.length === 0, watched.errors.join('; '))
+      check(
+        'no byte left the device during the audit',
+        watched.foreign.length === 0,
+        watched.foreign.join(', '),
+      )
+      check(
+        'the recorded server was not asked for anything',
+        site.hits.length === hitsWhileRecording,
+        site.hits.slice(hitsWhileRecording).join(', '),
+      )
+
+      // The control: the same instruments do see a request to that server, so
+      // the checks above were able to fail.
+      await page.evaluate(
+        (url) => fetch(url, { mode: 'no-cors' }).catch(() => undefined),
+        `${site.origin}/control`,
+      )
+      await page.waitForTimeout(300)
+      check(
+        'control: a request to the recorded server is seen by both instruments',
+        watched.foreign.some((url) => url.endsWith('/control')) &&
+          site.hits.slice(hitsWhileRecording).includes('/control'),
+        `${watched.foreign.join(', ')} | ${site.hits.slice(hitsWhileRecording).join(', ')}`,
+      )
+      await page.close()
+    } finally {
+      await browser.close()
+    }
+  } finally {
+    await site.close()
+  }
+}
+
+const HOSTILE_SENTINELS = {
+  query: 'SMOKE_SENTINEL_QUERY_TOKEN',
+  user: 'SMOKE_SENTINEL_USER',
+  pass: 'SMOKE_SENTINEL_PASS',
+  header: 'SMOKE_SENTINEL_AUTH_BEARER',
+  cookie: 'SMOKE_SENTINEL_COOKIE_SID',
+  fragment: 'SMOKE_SENTINEL_FRAGMENT',
+  skipped: 'SMOKE_SENTINEL_SKIPPED',
+}
+
+async function runHostileHar(engineName, engine, language, downloads) {
+  const all = WORDS[language]
+  const words = { ...all, ...all.auditar }
+  const audit = AUDIT_WORDS[language]
+  const host = 'har-host.smoke.test'
+  const secrets = [HOSTILE_SENTINELS.header, HOSTILE_SENTINELS.cookie]
+
+  const jpeg = (await readFile(fixture('generated/no-exif.jpg'))).toString('base64')
+  const png = (await readFile(fixture('vendor/pngsuite/basn6a08.png'))).toString('base64')
+  const image = (url, mimeType, text) =>
+    harEntry({ url, mimeType, text, encoding: 'base64', size: 1_000 }, secrets)
+
+  const document_ = harDocument([
+    image(
+      `https://${HOSTILE_SENTINELS.user}:${HOSTILE_SENTINELS.pass}@${host}/img/hero.jpg?token=${HOSTILE_SENTINELS.query}#${HOSTILE_SENTINELS.fragment}`,
+      'image/jpeg',
+      jpeg,
+    ),
+    image(`https://${host}/img/logo.png?v=${HOSTILE_SENTINELS.query}`, 'image/png', png),
+    ...Array.from({ length: 10 }, (_, index) =>
+      image(
+        `https://${host}/cdn/${index}/thumb.jpg?sig=${HOSTILE_SENTINELS.query}`,
+        'image/jpeg',
+        jpeg,
+      ),
+    ),
+    harEntry(
+      {
+        url: `https://${host}/img/icon.svg?x=${HOSTILE_SENTINELS.skipped}`,
+        status: 200,
+        mimeType: 'image/svg+xml',
+        text: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+        size: 40,
+      },
+      secrets,
+    ),
+    harEntry(
+      { url: `https://${host}/img/gone.jpg`, status: 404, mimeType: 'image/jpeg', size: 0 },
+      secrets,
+    ),
+    harEntry(
+      { url: `https://${host}/img/bare.webp`, status: 200, mimeType: 'image/webp', size: 5_000 },
+      secrets,
+    ),
+  ])
+  const harPath = join(downloads, 'hostile.har')
+  await writeFile(harPath, document_)
+
+  const browser = await engine.launch()
+  try {
+    const page = await browser.newPage({ acceptDownloads: true })
+    const watched = watchRequests(page)
+
+    await loadAuditPage(page, language, harPath, words.start)
+    check(
+      'the 12 images of the hostile HAR are measurable',
+      (await page.locator('body').innerText()).replace(/\s+/g, ' ').includes(audit.line(12, 15)),
+    )
+    await page.getByText(audit.skippedTitle(3)).click()
+    const listed = (await page.locator('section').first().innerText()).replace(/\s+/g, ' ')
+    check(
+      'the three that cannot be measured say why',
+      [audit.unsupported, audit.failed, audit.noContent].every((text) => listed.includes(text)),
+      listed,
+    )
+
+    const { bytes } = await measureAndZip(page, words, 12, downloads)
+
+    const html = await page.content()
+    const names = readZip(bytes).map((entry) => entry.name)
+    const raw = bytes.toString('latin1')
+    for (const [label, sentinel] of Object.entries(HOSTILE_SENTINELS)) {
+      check(`the ${label} sentinel is not in the page HTML`, !html.includes(sentinel))
+      check(
+        `the ${label} sentinel is not in the ZIP`,
+        !raw.includes(sentinel) && !names.some((name) => name.includes(sentinel)),
+      )
+    }
+    check(
+      'the ZIP has one entry per image, all distinct',
+      new Set(names).size === 12 && names.length === 12,
+      names.join(','),
+    )
+    check(
+      'no request went to a host of the HAR',
+      !watched.all.some((url) => url.includes(host)),
+      watched.all.filter((url) => url.includes(host)).join(', '),
+    )
+    check('no byte left the device', watched.foreign.length === 0, watched.foreign.join(', '))
+    check('nothing threw on the page', watched.errors.length === 0, watched.errors.join('; '))
+    await page.close()
+  } finally {
+    await browser.close()
+  }
+}
+
 try {
   await runDiscoverability()
   await runRegistryPages()
@@ -761,6 +1141,14 @@ try {
         console.log(`\n${name}: ${batch.label}`)
         await runBatch(browser, batch, downloads)
       }
+
+      // Each browser records its own HAR and reads it back, one language each
+      // way round, so both pages and both recorders are exercised.
+      const [recorded, hostile] = name === 'chromium' ? ['es', 'en'] : ['en', 'es']
+      console.log(`\n${name}: audit, from a HAR the browser recorded (${recorded})`)
+      await runRecordedHar(name, engine, recorded, downloads)
+      console.log(`\n${name}: audit, from a hand-made hostile HAR (${hostile})`)
+      await runHostileHar(name, engine, hostile, downloads)
     } finally {
       await browser.close()
       await rm(downloads, { recursive: true, force: true })

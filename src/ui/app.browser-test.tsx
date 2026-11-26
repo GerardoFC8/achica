@@ -496,13 +496,19 @@ describe('the other tools', () => {
       .toHaveAttribute('href', '/redimensionar-imagenes/')
   })
 
-  it('keeps four links and the strip label inside a phone-width toolbar', async () => {
+  it('keeps five links and the control of each tool inside a phone-width toolbar', async () => {
     await page.viewport(375, 812)
     try {
-      for (const copy of [undefined, en]) {
+      for (const [copy, tool] of [
+        [es, 'quitar-exif'],
+        [en, 'quitar-exif'],
+        // The audit has the longest nav label and its destination picker.
+        [es, 'auditar'],
+        [en, 'auditar'],
+      ] as const) {
         const view = await render(
-          <CopyProvider value={copy ?? es}>
-            <App tool="quitar-exif" />
+          <CopyProvider value={copy}>
+            <App tool={tool} />
           </CopyProvider>,
         )
         await expect.element(page.getByRole('navigation')).toBeVisible()

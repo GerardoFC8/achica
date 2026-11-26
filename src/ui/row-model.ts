@@ -110,6 +110,10 @@ export function rowNote(item: QueueItem, formatters: Formatters, copy: Copy, too
     case 'done': {
       const { outcome } = item
 
+      // The audit reads an image that did not come out lighter as good news:
+      // nothing to gain there, and nothing wrong with it (D60).
+      if (tool === 'auditar' && outcome.bytesAfter >= item.bytesBefore) return note.alreadyFine
+
       if (outcome.metadata !== undefined) {
         const facts = stripFacts(outcome.metadata, formatters)
         return removedNothing(facts)
@@ -228,6 +232,19 @@ function describeTarget(profile: Profile, formatters: Formatters, copy: Copy): s
  * thirty files still fit on a screen.
  */
 export function rowDetails(
+  item: QueueItem,
+  profile: Profile,
+  formatters: Formatters,
+  copy: Copy,
+  tool: ToolId,
+  /** Where the audit found this file, as text. Never a link (D60). */
+  origin?: string,
+): readonly RowDetail[] {
+  const list = detailsOf(item, profile, formatters, copy, tool)
+  return origin === undefined ? list : [{ label: copy.details.harUrl, value: origin }, ...list]
+}
+
+function detailsOf(
   item: QueueItem,
   profile: Profile,
   formatters: Formatters,

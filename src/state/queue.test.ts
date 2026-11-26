@@ -353,6 +353,46 @@ describe('totalsOf', () => {
     expect(totals.savedRatio).toBe(0)
   })
 
+  describe('counting only the images that came out lighter (the audit)', () => {
+    it('is the same as the plain count when every image improved', () => {
+      const items = storeWith([done(1_000, 200), done(1_000, 400)])
+
+      expect(totalsOf(items, { onlyLighter: true })).toEqual(totalsOf(items))
+    })
+
+    it('counts the original for an image that came out heavier', () => {
+      // 1000 -> 200 saves 800; 1000 -> 1300 would be a loss of 300 if counted,
+      // but nobody swaps that file, so it contributes nothing either way.
+      const items = storeWith([done(1_000, 200), done(1_000, 1_300)])
+
+      expect(totalsOf(items).bytesAfter).toBe(1_500)
+      const totals = totalsOf(items, { onlyLighter: true })
+
+      expect(totals.bytesBefore).toBe(2_000)
+      expect(totals.bytesAfter).toBe(1_200)
+      expect(totals.savedBytes).toBe(800)
+      expect(totals.savedRatio).toBeCloseTo(0.4)
+    })
+
+    it('counts an image that came out the same as no change', () => {
+      const totals = totalsOf(storeWith([done(1_000, 1_000), done(500, 100)]), {
+        onlyLighter: true,
+      })
+
+      expect(totals.bytesAfter).toBe(1_100)
+      expect(totals.savedBytes).toBe(400)
+    })
+
+    it('never reports a negative saving, however the batch came out', () => {
+      const totals = totalsOf(storeWith([done(1_000, 1_500), done(1_000, 1_001)]), {
+        onlyLighter: true,
+      })
+
+      expect(totals.savedBytes).toBe(0)
+      expect(totals.savedRatio).toBe(0)
+    })
+  })
+
   it('reports nothing rather than dividing by zero on an empty queue', () => {
     expect(totalsOf([])).toMatchObject({ done: 0, savedBytes: 0, savedRatio: 0 })
   })

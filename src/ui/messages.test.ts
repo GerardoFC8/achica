@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { JobError } from '../workers/protocol'
 import { en, es } from './copy'
-import { describeJobError } from './messages'
+import { MAX_ENTRIES } from '../core/har'
+import { createFormatters, DEFAULT_LOCALE } from './format'
+import { MAX_HAR_BYTES, type IntakeError } from './har-intake'
+import { describeIntakeError, describeJobError } from './messages'
 
 /**
  * The core reports failures as codes so the wording can live here. Every
@@ -69,5 +72,61 @@ describe('describeJobError', () => {
         expect(message).not.toContain('undefined')
       }
     }
+  })
+})
+
+describe('describeIntakeError', () => {
+  const formatters = createFormatters(DEFAULT_LOCALE)
+  const say = (error: IntakeError, copy = es): string =>
+    describeIntakeError(error, copy, formatters)
+
+  const ALL: readonly IntakeError[] = [
+    { code: 'not-json' },
+    { code: 'not-har' },
+    { code: 'too-many-entries', count: 60_000 },
+    { code: 'too-large', bytes: MAX_HAR_BYTES + 1 },
+    { code: 'several-files' },
+    { code: 'read-failed' },
+    { code: 'no-images', imageEntries: 0, noContent: false },
+    { code: 'no-images', imageEntries: 4, noContent: false },
+    { code: 'no-images', imageEntries: 4, noContent: true },
+  ]
+
+  it('has a readable sentence for every error, in both languages', () => {
+    for (const error of ALL) {
+      for (const copy of [es, en]) {
+        const message = say(error, copy)
+        expect(message.length, error.code).toBeGreaterThan(15)
+        expect(message, error.code).not.toContain('undefined')
+        expect(message, error.code).not.toContain('NaN')
+      }
+    }
+  })
+
+  it('tells the user what to do, not only what went wrong', () => {
+    expect(say({ code: 'not-json' })).toMatch(/Expórtalo/)
+    expect(say({ code: 'not-har' })).toMatch(/Expórtalo/)
+    expect(say({ code: 'not-json' }, en)).toMatch(/Export/)
+    expect(say({ code: 'several-files' })).toMatch(/un solo archivo/)
+  })
+
+  it('names the limits it enforces, not invented ones', () => {
+    const entries = say({ code: 'too-many-entries', count: 60_000 })
+    const size = say({ code: 'too-large', bytes: MAX_HAR_BYTES + 1 })
+
+    expect(entries).toContain(formatters.count(MAX_ENTRIES))
+    expect(entries).toContain(formatters.count(60_000))
+    expect(size).toContain(formatters.bytes(MAX_HAR_BYTES))
+  })
+
+  it('points at re-exporting with contents only when a body was missing', () => {
+    const hinted = say({ code: 'no-images', imageEntries: 4, noContent: true })
+    const plain = say({ code: 'no-images', imageEntries: 4, noContent: false })
+
+    expect(hinted).toMatch(/contenido de las respuestas/)
+    expect(plain).not.toMatch(/contenido de las respuestas/)
+    expect(say({ code: 'no-images', imageEntries: 0, noContent: false })).toMatch(
+      /ninguna petición/,
+    )
   })
 })

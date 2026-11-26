@@ -1,6 +1,7 @@
 import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
 import type { ToolId } from '../tools/registry'
+import { useAudit } from '../state/audit-store'
 import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
 import { rowDetails, rowNote, savedRatio, weightBar, type RowKind } from './row-model'
@@ -58,7 +59,8 @@ export function QueueRow({
   const copy = useCopy()
   const tool = useTool()
   const note = rowNote(item, formatters, copy, tool)
-  const details = expanded ? rowDetails(item, profile, formatters, copy, tool) : []
+  const origin = useAudit((state) => state.audit?.origins.get(item.name))
+  const details = expanded ? rowDetails(item, profile, formatters, copy, tool, origin) : []
 
   const after = item.status === 'done' ? formatters.bytes(item.outcome.bytesAfter) : '—'
   const savedText = saved === null ? '' : formatters.percent(saved)

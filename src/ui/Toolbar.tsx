@@ -3,6 +3,7 @@ import type { Profile } from '../core/profiles'
 import type { BudgetChoice } from './budget'
 import { useCopy } from './copy'
 import { DestinationPicker } from './DestinationPicker'
+import { destinationsFor } from './tool-profiles'
 import type { Formatters } from './format'
 import { FormatPicker } from './FormatPicker'
 import type { ResizeChoice } from './resize-choice'
@@ -73,13 +74,15 @@ export function Toolbar({
         <ToolNav />
       </div>
 
-      {tool === 'comprimir' ? (
+      {tool === 'comprimir' || tool === 'auditar' ? (
         <DestinationPicker
           selected={destination}
           budget={budget}
           formatters={formatters}
           onSelect={onSelectProfile}
           onBudget={onBudget}
+          profiles={destinationsFor(tool)}
+          showBudget={tool === 'comprimir'}
         />
       ) : tool === 'redimensionar' ? (
         <ResizePicker choice={resize} formatters={formatters} onChange={onResize} />
