@@ -2,6 +2,8 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { playwright } from '@vitest/browser-playwright'
 import { defineConfig } from 'vitest/config'
+import { listPages } from './src/tools/pages.ts'
+import { REGISTRY } from './src/tools/registry.ts'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -30,13 +32,13 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    // Two pages, one app: / in Spanish and /en/ in English (D54). Both load
-    // the same bundle; each says its language in <html lang>.
+    // One entry per page of the registry (D57): today / in Spanish and /en/
+    // in English (D54). Every page loads the same entry; each says its
+    // language in <html lang> and its tool in <body data-tool>.
     rolldownOptions: {
-      input: {
-        es: 'index.html',
-        en: 'en/index.html',
-      },
+      input: Object.fromEntries(
+        listPages(REGISTRY).map(({ tool, language, file }) => [`${tool.id}-${language}`, file]),
+      ),
     },
     assetsInlineLimit: (filePath) =>
       /*

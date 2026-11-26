@@ -1,6 +1,6 @@
 /**
- * Writes the first screen into each built page: dist/index.html in Spanish and
- * dist/en/index.html in English (D52, D54).
+ * Writes the first screen into each built page of the registry (D57):
+ * dist/index.html in Spanish and dist/en/index.html in English today (D52, D54).
  *
  * Runs after `vite build`, as part of `npm run build`. It renders the app's
  * empty state through Vite's own SSR loader, so the markup comes from the same
@@ -18,14 +18,14 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
+import { listPages } from '../src/tools/pages.ts'
+import { REGISTRY } from '../src/tools/registry.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MOUNT = '<div id="app"></div>'
 
-const PAGES = [
-  { file: join('dist', 'index.html'), language: 'es' },
-  { file: join('dist', 'en', 'index.html'), language: 'en' },
-]
+// Every page of the registry (D57), not a list kept here.
+const PAGES = listPages(REGISTRY)
 
 const server = await createServer({
   root: ROOT,
@@ -37,7 +37,8 @@ const server = await createServer({
 try {
   const { render } = await server.ssrLoadModule('/src/prerender.tsx')
 
-  for (const { file, language } of PAGES) {
+  for (const { file: pageFile, language, tool } of PAGES) {
+    const file = join('dist', pageFile)
     const target = join(ROOT, file)
     const html = await readFile(target, 'utf8')
 
@@ -48,7 +49,12 @@ try {
       throw new Error(`${file} does not say it is in "${language}"`)
     }
 
-    await writeFile(target, html.replace(MOUNT, `<div id="app">${render(language)}</div>`))
+    if (!html.includes(`<body data-tool="${tool.id}">`)) {
+      throw new Error(`${file} does not declare its tool as "${tool.id}"`)
+    }
+
+    const screen = await render(language, tool.id)
+    await writeFile(target, html.replace(MOUNT, `<div id="app">${screen}</div>`))
     console.log(`prerendered the first screen into ${file}`)
   }
 } finally {

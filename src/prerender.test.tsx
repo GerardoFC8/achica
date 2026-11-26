@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { render } from './prerender'
 
 describe('the prerendered first screen', () => {
-  const html = render('es')
+  let html = ''
+
+  beforeAll(async () => {
+    html = await render('es', 'comprimir')
+  })
 
   it('is the work surface, headed by what to do there', () => {
     expect(html).toMatch(/<h1[^>]*>Arrastra aquí las imágenes que quieres comprimir<\/h1>/)
@@ -21,8 +25,12 @@ describe('the prerendered first screen', () => {
     expect(html).toMatch(/<a[^>]*href="\/en\/"[^>]*hrefLang="en"/)
   })
 
-  it('renders the English page in English', () => {
-    const english = render('en')
+  it('refuses a tool that is not registered', async () => {
+    await expect(render('es', 'no-existe')).rejects.toThrow(/no-existe/)
+  })
+
+  it('renders the English page in English', async () => {
+    const english = await render('en', 'comprimir')
 
     expect(english).toMatch(/<h1[^>]*>Drop the images you want to compress here<\/h1>/)
     expect(english).toContain('Image for a web article')

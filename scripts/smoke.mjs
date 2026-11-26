@@ -40,6 +40,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium, firefox } from 'playwright'
 import { preview } from 'vite'
+import { listPages, urlForPath } from '../src/tools/pages.ts'
+import { REGISTRY } from '../src/tools/registry.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const fixture = (path) => join(ROOT, 'test', 'fixtures', path)
@@ -81,10 +83,12 @@ const BATCHES = [
   },
 ]
 
-/** What each page says, so the same run reads both languages. */
+/**
+ * What each page says, so the same run reads both languages. The route of each
+ * language comes from the registry (D57), not from here: `pathOf` below.
+ */
 const WORDS = {
   es: {
-    path: '',
     title: /comprimir/i,
     heading: /imágenes que quieres comprimir/,
     destination: /^Destino/,
@@ -95,7 +99,6 @@ const WORDS = {
     zip: /Descargar .* en un ZIP/,
   },
   en: {
-    path: 'en/',
     title: /compress/i,
     heading: /images you want to compress/,
     destination: /^Destination/,
@@ -105,6 +108,14 @@ const WORDS = {
     saved: /% smaller/,
     zip: /Download .* as a ZIP/,
   },
+}
+
+/** The compressor's route in a language, from the registry. */
+const compressor = REGISTRY.tools.find((tool) => tool.id === 'comprimir')
+const pathOf = (language) => {
+  const locale = compressor?.locales[language]
+  if (locale === undefined) throw new Error(`the registry has no compressor in ${language}`)
+  return locale.path
 }
 
 const LOCAL_HEADER = '504b0304'
@@ -167,7 +178,7 @@ async function runBatch(browser, batch, downloads) {
 
     const words = WORDS[batch.language ?? 'es']
 
-    await page.goto(new URL(words.path, base).href)
+    await page.goto(new URL(pathOf(batch.language ?? 'es'), base).href)
     check(
       'the work surface is the first screen',
       await page.getByRole('heading', { level: 1, name: words.heading }).isVisible(),
@@ -272,9 +283,10 @@ async function runBatch(browser, batch, downloads) {
  */
 async function runDiscoverability() {
   for (const [language, words] of Object.entries(WORDS)) {
-    console.log(`\nwithout JavaScript, /${words.path}: what crawlers and link previews read`)
+    const path = pathOf(language)
+    console.log(`\nwithout JavaScript, ${path}: what crawlers and link previews read`)
 
-    const response = await fetch(new URL(words.path, base))
+    const response = await fetch(new URL(path, base))
     const html = await response.text()
     // Attribute by attribute, because a formatter is free to break a tag across
     // lines and to put its attributes in any order.
@@ -326,8 +338,49 @@ async function runDiscoverability() {
   }
 }
 
+/**
+ * Every page the registry lists, read from Node with no JavaScript (D57): its
+ * language, its twins and its canonical, and the sitemap that has to list them
+ * all. The deep checks above cover the compressor; this one is what stops a
+ * new tool from shipping a page that crawlers cannot place.
+ */
+async function runRegistryPages() {
+  console.log('\nevery page of the registry')
+
+  for (const { tool, language, locale } of listPages(REGISTRY)) {
+    const response = await fetch(new URL(locale.path, base))
+    const html = await response.text()
+    const label = `${tool.id} ${language} ${locale.path}`
+
+    check(`${label} answers`, response.ok, `${response.status}`)
+    check(`${label} says its language`, html.includes(`<html lang="${language}">`))
+    check(`${label} declares its tool`, html.includes(`<body data-tool="${tool.id}">`))
+    for (const other of REGISTRY.languages) {
+      const href = urlForPath(REGISTRY, tool.locales[other].path)
+      check(
+        `${label} points to its ${other} twin`,
+        html.includes(`hreflang="${other}"`) && html.includes(`href="${href}"`),
+      )
+    }
+    check(
+      `${label} is its own canonical`,
+      html.includes(`rel="canonical"`) &&
+        html.includes(`href="${urlForPath(REGISTRY, locale.path)}"`),
+    )
+  }
+
+  const sitemap = await (await fetch(new URL('/sitemap.xml', base))).text()
+  for (const { tool, language, locale } of listPages(REGISTRY)) {
+    check(
+      `sitemap.xml lists ${tool.id} ${language}`,
+      sitemap.includes(`<loc>${urlForPath(REGISTRY, locale.path)}</loc>`),
+    )
+  }
+}
+
 try {
   await runDiscoverability()
+  await runRegistryPages()
 
   for (const [name, engine] of [
     ['chromium', chromium],
