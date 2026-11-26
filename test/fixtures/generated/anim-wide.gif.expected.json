@@ -1,0 +1,46 @@
+{
+  "width": 160,
+  "height": 90,
+  "frames": [
+    {
+      "sha256": "cdc71033993e7a26cab00edc7a1172319b4908062065ff6e58897f0d79361ed1",
+      "delayMs": 100
+    },
+    {
+      "sha256": "998e2a6d7609fd96747ccdab23096ba09caee4eef744788acd8e6ca792623b65",
+      "delayMs": 100
+    },
+    {
+      "sha256": "ac16a0dd8e83de75cc96528a58fa965d93a442185992266b5a4da8e0d888cf85",
+      "delayMs": 100
+    },
+    {
+      "sha256": "1318091fdf04a74bab984eaa4d97ec78b655cb9afcf1e34d1a912f3bb2687375",
+      "delayMs": 100
+    },
+    {
+      "sha256": "3428418fa8361a885766b076b21713f2e1b2fd7f058857dc2a83a81dc8d57a7f",
+      "delayMs": 100
+    },
+    {
+      "sha256": "e2eef801d9358afc4f3e6a3bd73a9730d2d62940282b0322c8b73de0890839d6",
+      "delayMs": 100
+    },
+    {
+      "sha256": "902e235d2ceee131d65a9f839454dfc381a7eea828f8df9d5dbf892c45a86819",
+      "delayMs": 100
+    },
+    {
+      "sha256": "eec07161150373cb6d31f64cd2829fff2ef7c7d01346df0631d21323719642ac",
+      "delayMs": 100
+    },
+    {
+      "sha256": "d8285fcc8bda340f0fa3255caecbfb8ec04c4a0ecc78509f64e6a3d2cca70456",
+      "delayMs": 100
+    },
+    {
+      "sha256": "87b3816ba102aef93b27fb6faf430c1a5a7e9ae8080c37358ab54588f4cd3ddf",
+      "delayMs": 100
+    }
+  ]
+}

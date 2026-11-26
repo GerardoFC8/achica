@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Profile } from '../core/profiles'
+import { DISCORD_PERFILES, type Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
 import { buildRows, countsOf, visibleRows } from './queue-view'
 
@@ -144,5 +144,47 @@ describe('visibleRows', () => {
     const list = visibleRows(rows, { filter: 'todos', sortKey: 'saved', direction: 'desc' })
 
     expect(namesOf(list)[0]).toBe('zeta.jpg')
+  })
+})
+
+describe('the filters of a Discord queue', () => {
+  const sticker = DISCORD_PERFILES[0] as Profile
+
+  /** A finished animation: its verdict is the limit's, whatever it weighed before. */
+  function animated(id: string, after: number, withinBudget: boolean): QueueItem {
+    const base = done(id, `${id}.gif`, 40_000, after, 100)
+    if (base.status !== 'done') throw new Error('the helper builds finished rows')
+    return {
+      ...base,
+      outcome: { ...base.outcome, format: 'gif', withinBudget, width: 320, height: 320 },
+    }
+  }
+
+  const rows = buildRows(
+    [
+      animated('a', 200_000, true), // fits, though it grew a lot
+      animated('b', 480_000, true), // tight: over 90 % of 512 000
+      animated('c', 620_000, false), // over
+      animated('d', 100_000, true),
+    ],
+    sticker,
+    'discord',
+  )
+
+  it('counts fits, tight and over against the limit', () => {
+    expect(countsOf(rows)).toMatchObject({ todos: 4, fits: 2, tight: 1, over: 1, done: 0 })
+  })
+
+  it('filters to the files Discord would reject', () => {
+    const options = { filter: 'over', sortKey: 'orden', direction: 'asc' } as const
+
+    expect(visibleRows(rows, options).map((row) => row.item.id)).toEqual(['c'])
+    expect(visibleRows(rows, { ...options, filter: 'tight' }).map((row) => row.item.id)).toEqual([
+      'b',
+    ])
+    expect(visibleRows(rows, { ...options, filter: 'fits' }).map((row) => row.item.id)).toEqual([
+      'a',
+      'd',
+    ])
   })
 })

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { DEFAULT_VIDEO_SEGMENT, type VideoSegment } from '../core/animation/video-segment'
 import type { OutputFormat } from '../core/codecs/encode'
 import type { Profile } from '../core/profiles'
 import type { ToolId } from '../tools/registry'
@@ -75,9 +76,13 @@ function Screen({ tool }: Props) {
   const [budget, setBudget] = useState<BudgetChoice>(NO_BUDGET)
   const [resize, setResize] = useState<ResizeChoice>(DEFAULT_RESIZE)
   const [format, setFormat] = useState<OutputFormat>(DEFAULT_FORMAT)
+  // Off until asked for: Discord's own screen wants 320 x 320.
+  const [canvasReduction, setCanvasReduction] = useState(false)
+  // Only Discord reads it, and only for a file that turns out to be a video.
+  const [video, setVideo] = useState<VideoSegment>(DEFAULT_VIDEO_SEGMENT)
   const choices = useMemo<ToolChoices>(
-    () => ({ destination, budget, resize, format }),
-    [destination, budget, resize, format],
+    () => ({ destination, budget, resize, format, canvasReduction, video }),
+    [destination, budget, resize, format, canvasReduction, video],
   )
   // What every row is measured against: the tool's own choice, with the weight
   // ceiling in for the compressor.
@@ -149,6 +154,8 @@ function Screen({ tool }: Props) {
         budget={budget}
         resize={resize}
         format={format}
+        canvasReduction={canvasReduction}
+        video={video}
         formatters={formatters}
         pending={pending}
         done={done}
@@ -158,6 +165,8 @@ function Screen({ tool }: Props) {
         onBudget={setBudget}
         onResize={setResize}
         onFormat={setFormat}
+        onCanvasReduction={setCanvasReduction}
+        onVideo={setVideo}
         onStart={() => run(planForTool(tool, choices))}
         onCancelAll={queueActions.cancelAll}
         onDownload={() => void save.download(items)}

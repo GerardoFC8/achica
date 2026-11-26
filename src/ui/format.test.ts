@@ -65,7 +65,7 @@ describe('bytes', () => {
 })
 
 describe('percent and dimensions', () => {
-  const { percent, dimensions, count, ms } = createFormatters(DEFAULT_LOCALE)
+  const { percent, dimensions, count, ms, seconds } = createFormatters(DEFAULT_LOCALE)
 
   it('rounds percentages, because a saving of 66.4 % is 66 %', () => {
     expect(percent(0.664)).toBe('66%')
@@ -87,6 +87,13 @@ describe('percent and dimensions', () => {
 
   it('reports time in whole milliseconds', () => {
     expect(ms(1234.6)).toBe('1,235 ms')
+  })
+
+  it('writes seconds with a decimal only when there is one', () => {
+    expect(seconds(5)).toBe('5')
+    expect(seconds(1.5)).toBe('1.5')
+    expect(seconds(41.96)).toBe('42')
+    expect(createFormatters('es-ES').seconds(1.5)).toBe('1,5')
   })
 })
 

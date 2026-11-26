@@ -8,6 +8,7 @@ import { QueueRow } from './QueueRow'
 import { ToolProvider } from './tool-context'
 import { planForTool, profileForTool, type ToolChoices } from './tool-profiles'
 import { PERFILES, type Profile } from '../core/profiles'
+import { DEFAULT_VIDEO_SEGMENT } from '../core/animation/video-segment'
 import { NO_BUDGET } from './budget'
 import { DEFAULT_RESIZE } from './resize-choice'
 import { DEFAULT_FORMAT } from './format-choice'
@@ -17,6 +18,8 @@ const choices: ToolChoices = {
   budget: NO_BUDGET,
   resize: DEFAULT_RESIZE,
   format: DEFAULT_FORMAT,
+  canvasReduction: false,
+  video: DEFAULT_VIDEO_SEGMENT,
 }
 
 const item: QueueItem = {

@@ -1,6 +1,6 @@
 import type { Profile } from '../core/profiles'
 import type { ToolId } from '../tools/registry'
-import type { QueueItem } from '../state/queue'
+import type { ItemOutcome, QueueItem } from '../state/queue'
 import type { RemovedMetadata } from '../core/metadata'
 import type { Copy } from './copy'
 import type { StripFacts, StripPart } from './copy/es'
@@ -51,8 +51,53 @@ function budgetMark(item: QueueItem, profile: Profile): number | null {
   return profile.maxBytes / item.bytesBefore
 }
 
+/**
+ * The weight limit a finished row was judged against.
+ *
+ * An animation carries it in its own result, because the destination selected
+ * now may not be the one it was processed with: `withinBudget` is a verdict
+ * about that number, and a bar or a margin measured against another one would
+ * contradict it (D61). Every other row is measured against the selected
+ * profile, as before.
+ */
+export function appliedLimit(item: QueueItem, profile: Profile): number | undefined {
+  if (item.status === 'done' && item.outcome.animation !== undefined) {
+    return item.outcome.animation.limitBytes
+  }
+  return profile.maxBytes
+}
+
+/**
+ * True when a finished animation was fitted to a limit other than the selected
+ * destination's. The queue does not remember which destination a row used, so
+ * the limit is the evidence: it is the one thing the verdict depends on.
+ */
+export function processedWithOther(item: QueueItem, profile: Profile): boolean {
+  return (
+    item.status === 'done' &&
+    item.outcome.animation !== undefined &&
+    profile.maxBytes !== undefined &&
+    item.outcome.animation.limitBytes !== profile.maxBytes
+  )
+}
+
 export function rowKind(item: QueueItem, profile: Profile, tool: ToolId): RowKind {
   if (item.status !== 'done') return item.status
+
+  /*
+   * Discord's limit is somebody else's absolute one, not a share of the
+   * original: a file it would reject is `over` whatever the original weighed,
+   * and one that fits is `tight` once it uses more than 90 % of the limit. The
+   * verdict is the one the pipeline reached when the file was made, so
+   * choosing another destination afterwards does not rewrite it.
+   */
+  if (tool === 'discord') {
+    if (!item.outcome.withinBudget) return 'over'
+    const limit = appliedLimit(item, profile)
+    return limit !== undefined && item.outcome.bytesAfter > limit * TIGHT_FRACTION
+      ? 'tight'
+      : 'fits'
+  }
 
   // Only the compressor judges weight. The saving column still carries the
   // real sign, so a file that grew reads as grown, just not as a failure.
@@ -73,6 +118,27 @@ export function rowKind(item: QueueItem, profile: Profile, tool: ToolId): RowKin
   return 'fits'
 }
 
+/**
+ * The bar of a destination with an absolute limit: the track is the limit and
+ * the fill is the share of it the file uses. A file past the limit needs room
+ * to be drawn past it, so the track then stretches to the file and the mark
+ * (the limit) moves inside it, with the stretch after the mark hatched. Within
+ * the limit the mark is the right edge, which is where the limit is.
+ */
+function limitBar(item: QueueItem, limit: number): WeightBar {
+  if (item.status !== 'done') return { fill: 0, mark: 1, overflow: null }
+
+  const after = item.outcome.bytesAfter
+  const scale = Math.max(limit, after)
+  const mark = limit / scale
+
+  return {
+    fill: after / scale,
+    mark,
+    overflow: after > limit ? { start: mark, width: 1 - mark } : null,
+  }
+}
+
 export function weightBar(item: QueueItem, profile: Profile): WeightBar | null {
   /*
    * A file that failed has no final weight to plot, and one that was cancelled
@@ -80,6 +146,13 @@ export function weightBar(item: QueueItem, profile: Profile): WeightBar | null {
    * to nothing, which is the opposite of what happened.
    */
   if (item.status === 'failed' || item.status === 'cancelled') return null
+
+  if (item.status === 'done' && item.outcome.animation !== undefined) {
+    return limitBar(item, item.outcome.animation.limitBytes)
+  }
+  if (profile.animation !== undefined && profile.maxBytes !== undefined) {
+    return limitBar(item, profile.maxBytes)
+  }
 
   const mark = budgetMark(item, profile)
 
@@ -95,7 +168,18 @@ export function weightBar(item: QueueItem, profile: Profile): WeightBar | null {
   }
 }
 
-export function rowNote(item: QueueItem, formatters: Formatters, copy: Copy, tool: ToolId): string {
+export function rowNote(
+  item: QueueItem,
+  formatters: Formatters,
+  copy: Copy,
+  tool: ToolId,
+  /**
+   * The selected destination's limit. The note names the limit the row was
+   * judged against, which is the animation's own; this one only tells whether
+   * the selection has moved to another destination since.
+   */
+  selectedMaxBytes?: number,
+): string {
   const { note } = copy
 
   switch (item.status) {
@@ -109,6 +193,23 @@ export function rowNote(item: QueueItem, formatters: Formatters, copy: Copy, too
       return describeJobError(item.error, copy, tool)
     case 'done': {
       const { outcome } = item
+
+      if (outcome.animation !== undefined) {
+        const animation = animationNote(outcome, formatters, copy)
+        if (animation !== null) {
+          const other =
+            selectedMaxBytes !== undefined && selectedMaxBytes !== outcome.animation.limitBytes
+          // The verdict leads when the file does not fit: the row truncates, and
+          // that is the one thing that must not be cut.
+          return [
+            ...(animation.fits ? [] : [animation.verdict]),
+            animation.headline,
+            ...(animation.clip === null ? [] : [animation.clip]),
+            ...animation.steps,
+            ...(other ? [copy.note.animation.otherDestination] : []),
+          ].join(' · ')
+        }
+      }
 
       // The audit reads an image that did not come out lighter as good news:
       // nothing to gain there, and nothing wrong with it (D60).
@@ -172,6 +273,84 @@ export function stripFacts(metadata: RemovedMetadata, formatters: Formatters): S
 
 const removedNothing = (facts: StripFacts): boolean =>
   facts.parts.length === 0 && facts.trailing === null
+
+/** What the row says about an animation: the numbers, what was given up, and whether it fit. */
+export type AnimationNote = {
+  /** For example "15 fps · 32 colores · lienzo 320 × 320". */
+  readonly headline: string
+  /** What was given up to fit, in the order it was given up, in words. Empty when nothing was. */
+  readonly steps: readonly string[]
+  /**
+   * For a video: which part was kept, like "de 0 a 5 s de 42 s". It is the
+   * user's own choice of segment, so it is said as a fact and never as a
+   * verdict. Null for an animation that was not cut out of a video.
+   */
+  readonly clip: string | null
+  /** Whether the result is within the destination's weight limit. */
+  readonly fits: boolean
+  readonly verdict: string
+}
+
+/**
+ * The note for an animated result, or null for any other file. Pure: it reads
+ * the outcome and nothing else, so it is tested in Node.
+ */
+export function animationNote(
+  outcome: Pick<ItemOutcome, 'animation' | 'withinBudget' | 'width' | 'height' | 'bytesAfter'>,
+  formatters: Formatters,
+  copy: Copy,
+): AnimationNote | null {
+  const { animation } = outcome
+  if (animation === undefined) return null
+
+  const words = copy.note.animation
+  const steps: string[] = []
+
+  for (const step of animation.steps) {
+    switch (step.kind) {
+      case 'fps':
+        steps.push(words.steps.fps(formatters.count(step.to)))
+        break
+      case 'palette':
+        steps.push(words.steps.palette(step.colors))
+        break
+      case 'scale':
+        steps.push(words.steps.scale(Math.round(step.to * 100)))
+        break
+      case 'canvas':
+        steps.push(words.steps.canvas(step.to))
+        break
+      case 'optimise':
+        // Turning it on is the default, not something that was given up.
+        if (!step.on) steps.push(words.steps.diffOff)
+        break
+    }
+  }
+
+  const headline = [
+    words.fps(formatters.count(animation.fps)),
+    animation.colors === null ? words.fullColor : words.colors(animation.colors),
+    words.canvas(formatters.dimensions(outcome.width, outcome.height)),
+  ].join(' · ')
+
+  const { clip } = animation
+  return {
+    headline,
+    steps,
+    clip:
+      clip === undefined
+        ? null
+        : words.clip(
+            formatters.seconds(clip.startSeconds),
+            formatters.seconds(clip.startSeconds + clip.lengthSeconds),
+            formatters.seconds(clip.sourceDurationSeconds),
+          ),
+    fits: outcome.withinBudget,
+    verdict: outcome.withinBudget
+      ? words.fits
+      : words.over(formatters.bytes(outcome.bytesAfter), formatters.bytes(animation.limitBytes)),
+  }
+}
 
 /** Negative when the result grew, which the interface shows rather than hides. */
 export function savedRatio(item: QueueItem): number | null {
@@ -283,8 +462,15 @@ function detailsOf(
 
   const { outcome } = item
   const kind = rowKind(item, profile, tool)
+  // An animation is enlarged to its canvas, so its original weight says
+  // nothing about its room: the limit is the limit.
+  const limit = appliedLimit(item, profile)
   const ceiling =
-    profile.maxBytes === undefined ? null : Math.min(profile.maxBytes, item.bytesBefore)
+    limit === undefined
+      ? null
+      : outcome.animation !== undefined
+        ? limit
+        : Math.min(limit, item.bytesBefore)
   const margin = ceiling === null ? null : ceiling - outcome.bytesAfter
 
   if (outcome.metadata !== undefined) {
@@ -300,6 +486,63 @@ function detailsOf(
       { label: details.reencoding, value: details.reencodingNone },
       { label: details.kept, value: details.keptValue(facts.keptOrientation) },
       target,
+      {
+        label: details.saved,
+        value: `${formatters.bytes(item.bytesBefore - outcome.bytesAfter)} · ${formatters.percent(savedRatio(item) ?? 0)}`,
+        kind,
+      },
+      { label: details.time, value: formatters.ms(item.ms) },
+    ]
+  }
+
+  const animation = outcome.animation
+  if (animation !== undefined) {
+    const steps = animationNote(outcome, formatters, copy)?.steps ?? []
+    const { clip } = animation
+    return [
+      { label: details.output, value: outcome.format.toUpperCase() },
+      { label: details.dimensions, value: formatters.dimensions(outcome.width, outcome.height) },
+      { label: details.frames, value: formatters.count(animation.frames) },
+      { label: details.duration, value: formatters.ms(animation.durationMs) },
+      { label: details.fps, value: formatters.count(animation.fps) },
+      {
+        label: details.colors,
+        value:
+          animation.colors === null
+            ? copy.note.animation.fullColor
+            : formatters.count(animation.colors),
+      },
+      {
+        label: details.adjusted,
+        value: steps.length === 0 ? details.adjustedNothing : steps.join(', '),
+      },
+      { label: details.encodes, value: formatters.count(outcome.encodes) },
+      ...(clip === undefined
+        ? []
+        : [
+            {
+              label: details.clip,
+              value: details.clipValue(
+                formatters.seconds(clip.startSeconds),
+                formatters.seconds(clip.lengthSeconds),
+                formatters.seconds(clip.sourceDurationSeconds),
+              ),
+            },
+          ]),
+      // Says the limit the row was judged against, which may not be the
+      // selected destination's: the margin below is measured against it.
+      outcome.animation !== undefined && processedWithOther(item, profile)
+        ? { label: details.target, value: details.processedWithOther(formatters.bytes(limit ?? 0)) }
+        : target,
+      ...(margin === null
+        ? []
+        : [
+            {
+              label: margin >= 0 ? details.margin : details.excess,
+              value: formatters.bytes(Math.abs(margin)),
+              kind,
+            },
+          ]),
       {
         label: details.saved,
         value: `${formatters.bytes(item.bytesBefore - outcome.bytesAfter)} · ${formatters.percent(savedRatio(item) ?? 0)}`,

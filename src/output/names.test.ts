@@ -33,6 +33,23 @@ describe('outputName', () => {
   })
 })
 
+describe('outputName for animations', () => {
+  it('writes a GIF as .gif', () => {
+    expect(outputName('baile.webp', 'gif')).toBe('baile.gif')
+  })
+
+  it('writes an APNG as .png, because Discord marks .apng as an invalid asset', () => {
+    expect(outputName('baile.gif', 'apng')).toBe('baile.png')
+  })
+
+  it('keeps an APNG and a still with the same stem from overwriting each other', () => {
+    expect(uniqueNames([outputName('a.gif', 'apng'), outputName('a.png', 'png')])).toEqual([
+      'a.png',
+      'a-2.png',
+    ])
+  })
+})
+
 describe('uniqueNames', () => {
   it('leaves distinct names untouched', () => {
     expect(uniqueNames(['a.webp', 'b.webp'])).toEqual(['a.webp', 'b.webp'])

@@ -1,5 +1,5 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
-import { mimeTypeOf } from '../core/codecs/encode'
+import { mimeTypeOfKind } from '../core/output-kind'
 import type { OutputPlan, PipelineOutcome } from '../core/pipeline'
 import type { Pool } from '../workers/pool'
 import type { EncodeJob, JobError, JobEvent, JobId } from '../workers/protocol'
@@ -109,7 +109,7 @@ function applied(item: QueueItem, event: JobEvent): QueueItem {
   return {
     ...identity,
     status: 'done',
-    blob: new Blob([output], { type: mimeTypeOf(outcome.format) }),
+    blob: new Blob([output], { type: mimeTypeOfKind(outcome.format) }),
     outcome: rest,
     ms,
   }

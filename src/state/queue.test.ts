@@ -397,3 +397,79 @@ describe('totalsOf', () => {
     expect(totalsOf([])).toMatchObject({ done: 0, savedBytes: 0, savedRatio: 0 })
   })
 })
+
+describe('queue store with animations', () => {
+  it.each([
+    ['gif', 'image/gif'],
+    ['apng', 'image/png'],
+  ] as const)('types the blob of a %s result as %s', (format, mime) => {
+    const { drop, emit, itemAt } = harness()
+    drop([file('baile.gif', 300)])
+
+    const report = done(300, 100)
+    if (!report.ok) throw new Error('fixture')
+    emit({
+      type: 'settled',
+      id: 'job-1',
+      report: {
+        ok: true,
+        value: {
+          ms: 5,
+          outcome: {
+            ...report.value.outcome,
+            format,
+            withinBudget: false,
+            animation: {
+              frames: 3,
+              durationMs: 300,
+              fps: 10,
+              colors: 32,
+              steps: [],
+              limitBytes: 512_000,
+            },
+          },
+        },
+      },
+    })
+
+    const item = itemAt(0)
+    if (item.status !== 'done') throw new Error('not done')
+    expect(item.blob.type).toBe(mime)
+    // Carried through untouched: the row needs both to tell the user what happened.
+    expect(item.outcome.withinBudget).toBe(false)
+    expect(item.outcome.animation?.fps).toBe(10)
+  })
+
+  it('passes the animation plan to the pool as it is', () => {
+    const { drop, enqueued } = harness()
+    const plan: OutputPlan = {
+      format: 'keep',
+      maxBytes: 512_000,
+      animation: { layout: { kind: 'sticker', size: 320 }, format: 'apng' },
+    }
+
+    drop([file('baile.gif', 300)], plan)
+
+    expect(enqueued[0]?.plan).toEqual(plan)
+  })
+
+  it('shows an animation error as a failed row with its reason', () => {
+    const { drop, emit, itemAt } = harness()
+    drop([file('quieta.png', 300)])
+
+    emit({
+      type: 'settled',
+      id: 'job-1',
+      report: {
+        ok: false,
+        error: { code: 'animation-failed', reason: 'not-animated', detail: 'one frame' },
+      },
+    })
+
+    const item = itemAt(0)
+    expect(item.status).toBe('failed')
+    if (item.status === 'failed') {
+      expect(item.error).toMatchObject({ code: 'animation-failed', reason: 'not-animated' })
+    }
+  })
+})

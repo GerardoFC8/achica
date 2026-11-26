@@ -33,6 +33,11 @@ const percent = (value: number): string => `${(value * 100).toFixed(1)}%`
 const HATCH =
   'repeating-linear-gradient(135deg, var(--color-over) 0 2px, var(--color-paper) 2px 4px)'
 
+/**
+ * With an absolute limit (Discord) the track is the limit itself, so the mark
+ * sits at its end; a file past the limit stretches the track and the mark moves
+ * inside it. The geometry is decided in row-model.ts.
+ */
 export function WeightBar({ bar, kind, description }: Props) {
   // A file that failed has no final weight to plot, and an empty track would
   // read as one that compressed to nothing.
@@ -65,7 +70,9 @@ export function WeightBar({ bar, kind, description }: Props) {
       {bar.mark === null ? null : (
         <div
           className="absolute -top-px -bottom-px w-0.5 bg-ink"
-          style={{ left: percent(bar.mark) }}
+          // A mark at the very end (a limit the file is inside of) is kept on
+          // the track instead of hanging its width past the edge.
+          style={{ left: bar.mark >= 1 ? 'calc(100% - 2px)' : percent(bar.mark) }}
         />
       )}
     </div>

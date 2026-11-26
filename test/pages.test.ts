@@ -132,6 +132,7 @@ describe('the registry', () => {
       ['/redimensionar-imagenes/', '/en/resize-images/'],
       ['/convertir-imagenes/', '/en/convert-images/'],
       ['/quitar-exif/', '/en/remove-exif/'],
+      ['/stickers-emojis-discord/', '/en/discord-stickers-emojis/'],
       ['/auditar-imagenes-web/', '/en/audit-web-images/'],
     ])
 

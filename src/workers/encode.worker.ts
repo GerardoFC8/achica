@@ -1,5 +1,13 @@
 import * as Comlink from 'comlink'
-import { processImage, type OutputPlan } from '../core/pipeline'
+import type { Frame, FramesContext } from '../core/animation'
+import {
+  processImage,
+  processVideoFrames,
+  type OutputPlan,
+  type PipelineError,
+  type PipelineOutcome,
+} from '../core/pipeline'
+import type { Result } from '../core/result'
 import type { JobReport } from './protocol'
 
 /**
@@ -19,7 +27,24 @@ async function encodeFile(file: File, plan: OutputPlan): Promise<JobReport> {
   const startedAt = performance.now()
 
   const bytes = await file.arrayBuffer()
-  const result = await processImage(bytes, plan)
+  return toReport(await processImage(bytes, plan), startedAt)
+}
+
+/**
+ * Frames the main thread extracted from a video, already at their final size.
+ * Their buffers arrive transferred, so the main thread no longer holds them.
+ * The clock starts here: the extraction is timed by whoever ran it.
+ */
+async function encodeFrames(
+  frames: readonly Frame[],
+  context: FramesContext,
+  plan: OutputPlan,
+): Promise<JobReport> {
+  const startedAt = performance.now()
+  return toReport(await processVideoFrames(frames, plan, context), startedAt)
+}
+
+function toReport(result: Result<PipelineOutcome, PipelineError>, startedAt: number): JobReport {
   const ms = Math.round(performance.now() - startedAt)
 
   if (!result.ok) return { ok: false, error: result.error }
@@ -37,6 +62,6 @@ async function encodeFile(file: File, plan: OutputPlan): Promise<JobReport> {
   return buffer instanceof ArrayBuffer ? Comlink.transfer(report, [buffer]) : report
 }
 
-export type EncodeApi = { encodeFile: typeof encodeFile }
+export type EncodeApi = { encodeFile: typeof encodeFile; encodeFrames: typeof encodeFrames }
 
-Comlink.expose({ encodeFile } satisfies EncodeApi)
+Comlink.expose({ encodeFile, encodeFrames } satisfies EncodeApi)

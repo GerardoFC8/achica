@@ -30,6 +30,7 @@ export const loaders: Record<ToolId, () => Promise<ToolModule>> = {
   redimensionar: screen,
   convertir: screen,
   'quitar-exif': screen,
+  discord: screen,
   auditar: screen,
 }
 
