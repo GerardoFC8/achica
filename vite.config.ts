@@ -82,14 +82,16 @@ export default defineConfig({
          * It is where the ZIP fallback stops being a consolation prize and
          * becomes the only road: Firefox has no File System Access API, so a
          * suite that only ever runs in Chromium never exercises the path most
-         * of the world takes. Scoped rather than a second full run because
+         * of the world takes. The animation writers are in scope too: their
+         * oracle is each browser's own GIF and PNG decoder, so Firefox's
+         * decoder is a separate check, not a repeat. Scoped rather than a second full run because
          * what phase 4 has to prove is that both save paths work in both
          * browsers, and the codec suite costs minutes.
          */
         extends: true,
         test: {
           name: 'firefox',
-          include: ['src/output/**/*.browser-test.ts'],
+          include: ['src/output/**/*.browser-test.ts', 'src/core/animation/**/*.browser-test.ts'],
           browser: {
             enabled: true,
             provider: playwright(),
