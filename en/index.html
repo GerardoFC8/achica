@@ -16,7 +16,10 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- The English twin of /index.html (D54). Same structure, its own words. -->
+    <!--
+      Read by the link previews of WhatsApp, X, LinkedIn and Slack, none of
+      which run JavaScript. Absolute URLs because a crawler resolves nothing.
+    -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="achica" />
     <meta property="og:locale" content="en_US" />
@@ -64,8 +67,12 @@
       }
     </script>
   </head>
-  <body>
-    <!-- Filled at build time with the first screen, in English (scripts/prerender.mjs). -->
+  <body data-tool="comprimir">
+    <!--
+      Empty in the source. The build fills it with the first screen rendered
+      ahead of time (scripts/prerender.mjs), so the page reads the same before
+      and after the script runs, and to readers that never run it.
+    -->
     <div id="app"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

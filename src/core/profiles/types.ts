@@ -16,7 +16,8 @@ import type { OutputPlan } from '../pipeline'
  * rejected.
  */
 
-export type ProfileGroup = 'Web' | 'Correo' | 'Mensajería' | 'Miniatura'
+export type ProfileGroup =
+  'Web' | 'Correo' | 'Mensajería' | 'Miniatura' | 'Tamaño' | 'Formato' | 'Metadatos' | 'Auditoría'
 
 export type Profile = {
   readonly id: string
@@ -42,6 +43,8 @@ export type Profile = {
   readonly maxBytes?: number
   readonly maxWidth?: number
   readonly maxHeight?: number
+  /** Factor in (0, 1) applied to the decoded size, before the limits. */
+  readonly scale?: number
   readonly minQuality?: number
   readonly quality?: number
   /**
@@ -53,8 +56,14 @@ export type Profile = {
    * outside the agreed stack, and it would also have to normalise the
    * orientation tag to 1 — leaving the original tag on pixels that are already
    * rotated makes every viewer rotate them a second time.
+   *
+   * Not the same thing as `stripOnly` below: this one says the recompress path
+   * writes no metadata of its own; `stripOnly` removes it from the original
+   * file's bytes without recompressing.
    */
   readonly stripMetadata: boolean
+  /** Remove the metadata from the container and return the same image (see `OutputPlan.stripOnly`). */
+  readonly stripOnly?: boolean
   /** What this profile does, and why. Shown in the interface. */
   readonly note?: string
 }
@@ -72,7 +81,9 @@ export function toOutputPlan(profile: Profile): OutputPlan {
     ...(profile.maxBytes === undefined ? {} : { maxBytes: profile.maxBytes }),
     ...(profile.maxWidth === undefined ? {} : { maxWidth: profile.maxWidth }),
     ...(profile.maxHeight === undefined ? {} : { maxHeight: profile.maxHeight }),
+    ...(profile.scale === undefined ? {} : { scale: profile.scale }),
     ...(profile.minQuality === undefined ? {} : { minQuality: profile.minQuality }),
     ...(profile.quality === undefined ? {} : { quality: profile.quality }),
+    ...(profile.stripOnly === undefined ? {} : { stripOnly: profile.stripOnly }),
   }
 }

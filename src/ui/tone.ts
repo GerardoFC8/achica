@@ -16,6 +16,7 @@ export const TEXT_TONE: Readonly<Record<RowKind, string>> = {
   fits: 'text-fits',
   tight: 'text-tight',
   over: 'text-over',
+  done: 'text-ink',
   failed: 'text-over',
   cancelled: 'text-ink-soft',
 }
@@ -26,6 +27,7 @@ export const FILL_TONE: Readonly<Record<RowKind, string>> = {
   fits: 'bg-fits',
   tight: 'bg-tight',
   over: 'bg-over',
+  done: 'bg-ink',
   failed: 'bg-over',
   cancelled: 'bg-ink-soft',
 }
@@ -37,6 +39,7 @@ export const STRIPE_TONE: Readonly<Record<RowKind, string>> = {
   fits: 'var(--color-fits)',
   tight: 'var(--color-tight)',
   over: 'var(--color-over)',
+  done: 'var(--color-ink)',
   failed: 'var(--color-over)',
   cancelled: 'var(--color-ink-soft)',
 }

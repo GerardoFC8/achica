@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Measure the savings on the images of a page from a HAR, no upload | achica</title>
+    <meta
+      name="description"
+      content="Drop a HAR file of your page and measure how much you would save by recompressing its images with achica, in your browser and without uploading anything. JPEG, PNG, WebP and AVIF; whatever cannot be measured is listed with the reason. No account, free and open source."
+    />
+    <link rel="canonical" href="https://achica.gfcode.dev/en/audit-web-images/" />
+    <link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/auditar-imagenes-web/" />
+    <link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/audit-web-images/" />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://achica.gfcode.dev/auditar-imagenes-web/"
+    />
+    <meta name="theme-color" content="#f2f1ec" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!--
+      Read by the link previews of WhatsApp, X, LinkedIn and Slack, none of
+      which run JavaScript. Absolute URLs because a crawler resolves nothing.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="achica" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="es_ES" />
+    <meta property="og:url" content="https://achica.gfcode.dev/en/audit-web-images/" />
+    <meta
+      property="og:title"
+      content="achica: measure how much you would save on the images of a page, with no upload"
+    />
+    <meta
+      property="og:description"
+      content="Drop a HAR of your page: it is read in your browser and not a byte leaves your device. JPEG, PNG, WebP and AVIF."
+    />
+    <meta property="og:image" content="https://achica.gfcode.dev/og-en.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="achica, batch image tools: three weight bars on light paper"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "achica: audit web images",
+        "url": "https://achica.gfcode.dev/en/audit-web-images/",
+        "description": "Measures how much you would save by recompressing the images in a HAR file. Runs entirely in the browser, with no backend and no account.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Any with a current browser",
+        "browserRequirements": "Requires JavaScript and WebAssembly",
+        "inLanguage": "en",
+        "isAccessibleForFree": true,
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+          "Reads a HAR file of your page in your browser, without uploading it",
+          "Recompresses its JPEG, PNG, WebP and AVIF images and measures the saving",
+          "Lists what it cannot measure, with the reason",
+          "Download as a ZIP or straight into a folder",
+          "No image ever leaves the device"
+        ]
+      }
+    </script>
+  </head>
+  <body data-tool="auditar">
+    <!--
+      Empty in the source. The build fills it with the first screen rendered
+      ahead of time (scripts/prerender.mjs), so the page reads the same before
+      and after the script runs, and to readers that never run it.
+    -->
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

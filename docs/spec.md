@@ -31,13 +31,13 @@ Existen competidores (Asset Melt, PicsSizer, GetCompress, TinyPNG). El proyecto 
 
 Rechaza estas funciones si aparecen durante el desarrollo. Son las que convierten herramientas pequeñas en proyectos abandonados:
 
-- Editor de imágenes (recorte manual, filtros, texto, dibujo)
 - Cuentas de usuario, sincronización en la nube, historial en servidor
 - Backend de cualquier tipo, incluso "solo para analytics"
 - Eliminación de fondo, upscaling con IA, cualquier modelo pesado
-- Soporte a video
 - Internacionalización más allá de español e inglés
 - App de escritorio o extensión de navegador en la v1
+
+> **Enmienda D56.** El editor de imágenes y el soporte a video salieron de esta lista cuando achica pasó de un compresor a una suite de herramientas de imagen. Entran solo como herramientas con ruta y texto propios (no como funciones dentro del compresor), sin romper la promesa de cero peticiones de red y sin una dependencia o licencia que choque con el eje MIT sin decisión escrita aparte. Ver `docs/decisiones.md`.
 
 ---
 

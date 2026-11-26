@@ -11,6 +11,9 @@
     "erasableSyntaxOnly": true,
     "resolveJsonModule": true,
     "noEmit": true,
+    // The scripts and vite.config.ts load src/tools/ through Node itself, which
+    // needs the extension in every import (D57).
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
 
     "strict": true,

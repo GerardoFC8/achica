@@ -29,3 +29,4 @@ blob-report/
 
 # Vitest browser attachments (failure screenshots, traces)
 .vitest-attachments/
+.wrangler/

@@ -1,3 +1,4 @@
+import { flattenOnWhite, hasTransparency } from './alpha'
 import { searchQualityForBudget } from './budget'
 import { decodeImage, type DecodeError } from './codecs/decode'
 import {
@@ -8,7 +9,8 @@ import {
   type OutputFormat,
 } from './codecs/encode'
 import { detectSupportedFormat, type DetectionError } from './detect'
-import { fitWithin, isSameSize, resampleImage, scaleBy, type Dimensions } from './resize'
+import { stripMetadata, type RemovedMetadata, type StripError } from './metadata'
+import { isSameSize, resampleImage, resolveTargetSize, scaleBy, type Dimensions } from './resize'
 import { err, ok, type Result } from './result'
 
 /**
@@ -29,6 +31,11 @@ export type OutputPlan = {
   readonly maxBytes?: number
   readonly maxWidth?: number
   readonly maxHeight?: number
+  /**
+   * Factor in (0, 1) applied to the decoded size before the limits above.
+   * Never enlarges; see `resolveTargetSize` for how invalid values behave.
+   */
+  readonly scale?: number
   readonly minQuality?: number
   /** Used only when there is no budget to search against. */
   readonly quality?: number
@@ -42,6 +49,12 @@ export type OutputPlan = {
    * that already fits keeps its format either way (D53).
    */
   readonly losslessUnderBudget?: OutputFormat
+  /**
+   * Remove the metadata from the container bytes and return the same image:
+   * no decode, no resize, no encode. Every other field is ignored. Not to be
+   * confused with `Profile.stripMetadata`, which describes the recompress path.
+   */
+  readonly stripOnly?: boolean
 }
 
 export type PipelineOutcome = {
@@ -60,9 +73,11 @@ export type PipelineOutcome = {
   /** True when the format changed only because the budget asked for it. */
   readonly convertedForBudget: boolean
   readonly encodes: number
+  /** Set only by a strip-only plan: what was removed from the file. */
+  readonly metadata?: RemovedMetadata
 }
 
-export type PipelineError = DetectionError | DecodeError | EncodeError
+export type PipelineError = DetectionError | DecodeError | EncodeError | StripError
 
 const DEFAULT_QUALITY = 75
 
@@ -149,11 +164,35 @@ async function bestAtCurrentSize(
   }
 }
 
+/** The strip-only path: container surgery, so none of the codec bookkeeping applies. */
+function stripOnly(bytes: ArrayBuffer): Result<PipelineOutcome, PipelineError> {
+  const stripped = stripMetadata(new Uint8Array(bytes))
+  if (!stripped.ok) return err(stripped.error)
+
+  const { value } = stripped
+  return ok({
+    output: value.bytes,
+    format: value.format,
+    bytesBefore: bytes.byteLength,
+    bytesAfter: value.bytes.length,
+    width: value.width,
+    height: value.height,
+    quality: null,
+    withinBudget: true,
+    shrunkForBudget: null,
+    convertedForBudget: false,
+    encodes: 0,
+    metadata: value.removed,
+  })
+}
+
 export async function processImage(
   bytes: ArrayBuffer,
   plan: OutputPlan,
 ): Promise<Result<PipelineOutcome, PipelineError>> {
   const bytesBefore = bytes.byteLength
+
+  if (plan.stripOnly === true) return stripOnly(bytes)
 
   const detected = detectSupportedFormat(new Uint8Array(bytes))
   if (!detected.ok) return err(detected.error)
@@ -168,8 +207,22 @@ export async function processImage(
   // The plan's own dimension limits apply first. Anything past this point is
   // the budget loop choosing to go smaller than was asked for.
   let image = decoded.value
-  const requested = fitWithin(image, plan)
+  const requested = resolveTargetSize(image, plan)
   if (!isSameSize(image, requested)) image = await resampleImage(image, requested)
+
+  /*
+   * JPEG cannot hold transparency, so an image headed there is composited on
+   * white once, here, and not inside the encode callback: the budget search
+   * encodes the same pixels many times and flattening each attempt would be
+   * pure waste. It runs after the resize because that is fewer pixels, and the
+   * shrink loop further down resamples the flattened image, which stays opaque.
+   * Called again when a lossless file switches to the fallback format, since
+   * that format may be JPEG too. Every other output keeps its alpha.
+   */
+  const flattenForJpeg = (): void => {
+    if (format === 'jpeg' && hasTransparency(image)) image = flattenOnWhite(image)
+  }
+  flattenForJpeg()
 
   let encodes = 0
   let encodeFailure: EncodeError | null = null
@@ -229,6 +282,7 @@ export async function processImage(
 
       format = fallback
       convertedForBudget = true
+      flattenForJpeg()
     }
 
     /*

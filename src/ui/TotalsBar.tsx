@@ -1,5 +1,6 @@
 import type { QueueTotals } from '../state/queue'
 import { useCopy } from './copy'
+import { useTool, useToolWords } from './tool-context'
 import type { Formatters } from './format'
 import type { FilterCounts } from './queue-view'
 
@@ -31,6 +32,7 @@ const SEGMENTS = [
     fill: 'repeating-linear-gradient(135deg, var(--color-over) 0 2px, var(--color-paper) 2px 4px)',
     text: 'text-over',
   },
+  { key: 'done', fill: 'var(--color-ink)', text: 'text-ink' },
   { key: 'failed', fill: 'var(--color-over)', text: 'text-over' },
   { key: 'cancelled', fill: 'var(--color-ink-soft)', text: 'text-ink-soft' },
 ] as const
@@ -45,6 +47,8 @@ export function TotalsBar({
   onClear,
 }: Props) {
   const { totals: words } = useCopy()
+  const toolWords = useToolWords()
+  const tool = useTool()
   const present = SEGMENTS.filter((segment) => counts[segment.key] > 0)
   const finished = totals.done > 0
 
@@ -65,7 +69,7 @@ export function TotalsBar({
       <div className="flex min-h-13 flex-wrap items-center gap-x-3.5 gap-y-1.5 px-4 py-1.5">
         <p className="tnum text-sm whitespace-nowrap">
           {finished
-            ? words.compressed(totals.done, formatters.count(totals.done))
+            ? toolWords.finished(totals.done, formatters.count(totals.done))
             : words.queued(queued, formatters.count(queued))}
         </p>
         <span className="text-ink-soft">·</span>
@@ -79,10 +83,12 @@ export function TotalsBar({
             <span className="text-ink-soft">·</span>
             <p
               className={`tnum text-sm whitespace-nowrap ${
-                totals.savedRatio > 0 ? 'text-fits' : 'text-ink-soft'
+                tool === 'comprimir' && totals.savedRatio > 0 ? 'text-fits' : 'text-ink-soft'
               }`}
             >
-              {words.less(formatters.percent(totals.savedRatio))}
+              {totals.savedRatio >= 0
+                ? words.less(formatters.percent(totals.savedRatio))
+                : words.more(formatters.percent(-totals.savedRatio))}
             </p>
           </>
         ) : null}

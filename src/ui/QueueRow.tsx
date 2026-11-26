@@ -1,8 +1,11 @@
 import type { Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
+import type { ToolId } from '../tools/registry'
+import { useAudit } from '../state/audit-store'
 import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
 import { rowDetails, rowNote, savedRatio, weightBar, type RowKind } from './row-model'
+import { useTool } from './tool-context'
 import { STRIPE_TONE, TEXT_TONE } from './tone'
 import { WeightBar } from './WeightBar'
 
@@ -26,8 +29,9 @@ function describeBar(
   profile: Profile,
   formatters: Formatters,
   copy: Copy,
+  tool: ToolId,
 ): string {
-  if (item.status !== 'done') return rowNote(item, formatters, copy)
+  if (item.status !== 'done') return rowNote(item, formatters, copy, tool)
 
   return copy.row.bar(
     formatters.bytes(item.bytesBefore),
@@ -53,8 +57,10 @@ export function QueueRow({
   const tone = TEXT_TONE[kind]
   const running = item.status === 'pending' || item.status === 'running'
   const copy = useCopy()
-  const note = rowNote(item, formatters, copy)
-  const details = expanded ? rowDetails(item, profile, formatters, copy) : []
+  const tool = useTool()
+  const note = rowNote(item, formatters, copy, tool)
+  const origin = useAudit((state) => state.audit?.origins.get(item.name))
+  const details = expanded ? rowDetails(item, profile, formatters, copy, tool, origin) : []
 
   const after = item.status === 'done' ? formatters.bytes(item.outcome.bytesAfter) : '—'
   const savedText = saved === null ? '' : formatters.percent(saved)
@@ -125,7 +131,7 @@ export function QueueRow({
           <WeightBar
             bar={weightBar(item, profile)}
             kind={kind}
-            description={describeBar(item, profile, formatters, copy)}
+            description={describeBar(item, profile, formatters, copy, tool)}
           />
         </div>
 
@@ -145,13 +151,16 @@ export function QueueRow({
           ) : null}
           {item.status === 'done' ? (
             <>
-              <button
-                type="button"
-                onClick={onCompare}
-                className="h-11 rounded-sm border border-rule px-3 text-[13px] hover:border-ink-soft md:h-5 md:px-2 md:text-xs"
-              >
-                {copy.row.compare}
-              </button>
+              {/* A cleaned file has the same pixels as its source: nothing to compare. */}
+              {profile.stripOnly === true ? null : (
+                <button
+                  type="button"
+                  onClick={onCompare}
+                  className="h-11 rounded-sm border border-rule px-3 text-[13px] hover:border-ink-soft md:h-5 md:px-2 md:text-xs"
+                >
+                  {copy.row.compare}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onSave}

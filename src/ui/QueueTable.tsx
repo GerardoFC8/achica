@@ -1,5 +1,6 @@
 import type { Profile } from '../core/profiles'
 import { useCopy } from './copy'
+import { useToolWords } from './tool-context'
 import type { Formatters } from './format'
 import type { SortDirection, SortKey, ViewRow } from './queue-view'
 import { QueueRow } from './QueueRow'
@@ -46,10 +47,11 @@ export function QueueTable({
   onSave,
 }: Props) {
   const { table } = useCopy()
+  const words = useToolWords()
   const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.item.id))
 
   return (
-    <div role="table" aria-label={table.label} className="flex min-h-0 flex-1 flex-col">
+    <div role="table" aria-label={words.tableLabel} className="flex min-h-0 flex-1 flex-col">
       <div
         role="row"
         className="queue-head hidden border-b border-rule text-xs leading-4 text-ink-soft md:grid"
@@ -85,7 +87,7 @@ export function QueueTable({
         ))}
 
         <div role="columnheader" className="cell-bar hidden md:block">
-          {table.weight}
+          {words.weightHeader}
         </div>
         <div role="columnheader" className="cell-actions hidden md:block" />
       </div>

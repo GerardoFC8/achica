@@ -1,5 +1,9 @@
 import type { JobError } from '../workers/protocol'
+import type { ToolId } from '../tools/registry'
+import { MAX_ENTRIES } from '../core/har'
 import type { Copy } from './copy'
+import type { Formatters } from './format'
+import { MAX_HAR_BYTES, type IntakeError } from './har-intake'
 
 /**
  * A typed code becomes a sentence here, and only here.
@@ -25,12 +29,12 @@ const FORMAT_NAMES: Readonly<Record<string, string>> = {
 /** How a format is written in a sentence, which is not how its extension is. */
 export const formatName = (format: string): string => FORMAT_NAMES[format] ?? format.toUpperCase()
 
-export function describeJobError(error: JobError, copy: Copy): string {
+export function describeJobError(error: JobError, copy: Copy, tool: ToolId): string {
   const { errors } = copy
 
   switch (error.code) {
     case 'empty-file':
-      return errors.emptyFile
+      return copy.tools[tool].emptyFile
 
     case 'unknown-format':
       return errors.unknownFormat
@@ -44,7 +48,41 @@ export function describeJobError(error: JobError, copy: Copy): string {
     case 'encode-failed':
       return errors.encodeFailed(formatName(error.format))
 
+    case 'strip-unsupported':
+      return errors.stripUnsupported(formatName(error.format))
+
+    case 'corrupt':
+      return errors.corrupt(formatName(error.format))
+
     case 'worker-crashed':
       return errors.workerCrashed
+  }
+}
+
+/** A rejected HAR, in words that say what to do about it. */
+export function describeIntakeError(
+  error: IntakeError,
+  copy: Copy,
+  formatters: Formatters,
+): string {
+  const { errors } = copy.audit
+
+  switch (error.code) {
+    case 'not-json':
+      return errors.notJson
+    case 'not-har':
+      return errors.notHar
+    case 'too-many-entries':
+      return errors.tooManyEntries(formatters.count(error.count), formatters.count(MAX_ENTRIES))
+    case 'too-large':
+      return errors.tooLarge(formatters.bytes(error.bytes), formatters.bytes(MAX_HAR_BYTES))
+    case 'several-files':
+      return errors.severalFiles
+    case 'read-failed':
+      return errors.readFailed
+    case 'no-images': {
+      const base = errors.noImages(error.imageEntries, formatters.count(error.imageEntries))
+      return error.noContent ? `${base}. ${errors.noImagesNoContent}` : base
+    }
   }
 }

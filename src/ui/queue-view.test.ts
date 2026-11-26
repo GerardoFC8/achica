@@ -61,16 +61,23 @@ const ITEMS: readonly QueueItem[] = [
   { id: '7', file: source('corre.jpg'), name: 'corre.jpg', bytesBefore: 900, status: 'running' },
 ]
 
-const rows = buildRows(ITEMS, PROFILE)
+const rows = buildRows(ITEMS, PROFILE, 'comprimir')
 const namesOf = (list: ReturnType<typeof visibleRows>): string[] => list.map((row) => row.item.name)
 
 describe('countsOf', () => {
+  it('files every finished result as done in the tools that do not weigh', () => {
+    const counts = countsOf(buildRows(ITEMS, PROFILE, 'convertir'))
+
+    expect(counts).toMatchObject({ fits: 0, tight: 0, over: 0, done: 3, failed: 1, pending: 2 })
+  })
+
   it('counts every outcome the filters offer', () => {
     expect(countsOf(rows)).toEqual({
       todos: 7,
       fits: 1,
       tight: 1,
       over: 1,
+      done: 0,
       failed: 1,
       cancelled: 1,
       pending: 2,
