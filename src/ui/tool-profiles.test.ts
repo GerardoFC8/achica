@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PERFILES, toOutputPlan } from '../core/profiles'
+import { DISCORD_PERFILES, PERFILES, toOutputPlan } from '../core/profiles'
 import { NO_BUDGET } from './budget'
 import { DEFAULT_FORMAT } from './format-choice'
 import { DEFAULT_RESIZE } from './resize-choice'
@@ -7,6 +7,7 @@ import {
   AUDIT_PROFILE,
   defaultDestination,
   destinationsFor,
+  isSticker,
   planForTool,
   profileForTool,
   type ToolChoices,
@@ -23,6 +24,7 @@ const choices = (destination = AUDIT_PROFILE): ToolChoices => ({
   budget: { maxBytes: 100_000, png: 'webp' },
   resize: DEFAULT_RESIZE,
   format: DEFAULT_FORMAT,
+  canvasReduction: false,
 })
 
 describe('the audit destination', () => {
@@ -78,5 +80,71 @@ describe('what the audit offers', () => {
   it('keeps the compressor on its own budget', () => {
     expect(planForTool('comprimir', choices()).maxBytes).toBe(100_000)
     expect(NO_BUDGET.maxBytes).toBeNull()
+  })
+})
+
+describe('what Discord offers', () => {
+  const [stickerGif, stickerApng, emojiGif] = DISCORD_PERFILES
+  if (stickerGif === undefined || stickerApng === undefined || emojiGif === undefined) {
+    throw new Error('the Discord catalogue changed shape')
+  }
+
+  it('offers its own three destinations, the GIF sticker first', () => {
+    expect(destinationsFor('discord')).toBe(DISCORD_PERFILES)
+    expect(defaultDestination('discord')).toBe(stickerGif)
+    expect(stickerGif.id).toBe('discord-sticker-gif')
+  })
+
+  it('knows which of them has a canvas to reduce', () => {
+    expect(isSticker(stickerGif)).toBe(true)
+    expect(isSticker(stickerApng)).toBe(true)
+    expect(isSticker(emojiGif)).toBe(false)
+    expect(isSticker(PERFILES[0] ?? stickerGif)).toBe(PERFILES[0] === undefined)
+  })
+
+  it('plans an animation at the profile limit, with the canvas fixed unless asked', () => {
+    const plan = planForTool('discord', choices(stickerGif))
+
+    expect(plan.maxBytes).toBe(512_000)
+    expect(plan.animation).toEqual({
+      layout: { kind: 'sticker', size: 320 },
+      format: 'gif',
+    })
+    expect(plan.animation?.allowCanvasReduction).toBeUndefined()
+  })
+
+  it('asks for the 256 px canvas only when the box is ticked, and only for a sticker', () => {
+    const ticked = (destination: typeof stickerGif) => ({
+      ...choices(destination),
+      canvasReduction: true,
+    })
+
+    expect(planForTool('discord', ticked(stickerGif)).animation?.allowCanvasReduction).toBe(true)
+    expect(planForTool('discord', ticked(stickerApng)).animation).toMatchObject({
+      format: 'apng',
+      allowCanvasReduction: true,
+    })
+    // An emoji is shrunk instead, so the choice must not leak into its plan.
+    expect(planForTool('discord', ticked(emojiGif)).animation?.allowCanvasReduction).toBeUndefined()
+    expect(planForTool('discord', ticked(emojiGif)).maxBytes).toBe(256_000)
+  })
+
+  it('measures every row against the same profile the plan was made from', () => {
+    const ticked = { ...choices(stickerGif), canvasReduction: true }
+
+    expect(profileForTool('discord', ticked).animation?.allowCanvasReduction).toBe(true)
+    expect(profileForTool('discord', choices(stickerGif))).toBe(stickerGif)
+  })
+
+  it('does not hand the weight ceiling or the other tools choices to Discord', () => {
+    expect(planForTool('discord', choices(stickerGif)).format).toBe('keep')
+  })
+
+  it('never gives an animation to the tools whose destinations are not Discord', () => {
+    const web = PERFILES[0] ?? stickerGif
+
+    for (const tool of ['comprimir', 'redimensionar', 'convertir', 'quitar-exif'] as const) {
+      expect(planForTool(tool, choices(web)).animation, tool).toBeUndefined()
+    }
   })
 })

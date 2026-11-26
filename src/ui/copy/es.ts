@@ -30,6 +30,8 @@ export interface ToolWords {
   readonly start: (pending: number, count: string) => string
   /** What a row says while its file is being worked on. */
   readonly running: string
+  /** A short line under the heading, for a tool that takes a narrower set of inputs. */
+  readonly hint?: string
   /** The totals line once something has finished. */
   readonly finished: (done: number, count: string) => string
   /** The selection action that runs the same files again. */
@@ -159,6 +161,19 @@ export const es = {
       weightHeader: 'Peso antes y después',
       resultAlt: (name) => `${name}, limpiada`,
     },
+    discord: {
+      heading: 'Arrastra aquí las animaciones que quieres convertir en sticker o emoji de Discord',
+      hint: 'GIF, APNG o WebP animado',
+      start: (pending, count) => `Preparar ${count} ${plural(pending, 'animación', 'animaciones')}`,
+      running: 'Preparando',
+      finished: (done, count) =>
+        `${count} ${plural(done, 'animación lista', 'animaciones listas')}`,
+      again: 'Preparar de nuevo',
+      emptyFile: 'Archivo vacío, no hay ninguna animación que preparar',
+      tableLabel: 'Cola de animaciones',
+      weightHeader: 'Peso contra el límite de Discord',
+      resultAlt: (name) => `${name}, ajustada para Discord`,
+    },
     auditar: {
       heading: 'Arrastra aquí el archivo HAR de la página que quieres medir',
       start: (pending, count) =>
@@ -180,6 +195,7 @@ export const es = {
       redimensionar: 'Redimensionar',
       convertir: 'Convertir',
       'quitar-exif': 'Quitar EXIF',
+      discord: 'Discord',
       auditar: 'Auditar web',
     } satisfies Record<ToolId, string>,
   },
@@ -255,6 +271,15 @@ export const es = {
 
   destination: {
     ourAdvice: 'Recomendación nuestra',
+    /** Replaces "our advice" on a destination whose limit is somebody else's. */
+    theirLimit: 'Límite de peso que Discord publica',
+    source: 'Fuente',
+    verifiedAt: (date: string) => `verificado el ${date}`,
+    /** Said once, under the Discord destinations: the file fits the numbers, not the verdict. */
+    notAGuarantee:
+      'El archivo se ajusta a los límites de peso que Discord publica, pero no se garantiza que lo acepte: conviene probarlo.',
+    canvasReduction: 'Si no entra, reducir el lienzo a 256 px',
+    canvasReductionNote: 'Discord lo aceptó en nuestras pruebas, pero su pantalla pide 320 × 320',
     ceiling: (bytes: string) => `máx. ${bytes}`,
     originalSize: 'tamaño original',
     group: (group: ProfileGroup): string => group,
@@ -354,6 +379,8 @@ export const es = {
     compare: 'Comparar',
     download: 'Descargar',
     downloadTitle: (name: string) => `Descargar ${name}`,
+    /** The bar of a destination with an absolute limit: the track is the limit. */
+    limitBar: (weight: string, limit: string) => `quedó en ${weight}, con un límite de ${limit}`,
     bar: (from: string, weight: string, budget: string | null) =>
       budget === null
         ? `${from} quedó en ${weight}, sin presupuesto`
@@ -388,8 +415,8 @@ export const es = {
         diffOff: 'recorte por diferencias desactivado',
       },
       fits: 'Entra en el límite',
-      over: (size: string) =>
-        `No entra en el límite: es la versión más pequeña que se pudo hacer (${size})`,
+      over: (size: string, limit: string) =>
+        `No entra en el límite de ${limit}: es la versión más pequeña que se pudo hacer (${size})`,
     },
     stripped: (facts: StripFacts) =>
       facts.parts.includes('exif-unreadable')
@@ -420,6 +447,13 @@ export const es = {
     excess: 'Exceso',
     saved: 'Ahorro',
     time: 'Tiempo en el worker',
+    frames: 'Fotogramas',
+    duration: 'Duración',
+    fps: 'Fotogramas por segundo',
+    colors: 'Colores',
+    adjusted: 'Se ajustó',
+    adjustedNothing: 'nada, entró tal cual',
+    preview: 'Vista previa',
     stripTarget: 'quitar metadatos, sin recodificar',
     removed: 'Se quitó',
     removedList: (facts: StripFacts) => stripList(facts),

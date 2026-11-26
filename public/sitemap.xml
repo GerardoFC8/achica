@@ -44,6 +44,16 @@
     <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/remove-exif/" />
   </url>
   <url>
+    <loc>https://achica.gfcode.dev/stickers-emojis-discord/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/stickers-emojis-discord/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/discord-stickers-emojis/" />
+  </url>
+  <url>
+    <loc>https://achica.gfcode.dev/en/discord-stickers-emojis/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/stickers-emojis-discord/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/discord-stickers-emojis/" />
+  </url>
+  <url>
     <loc>https://achica.gfcode.dev/auditar-imagenes-web/</loc>
     <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/auditar-imagenes-web/" />
     <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/audit-web-images/" />

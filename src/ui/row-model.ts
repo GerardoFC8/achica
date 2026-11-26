@@ -54,6 +54,21 @@ function budgetMark(item: QueueItem, profile: Profile): number | null {
 export function rowKind(item: QueueItem, profile: Profile, tool: ToolId): RowKind {
   if (item.status !== 'done') return item.status
 
+  /*
+   * Discord's limit is somebody else's absolute one, not a share of the
+   * original: a file it would reject is `over` whatever the original weighed,
+   * and one that fits is `tight` once it uses more than 90 % of the limit. The
+   * verdict is the one the pipeline reached when the file was made, so
+   * choosing another destination afterwards does not rewrite it.
+   */
+  if (tool === 'discord') {
+    if (!item.outcome.withinBudget) return 'over'
+    const limit = profile.maxBytes
+    return limit !== undefined && item.outcome.bytesAfter > limit * TIGHT_FRACTION
+      ? 'tight'
+      : 'fits'
+  }
+
   // Only the compressor judges weight. The saving column still carries the
   // real sign, so a file that grew reads as grown, just not as a failure.
   if (tool !== 'comprimir') return 'done'
@@ -73,6 +88,27 @@ export function rowKind(item: QueueItem, profile: Profile, tool: ToolId): RowKin
   return 'fits'
 }
 
+/**
+ * The bar of a destination with an absolute limit: the track is the limit and
+ * the fill is the share of it the file uses. A file past the limit needs room
+ * to be drawn past it, so the track then stretches to the file and the mark
+ * (the limit) moves inside it, with the stretch after the mark hatched. Within
+ * the limit the mark is the right edge, which is where the limit is.
+ */
+function limitBar(item: QueueItem, limit: number): WeightBar {
+  if (item.status !== 'done') return { fill: 0, mark: 1, overflow: null }
+
+  const after = item.outcome.bytesAfter
+  const scale = Math.max(limit, after)
+  const mark = limit / scale
+
+  return {
+    fill: after / scale,
+    mark,
+    overflow: after > limit ? { start: mark, width: 1 - mark } : null,
+  }
+}
+
 export function weightBar(item: QueueItem, profile: Profile): WeightBar | null {
   /*
    * A file that failed has no final weight to plot, and one that was cancelled
@@ -80,6 +116,10 @@ export function weightBar(item: QueueItem, profile: Profile): WeightBar | null {
    * to nothing, which is the opposite of what happened.
    */
   if (item.status === 'failed' || item.status === 'cancelled') return null
+
+  if (profile.animation !== undefined && profile.maxBytes !== undefined) {
+    return limitBar(item, profile.maxBytes)
+  }
 
   const mark = budgetMark(item, profile)
 
@@ -95,7 +135,14 @@ export function weightBar(item: QueueItem, profile: Profile): WeightBar | null {
   }
 }
 
-export function rowNote(item: QueueItem, formatters: Formatters, copy: Copy, tool: ToolId): string {
+export function rowNote(
+  item: QueueItem,
+  formatters: Formatters,
+  copy: Copy,
+  tool: ToolId,
+  /** The destination's absolute weight limit, which an animation's note names. */
+  maxBytes?: number,
+): string {
   const { note } = copy
 
   switch (item.status) {
@@ -109,6 +156,19 @@ export function rowNote(item: QueueItem, formatters: Formatters, copy: Copy, too
       return describeJobError(item.error, copy, tool)
     case 'done': {
       const { outcome } = item
+
+      if (outcome.animation !== undefined && maxBytes !== undefined) {
+        const animation = animationNote(outcome, formatters, copy, maxBytes)
+        if (animation !== null) {
+          // The verdict leads when the file does not fit: the row truncates, and
+          // that is the one thing that must not be cut.
+          return [
+            ...(animation.fits ? [] : [animation.verdict]),
+            animation.headline,
+            ...animation.steps,
+          ].join(' · ')
+        }
+      }
 
       // The audit reads an image that did not come out lighter as good news:
       // nothing to gain there, and nothing wrong with it (D60).
@@ -192,6 +252,8 @@ export function animationNote(
   outcome: Pick<ItemOutcome, 'animation' | 'withinBudget' | 'width' | 'height' | 'bytesAfter'>,
   formatters: Formatters,
   copy: Copy,
+  /** The destination's weight limit in bytes, named when the file does not fit. */
+  maxBytes: number,
 ): AnimationNote | null {
   const { animation } = outcome
   if (animation === undefined) return null
@@ -230,7 +292,9 @@ export function animationNote(
     headline,
     steps,
     fits: outcome.withinBudget,
-    verdict: outcome.withinBudget ? words.fits : words.over(formatters.bytes(outcome.bytesAfter)),
+    verdict: outcome.withinBudget
+      ? words.fits
+      : words.over(formatters.bytes(outcome.bytesAfter), formatters.bytes(maxBytes)),
   }
 }
 
@@ -344,9 +408,16 @@ function detailsOf(
 
   const { outcome } = item
   const kind = rowKind(item, profile, tool)
+  // An animation is enlarged to its canvas, so its original weight says
+  // nothing about its room: the limit is the limit.
   const ceiling =
-    profile.maxBytes === undefined ? null : Math.min(profile.maxBytes, item.bytesBefore)
+    profile.maxBytes === undefined
+      ? null
+      : profile.animation !== undefined
+        ? profile.maxBytes
+        : Math.min(profile.maxBytes, item.bytesBefore)
   const margin = ceiling === null ? null : ceiling - outcome.bytesAfter
+  const maxBytes = profile.maxBytes ?? null
 
   if (outcome.metadata !== undefined) {
     const facts = stripFacts(outcome.metadata, formatters)
@@ -361,6 +432,47 @@ function detailsOf(
       { label: details.reencoding, value: details.reencodingNone },
       { label: details.kept, value: details.keptValue(facts.keptOrientation) },
       target,
+      {
+        label: details.saved,
+        value: `${formatters.bytes(item.bytesBefore - outcome.bytesAfter)} · ${formatters.percent(savedRatio(item) ?? 0)}`,
+        kind,
+      },
+      { label: details.time, value: formatters.ms(item.ms) },
+    ]
+  }
+
+  const animation = outcome.animation
+  if (animation !== undefined) {
+    const steps =
+      maxBytes === null ? [] : (animationNote(outcome, formatters, copy, maxBytes)?.steps ?? [])
+    return [
+      { label: details.output, value: outcome.format.toUpperCase() },
+      { label: details.dimensions, value: formatters.dimensions(outcome.width, outcome.height) },
+      { label: details.frames, value: formatters.count(animation.frames) },
+      { label: details.duration, value: formatters.ms(animation.durationMs) },
+      { label: details.fps, value: formatters.count(animation.fps) },
+      {
+        label: details.colors,
+        value:
+          animation.colors === null
+            ? copy.note.animation.fullColor
+            : formatters.count(animation.colors),
+      },
+      {
+        label: details.adjusted,
+        value: steps.length === 0 ? details.adjustedNothing : steps.join(', '),
+      },
+      { label: details.encodes, value: formatters.count(outcome.encodes) },
+      target,
+      ...(margin === null
+        ? []
+        : [
+            {
+              label: margin >= 0 ? details.margin : details.excess,
+              value: formatters.bytes(Math.abs(margin)),
+              kind,
+            },
+          ]),
       {
         label: details.saved,
         value: `${formatters.bytes(item.bytesBefore - outcome.bytesAfter)} · ${formatters.percent(savedRatio(item) ?? 0)}`,

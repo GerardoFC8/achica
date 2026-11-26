@@ -75,9 +75,11 @@ function Screen({ tool }: Props) {
   const [budget, setBudget] = useState<BudgetChoice>(NO_BUDGET)
   const [resize, setResize] = useState<ResizeChoice>(DEFAULT_RESIZE)
   const [format, setFormat] = useState<OutputFormat>(DEFAULT_FORMAT)
+  // Off until asked for: Discord's own screen wants 320 x 320.
+  const [canvasReduction, setCanvasReduction] = useState(false)
   const choices = useMemo<ToolChoices>(
-    () => ({ destination, budget, resize, format }),
-    [destination, budget, resize, format],
+    () => ({ destination, budget, resize, format, canvasReduction }),
+    [destination, budget, resize, format, canvasReduction],
   )
   // What every row is measured against: the tool's own choice, with the weight
   // ceiling in for the compressor.
@@ -149,6 +151,7 @@ function Screen({ tool }: Props) {
         budget={budget}
         resize={resize}
         format={format}
+        canvasReduction={canvasReduction}
         formatters={formatters}
         pending={pending}
         done={done}
@@ -158,6 +161,7 @@ function Screen({ tool }: Props) {
         onBudget={setBudget}
         onResize={setResize}
         onFormat={setFormat}
+        onCanvasReduction={setCanvasReduction}
         onStart={() => run(planForTool(tool, choices))}
         onCancelAll={queueActions.cancelAll}
         onDownload={() => void save.download(items)}

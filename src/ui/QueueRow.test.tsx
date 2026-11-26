@@ -17,6 +17,7 @@ const choices: ToolChoices = {
   budget: NO_BUDGET,
   resize: DEFAULT_RESIZE,
   format: DEFAULT_FORMAT,
+  canvasReduction: false,
 }
 
 const item: QueueItem = {

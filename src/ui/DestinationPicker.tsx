@@ -11,6 +11,8 @@ import {
 } from './budget'
 import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
+import { CanvasChoice, RequirementLine } from './DiscordNotes'
+import { isSticker } from './tool-profiles'
 import { chip, PICKER_BUTTON, PICKER_PANEL, usePicker } from './usePicker'
 
 /**
@@ -41,6 +43,9 @@ type Props = {
   readonly profiles?: readonly Profile[]
   /** The weight ceiling belongs to the compressor alone (D53). */
   readonly showBudget?: boolean
+  /** Discord: the sticker's last-resort canvas. Offered only when a handler is given. */
+  readonly canvasReduction?: boolean
+  readonly onCanvasReduction?: (allowed: boolean) => void
 }
 
 const PNG_CHOICES: readonly {
@@ -77,6 +82,8 @@ export function DestinationPicker({
   onBudget,
   profiles = PERFILES,
   showBudget = true,
+  canvasReduction = false,
+  onCanvasReduction,
 }: Props) {
   const copy = useCopy()
   const words = copy.destination
@@ -114,36 +121,51 @@ export function DestinationPicker({
               </div>
 
               {members.map((profile) => (
-                <button
-                  key={profile.id}
-                  type="button"
-                  onClick={() => {
-                    onSelect(profile)
-                    setOpen(false)
-                  }}
-                  aria-current={profile.id === selected.id}
-                  className={`grid w-full gap-0.5 px-3 py-2 text-left hover:bg-raised ${
-                    profile.id === selected.id ? 'bg-raised' : ''
-                  }`}
-                >
-                  <span className="flex items-baseline justify-between gap-3">
-                    <span className="text-[13px] leading-4 font-medium">
-                      {words.profile(profile).label}
+                // The source is a link, and a link cannot live inside the
+                // button: the two are siblings.
+                <div key={profile.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelect(profile)
+                      setOpen(false)
+                    }}
+                    aria-current={profile.id === selected.id}
+                    className={`grid w-full gap-0.5 px-3 py-2 text-left hover:bg-raised ${
+                      profile.id === selected.id ? 'bg-raised' : ''
+                    }`}
+                  >
+                    <span className="flex items-baseline justify-between gap-3">
+                      <span className="text-[13px] leading-4 font-medium">
+                        {words.profile(profile).label}
+                      </span>
+                      <span className="tnum text-[11px] text-ink-soft">
+                        {summaryOf(profile, formatters, copy)}
+                      </span>
                     </span>
-                    <span className="tnum text-[11px] text-ink-soft">
-                      {summaryOf(profile, formatters, copy)}
+                    <span className="text-xs leading-4 text-pretty text-ink-soft">
+                      {profile.requirement === undefined ? words.ourAdvice : words.theirLimit}
+                      {words.profile(profile).note === undefined
+                        ? ''
+                        : `. ${words.profile(profile).note}`}
                     </span>
-                  </span>
-                  <span className="text-xs leading-4 text-pretty text-ink-soft">
-                    {words.ourAdvice}
-                    {words.profile(profile).note === undefined
-                      ? ''
-                      : `. ${words.profile(profile).note}`}
-                  </span>
-                </button>
+                  </button>
+                  <RequirementLine profile={profile} />
+                </div>
               ))}
             </div>
           ))}
+
+          {profiles.some((profile) => profile.requirement !== undefined) ? (
+            <div className="border-t border-rule">
+              <p className="px-3 py-2 text-xs leading-4 text-pretty text-ink-soft">
+                {words.notAGuarantee}
+              </p>
+              {onCanvasReduction !== undefined && isSticker(selected) ? (
+                <CanvasChoice checked={canvasReduction} onChange={onCanvasReduction} />
+              ) : null}
+            </div>
+          ) : null}
 
           {showBudget ? (
             <div className="grid gap-2 border-t border-rule px-3 pt-2 pb-3">

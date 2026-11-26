@@ -1,6 +1,6 @@
 import type { OutputFormat } from '../core/codecs/encode'
 import type { OutputPlan } from '../core/pipeline'
-import { PERFILES, toOutputPlan, type Profile } from '../core/profiles'
+import { DISCORD_PERFILES, PERFILES, toOutputPlan, type Profile } from '../core/profiles'
 import type { ToolId } from '../tools/registry'
 import { planFor, withBudget, type BudgetChoice } from './budget'
 import { profileForFormat } from './format-choice'
@@ -20,6 +20,8 @@ export type ToolChoices = {
   readonly budget: BudgetChoice
   readonly resize: ResizeChoice
   readonly format: OutputFormat
+  /** Discord stickers only: fall back to a 256 px canvas when nothing else fits. */
+  readonly canvasReduction: boolean
 }
 
 /**
@@ -56,7 +58,22 @@ export const AUDIT_PROFILE: Profile = {
 
 /** The destinations a tool offers, first one being its default. */
 export function destinationsFor(tool: ToolId): readonly Profile[] {
+  if (tool === 'discord') return DISCORD_PERFILES
   return tool === 'auditar' ? [AUDIT_PROFILE, ...PERFILES] : PERFILES
+}
+
+/** Only a sticker has a canvas to reduce; an emoji is shrunk to fit instead. */
+export function isSticker(profile: Profile): boolean {
+  return profile.animation?.layout.kind === 'sticker'
+}
+
+/**
+ * The Discord destination with the user's canvas choice written into it, so
+ * the plan and every row read the same profile. An emoji never carries it.
+ */
+function withCanvasReduction(profile: Profile, allowed: boolean): Profile {
+  if (profile.animation === undefined || !allowed || !isSticker(profile)) return profile
+  return { ...profile, animation: { ...profile.animation, allowCanvasReduction: true } }
 }
 
 /** The destination a tool starts on. */
@@ -75,6 +92,8 @@ export function profileForTool(tool: ToolId, choices: ToolChoices): Profile {
       return profileForFormat(choices.format)
     case 'quitar-exif':
       return STRIP_PROFILE
+    case 'discord':
+      return withCanvasReduction(choices.destination, choices.canvasReduction)
     case 'auditar':
       // No weight ceiling: it belongs to the compressor alone.
       return choices.destination

@@ -22,6 +22,7 @@ type Props = {
   readonly budget: BudgetChoice
   readonly resize: ResizeChoice
   readonly format: OutputFormat
+  readonly canvasReduction: boolean
   readonly formatters: Formatters
   readonly pending: number
   readonly done: number
@@ -32,6 +33,7 @@ type Props = {
   readonly onBudget: (budget: BudgetChoice) => void
   readonly onResize: (choice: ResizeChoice) => void
   readonly onFormat: (format: OutputFormat) => void
+  readonly onCanvasReduction: (allowed: boolean) => void
   readonly onStart: () => void
   readonly onCancelAll: () => void
   readonly onDownload: () => void
@@ -43,6 +45,7 @@ export function Toolbar({
   budget,
   resize,
   format,
+  canvasReduction,
   formatters,
   pending,
   done,
@@ -52,6 +55,7 @@ export function Toolbar({
   onBudget,
   onResize,
   onFormat,
+  onCanvasReduction,
   onStart,
   onCancelAll,
   onDownload,
@@ -74,7 +78,7 @@ export function Toolbar({
         <ToolNav />
       </div>
 
-      {tool === 'comprimir' || tool === 'auditar' ? (
+      {tool === 'comprimir' || tool === 'auditar' || tool === 'discord' ? (
         <DestinationPicker
           selected={destination}
           budget={budget}
@@ -83,6 +87,8 @@ export function Toolbar({
           onBudget={onBudget}
           profiles={destinationsFor(tool)}
           showBudget={tool === 'comprimir'}
+          canvasReduction={canvasReduction}
+          {...(tool === 'discord' ? { onCanvasReduction } : {})}
         />
       ) : tool === 'redimensionar' ? (
         <ResizePicker choice={resize} formatters={formatters} onChange={onResize} />

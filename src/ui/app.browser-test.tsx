@@ -496,7 +496,7 @@ describe('the other tools', () => {
       .toHaveAttribute('href', '/redimensionar-imagenes/')
   })
 
-  it('keeps five links and the control of each tool inside a phone-width toolbar', async () => {
+  it('keeps six links and the control of each tool inside a phone-width toolbar', async () => {
     await page.viewport(375, 812)
     try {
       for (const [copy, tool] of [
@@ -505,6 +505,9 @@ describe('the other tools', () => {
         // The audit has the longest nav label and its destination picker.
         [es, 'auditar'],
         [en, 'auditar'],
+        // Discord's picker carries a source line and a checkbox, and its label is short.
+        [es, 'discord'],
+        [en, 'discord'],
       ] as const) {
         const view = await render(
           <CopyProvider value={copy}>

@@ -274,6 +274,104 @@ async function verifyCleaned(entries, batch) {
 }
 
 /*
+ * Discord (S6a). The ZIP is read back and each file is judged by its own
+ * bytes, the way Discord would see it: the extension it is saved under, the
+ * signature, the size it declares and the weight. None of it trusts the
+ * interface's own verdict.
+ */
+const STICKER_LIMIT = 512_000
+const EMOJI_LIMIT = 256_000
+
+/** The logical screen of a GIF, from its header. */
+const gifScreen = (data) => ({ width: data.readUInt16LE(6), height: data.readUInt16LE(8) })
+
+const isPng = (data) => data.subarray(0, 8).toString('hex') === '89504e470d0a1a0a'
+
+/** A chunk of a PNG by name, found by walking the chunk list and not by searching the bytes. */
+function hasPngChunk(data, wanted) {
+  let at = 8
+  while (at + 8 <= data.length) {
+    const length = data.readUInt32BE(at)
+    if (data.toString('latin1', at + 4, at + 8) === wanted) return true
+    at += 12 + length
+  }
+  return false
+}
+
+/** A sticker as a GIF: .gif, GIF89a, a 320 x 320 screen, and under 512 000 bytes. */
+function verifyStickerGif(entries, batch) {
+  check('one entry per animation that could be made', entries.length === batch.done)
+  for (const entry of entries) {
+    const screen = gifScreen(entry.data)
+    check(`${entry.name} is a .gif`, entry.name.endsWith('.gif'))
+    check(`${entry.name} says GIF89a`, entry.data.toString('latin1', 0, 6) === 'GIF89a')
+    check(
+      `${entry.name} has a 320x320 screen`,
+      screen.width === 320 && screen.height === 320,
+      `${screen.width}x${screen.height}`,
+    )
+    check(
+      `${entry.name} weighs at most 512 000 bytes`,
+      entry.data.length <= STICKER_LIMIT,
+      `${entry.data.length}`,
+    )
+  }
+}
+
+/** A sticker as an APNG: saved as .png (never .apng), PNG signature, acTL, 320 x 320. */
+function verifyStickerApng(entries, batch) {
+  check('one entry per animation', entries.length === batch.done)
+  for (const entry of entries) {
+    check(`${entry.name} is a .png and not an .apng`, /\.png$/.test(entry.name))
+    check(`${entry.name} has the PNG signature`, isPng(entry.data))
+    check(`${entry.name} has an acTL chunk, so it animates`, hasPngChunk(entry.data, 'acTL'))
+    const size = dimensionsOf(entry.data)
+    check(
+      `${entry.name} is 320x320 in its IHDR`,
+      size !== null && size.width === 320 && size.height === 320,
+      `${size?.width}x${size?.height}`,
+    )
+    check(
+      `${entry.name} weighs at most 512 000 bytes`,
+      entry.data.length <= STICKER_LIMIT,
+      `${entry.data.length}`,
+    )
+  }
+}
+
+/** An emoji: a GIF no bigger than 128 px on either side, under 256 000 bytes. */
+function verifyEmoji(entries, batch) {
+  check('one file per animation', entries.length === batch.done)
+  for (const entry of entries) {
+    const screen = gifScreen(entry.data)
+    check(
+      `${entry.name} is a GIF`,
+      entry.name.endsWith('.gif') && entry.data.toString('latin1', 0, 6) === 'GIF89a',
+    )
+    check(
+      `${entry.name} fits inside 128x128`,
+      screen.width > 0 && screen.width <= 128 && screen.height > 0 && screen.height <= 128,
+      `${screen.width}x${screen.height}`,
+    )
+    check(
+      `${entry.name} weighs at most 256 000 bytes`,
+      entry.data.length <= EMOJI_LIMIT,
+      `${entry.data.length}`,
+    )
+  }
+}
+
+/** The failed row says what to do, in words, and the page is still standing. */
+async function verifyNotAnimatedRow(page, batch) {
+  const text = await page.locator('main').innerText()
+  check(
+    'the still image has its failed row, with the way out',
+    batch.notAnimated.test(text),
+    text.replace(/\s+/g, ' ').slice(0, 200),
+  )
+}
+
+/*
  * Full names in `expected`, not stems: the extension that comes out is what
  * each destination promises, so it is what gets checked.
  */
@@ -369,6 +467,61 @@ const BATCHES = [
     oxipng: false,
     verify: verifySignature('JPEG', isJpeg),
   },
+  {
+    // The default destination: the sticker as a GIF, the lightest and the one
+    // that went into every real test.
+    label: 'Discord, in Spanish, a sticker as GIF',
+    tool: 'discord',
+    language: 'es',
+    files: [fixture('generated/anim-opaque.gif'), fixture('generated/anim-wide.gif')],
+    done: 2,
+    expected: ['anim-opaque.gif', 'anim-wide.gif'],
+    oxipng: false,
+    verify: verifyStickerGif,
+  },
+  {
+    // A GIF-only source cannot be an APNG's only test: an APNG and an animated
+    // WebP come in, and a .png comes out, twice under the same stem.
+    label: 'Discord, in English, a sticker as APNG, from an APNG and an animated WebP',
+    tool: 'discord',
+    language: 'en',
+    destination: /Discord animated sticker \(APNG\)/,
+    files: [fixture('generated/anim.apng'), fixture('generated/anim.webp')],
+    done: 2,
+    expected: ['anim.png', 'anim-2.png'],
+    oxipng: false,
+    verify: verifyStickerApng,
+  },
+  {
+    // One finished file is handed over as itself, not wrapped in a ZIP.
+    label: 'Discord, in Spanish, an emoji',
+    tool: 'discord',
+    language: 'es',
+    destination: /Emoji animado de Discord/,
+    files: [fixture('generated/anim-wide.gif')],
+    done: 1,
+    expected: ['anim-wide.gif'],
+    oxipng: false,
+    verify: verifyEmoji,
+  },
+  {
+    // A still image in the batch: its row fails, with what to do, and the rest
+    // of the batch is made and saved.
+    label: 'Discord, in English, a still image among animations',
+    tool: 'discord',
+    language: 'en',
+    files: [
+      fixture('generated/static.png'),
+      fixture('generated/anim-delays.gif'),
+      fixture('generated/anim-transparent.gif'),
+    ],
+    done: 2,
+    expected: ['anim-delays.gif', 'anim-transparent.gif'],
+    oxipng: false,
+    verify: verifyStickerGif,
+    notAnimated: /not animated/,
+    page: verifyNotAnimatedRow,
+  },
 ]
 
 /**
@@ -412,6 +565,14 @@ const WORDS = {
       busy: 'Limpiando',
       finished: (count) => `${count} imágenes limpiadas`,
     },
+    discord: {
+      title: /Discord/,
+      heading: /animaciones que quieres convertir/,
+      start: /Preparar/,
+      busy: 'Preparando',
+      finished: (count) => `${count} ${count === 1 ? 'animación lista' : 'animaciones listas'}`,
+      single: /Descargar 1 imagen/,
+    },
     auditar: {
       title: /HAR/,
       heading: /archivo HAR de la página/,
@@ -451,6 +612,14 @@ const WORDS = {
       start: /Clean/,
       busy: 'Cleaning',
       finished: (count) => `${count} images cleaned`,
+    },
+    discord: {
+      title: /Discord/,
+      heading: /animations you want to turn into/,
+      start: /Prepare/,
+      busy: 'Preparing',
+      finished: (count) => `${count} ${count === 1 ? 'animation' : 'animations'} ready`,
+      single: /Download 1 image/,
     },
     auditar: {
       title: /HAR/,
@@ -588,6 +757,10 @@ async function runBatch(browser, batch, downloads) {
     // A batch either names fixture files or builds its own bytes.
     const inputs = batch.inputs?.() ?? batch.files
     const count = inputs.length
+    // Files that come out: a batch that includes one that cannot be made ends
+    // with fewer than it started with.
+    const finished = batch.done ?? count
+    const single = finished === 1
     await page.setInputFiles('input[type=file]', inputs)
     await page.getByRole('button', { name: words.start }).click()
     await page.waitForFunction(
@@ -604,20 +777,45 @@ async function runBatch(browser, batch, downloads) {
       words.saved === undefined
         ? 'the batch reports what it did'
         : 'the batch reports what it saved',
-      summary.includes(words.finished(count)) &&
+      summary.includes(words.finished(finished)) &&
         (words.saved === undefined || words.saved.test(summary)),
       summary,
     )
 
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 30_000 }),
-      page.getByRole('button', { name: words.zip }).click(),
+      page.getByRole('button', { name: single ? words.single : words.zip }).click(),
     ])
 
     const archive = join(downloads, download.suggestedFilename())
     await download.saveAs(archive)
 
     const bytes = await readFile(archive)
+
+    if (single) {
+      // One file is handed over as itself: its name and its bytes are the proof.
+      check(
+        'the one file comes out as itself, not in a ZIP',
+        bytes.subarray(0, 4).toString('hex') !== LOCAL_HEADER,
+      )
+      for (const entry of batch.expected) {
+        check(`the download is ${entry}`, download.suggestedFilename() === entry)
+      }
+      if (batch.verify !== undefined) {
+        await batch.verify([{ name: download.suggestedFilename(), data: bytes }], {
+          ...batch,
+          done: 1,
+        })
+      }
+      if (batch.page !== undefined) await batch.page(page, batch)
+      check('nothing threw on the page', errors.length === 0, errors.join('; '))
+      check(
+        'no byte left the device',
+        foreign.length === 0,
+        foreign.length === 0 ? '' : foreign.join(', '),
+      )
+      return
+    }
     // latin1 keeps every byte addressable as a character, which is what
     // scanning for the signatures below needs.
     const raw = bytes.toString('latin1')
@@ -626,7 +824,7 @@ async function runBatch(browser, batch, downloads) {
     check('the archive is complete', raw.includes(END_OF_DIRECTORY))
     check(
       'one entry per file',
-      raw.split(CENTRAL_ENTRY).length - 1 === count,
+      raw.split(CENTRAL_ENTRY).length - 1 === finished,
       `${raw.split(CENTRAL_ENTRY).length - 1} entries`,
     )
     for (const entry of batch.expected) {
@@ -634,6 +832,7 @@ async function runBatch(browser, batch, downloads) {
     }
 
     if (batch.verify !== undefined) await batch.verify(readZip(bytes), batch)
+    if (batch.page !== undefined) await batch.page(page, batch)
 
     check(
       batch.oxipng ? 'the PNG went through oxipng' : 'oxipng stayed unloaded',

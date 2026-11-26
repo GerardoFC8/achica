@@ -23,6 +23,13 @@ describe('ToolNav', () => {
     expect(markup).not.toContain('/en/')
   })
 
+  it('links to Discord in both languages, with the label "Discord"', () => {
+    expect(html(es, 'comprimir')).toMatch(/href="\/stickers-emojis-discord\/"[^>]*>Discord<\/a>/)
+    expect(html(en, 'comprimir')).toMatch(
+      /href="\/en\/discord-stickers-emojis\/"[^>]*>Discord<\/a>/,
+    )
+  })
+
   it('links to the other tools in English on the English page', () => {
     const markup = html(en, 'convertir')
 
@@ -38,7 +45,7 @@ describe('ToolNav', () => {
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1)
     expect(markup).toMatch(/<span[^>]*aria-current="page"[^>]*>Redimensionar<\/span>/)
     expect(markup).not.toContain('href="/redimensionar-imagenes/"')
-    expect(markup.match(/<a /g)).toHaveLength(4)
+    expect(markup.match(/<a /g)).toHaveLength(5)
   })
 
   it('is a labelled landmark', () => {

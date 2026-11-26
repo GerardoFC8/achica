@@ -142,6 +142,18 @@ export const en: Copy = {
       weightHeader: 'Weight before and after',
       resultAlt: (name) => `${name}, cleaned`,
     },
+    discord: {
+      heading: 'Drop the animations you want to turn into a Discord sticker or emoji here',
+      hint: 'GIF, APNG or animated WebP',
+      start: (pending, count) => `Prepare ${count} ${plural(pending, 'animation', 'animations')}`,
+      running: 'Preparing',
+      finished: (done, count) => `${count} ${plural(done, 'animation', 'animations')} ready`,
+      again: 'Prepare again',
+      emptyFile: 'Empty file, there is no animation to prepare',
+      tableLabel: 'Animation queue',
+      weightHeader: 'Weight against the Discord limit',
+      resultAlt: (name) => `${name}, fitted for Discord`,
+    },
     auditar: {
       heading: 'Drop the HAR file of the page you want to measure here',
       start: (pending, count) =>
@@ -163,6 +175,7 @@ export const en: Copy = {
       redimensionar: 'Resize',
       convertir: 'Convert',
       'quitar-exif': 'Remove EXIF',
+      discord: 'Discord',
       auditar: 'Audit a page',
     },
   },
@@ -229,6 +242,13 @@ export const en: Copy = {
 
   destination: {
     ourAdvice: 'Our advice',
+    theirLimit: 'File size limit Discord publishes',
+    source: 'Source',
+    verifiedAt: (date) => `verified on ${date}`,
+    notAGuarantee:
+      'The file is fitted to the size limits Discord publishes, but there is no guarantee that Discord accepts it: worth testing it.',
+    canvasReduction: 'If it does not fit, reduce the canvas to 256 px',
+    canvasReductionNote: 'Discord accepted it in our tests, but its screen asks for 320 × 320',
     ceiling: (bytes) => `max. ${bytes}`,
     originalSize: 'original size',
     group: (group) => GROUPS[group],
@@ -323,6 +343,7 @@ export const en: Copy = {
     compare: 'Compare',
     download: 'Download',
     downloadTitle: (name) => `Download ${name}`,
+    limitBar: (weight, limit) => `came to ${weight}, against a limit of ${limit}`,
     bar: (from, weight, budget) =>
       budget === null
         ? `${from} came down to ${weight}, with no limit`
@@ -353,8 +374,8 @@ export const en: Copy = {
         diffOff: 'cropping to what changes turned off',
       },
       fits: 'Fits the limit',
-      over: (size) =>
-        `Does not fit the limit: this is the smallest version that could be made (${size})`,
+      over: (size, limit) =>
+        `Does not fit the limit of ${limit}: this is the smallest version that could be made (${size})`,
     },
     stripped: (facts) =>
       facts.parts.includes('exif-unreadable')
@@ -385,6 +406,13 @@ export const en: Copy = {
     excess: 'Over by',
     saved: 'Saved',
     time: 'Time in the worker',
+    frames: 'Frames',
+    duration: 'Duration',
+    fps: 'Frames per second',
+    colors: 'Colours',
+    adjusted: 'Adjusted',
+    adjustedNothing: 'nothing, it fitted as it was',
+    preview: 'Preview',
     stripTarget: 'remove metadata, no re-encoding',
     removed: 'Removed',
     removedList: (facts) => stripList(facts),

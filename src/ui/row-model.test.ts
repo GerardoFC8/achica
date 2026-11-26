@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Profile } from '../core/profiles'
+import { DISCORD_PERFILES, type Profile } from '../core/profiles'
 import type { QueueItem } from '../state/queue'
 import { en, es } from './copy'
 import { createFormatters, DEFAULT_LOCALE } from './format'
@@ -464,7 +464,7 @@ describe('animationNote', () => {
     ...over,
   })
   const say = (outcome: Parameters<typeof animationNote>[0], copy = es) =>
-    animationNote(outcome, formatters, copy)
+    animationNote(outcome, formatters, copy, 512_000)
 
   it('is null for a file that is not an animation', () => {
     expect(say({ ...base })).toBeNull()
@@ -522,6 +522,8 @@ describe('animationNote', () => {
     expect(note?.fits).toBe(false)
     expect(note?.verdict).toContain('No entra en el límite')
     expect(note?.verdict).toContain('600')
+    // The limit is named too, so the row says by how much it missed.
+    expect(note?.verdict).toContain('512')
   })
 
   it('reads in English too, with nothing left undefined', () => {
@@ -538,5 +540,193 @@ describe('animationNote', () => {
     expect(note?.steps).toEqual(['lowered to 6 fps'])
     expect(note?.verdict).toContain('Does not fit')
     expect(JSON.stringify(note)).not.toContain('undefined')
+  })
+})
+
+/*
+ * Discord (S6a): the limit is an absolute one, so the verdict, the bar and the
+ * note are read against it and not against the original's weight.
+ */
+describe('a Discord result', () => {
+  const profileOf = (id: string): Profile => {
+    const found = DISCORD_PERFILES.find((candidate) => candidate.id === id)
+    if (found === undefined) throw new Error(`no profile ${id}`)
+    return found
+  }
+  const sticker = profileOf('discord-sticker-gif')
+  const emoji = profileOf('discord-emoji-gif')
+  const formatters = createFormatters(DEFAULT_LOCALE)
+
+  /** A finished animation whose original weighed `before` and whose result weighs `after`. */
+  function animated(
+    before: number,
+    after: number,
+    over: Partial<ItemOutcome> = {},
+    steps: NonNullable<ItemOutcome['animation']>['steps'] = [],
+  ): QueueItem {
+    const base = done(before, after)
+    if (base.status !== 'done') throw new Error('the helper builds finished rows')
+    return {
+      ...base,
+      outcome: {
+        format: 'gif',
+        bytesBefore: before,
+        bytesAfter: after,
+        width: 320,
+        height: 320,
+        quality: null,
+        withinBudget: true,
+        shrunkForBudget: null,
+        convertedForBudget: false,
+        encodes: 4,
+        animation: { frames: 20, durationMs: 2000, fps: 10, colors: 64, steps },
+        ...over,
+      },
+    }
+  }
+
+  describe('the verdict', () => {
+    it('fits with margin, however small or big the original was', () => {
+      expect(rowKind(animated(30_000, 200_000), sticker, 'discord')).toBe('fits')
+      expect(rowKind(animated(5_000_000, 200_000), sticker, 'discord')).toBe('fits')
+    })
+
+    it('is tight above 90 % of the limit and not at it', () => {
+      expect(rowKind(animated(900_000, 460_800), sticker, 'discord')).toBe('fits')
+      expect(rowKind(animated(900_000, 460_801), sticker, 'discord')).toBe('tight')
+      expect(rowKind(animated(900_000, 512_000), sticker, 'discord')).toBe('tight')
+    })
+
+    it('is over when the pipeline says it did not fit, whatever the original weighed', () => {
+      expect(rowKind(animated(900_000, 600_000, { withinBudget: false }), sticker, 'discord')).toBe(
+        'over',
+      )
+      expect(rowKind(animated(100, 600_000, { withinBudget: false }), sticker, 'discord')).toBe(
+        'over',
+      )
+    })
+
+    it('reads the limit of the destination: the emoji one is half the sticker one', () => {
+      expect(rowKind(animated(900_000, 300_000), sticker, 'discord')).toBe('fits')
+      expect(rowKind(animated(900_000, 240_000), emoji, 'discord')).toBe('tight')
+      expect(rowKind(animated(900_000, 230_400), emoji, 'discord')).toBe('fits')
+    })
+
+    it('still follows the queue while there is no result', () => {
+      expect(rowKind(pending, sticker, 'discord')).toBe('pending')
+      expect(rowKind({ ...pending, status: 'cancelled' }, sticker, 'discord')).toBe('cancelled')
+    })
+  })
+
+  describe('the weight bar', () => {
+    it('is scaled to the limit, not to the original', () => {
+      const bar = weightBar(animated(5_000_000, 256_000), sticker)
+
+      expect(bar?.fill).toBeCloseTo(0.5)
+      // The limit is the end of the track.
+      expect(bar?.mark).toBe(1)
+      expect(bar?.overflow).toBeNull()
+    })
+
+    it('reads the same for a small original as for a big one', () => {
+      expect(weightBar(animated(1_000, 256_000), sticker)).toEqual(
+        weightBar(animated(9_000_000, 256_000), sticker),
+      )
+    })
+
+    it('stretches the track past the limit and hatches the stretch', () => {
+      const bar = weightBar(animated(900_000, 768_000), sticker)
+
+      // 768 000 against 512 000: the limit falls two thirds along.
+      expect(bar?.fill).toBe(1)
+      expect(bar?.mark).toBeCloseTo(2 / 3)
+      expect(bar?.overflow?.start).toBeCloseTo(2 / 3)
+      expect((bar?.overflow?.start ?? 0) + (bar?.overflow?.width ?? 0)).toBeCloseTo(1)
+    })
+
+    it('is full but not over when the file weighs exactly the limit', () => {
+      const bar = weightBar(animated(900_000, 512_000), sticker)
+
+      expect(bar?.fill).toBe(1)
+      expect(bar?.overflow).toBeNull()
+    })
+
+    it('has an empty track at the limit while it waits, and none once it failed', () => {
+      expect(weightBar(pending, sticker)).toEqual({ fill: 0, mark: 1, overflow: null })
+      expect(
+        weightBar({ ...pending, status: 'failed', error: { code: 'empty-file' } }, sticker),
+      ).toBeNull()
+    })
+  })
+
+  describe('the row note', () => {
+    it('lists the numbers and what was given up, in words', () => {
+      const item = animated(900_000, 400_000, {}, [
+        { kind: 'palette', colors: 64 },
+        { kind: 'fps', from: 15, to: 10 },
+      ])
+
+      expect(rowNote(item, formatters, es, 'discord', sticker.maxBytes)).toBe(
+        '10 fps · 64 colores · lienzo 320 × 320 · paleta de 64 colores · se bajó a 10 fps',
+      )
+    })
+
+    it('leads with the verdict, the final weight and the limit when it does not fit', () => {
+      const item = animated(900_000, 600_000, { withinBudget: false })
+      const note = rowNote(item, formatters, es, 'discord', sticker.maxBytes)
+
+      expect(note.startsWith('No entra en el límite de 512 KB')).toBe(true)
+      expect(note).toContain('600 KB')
+      expect(note).toContain('10 fps')
+    })
+
+    it('names the emoji limit, not the sticker one', () => {
+      const item = animated(900_000, 300_000, { withinBudget: false })
+
+      expect(rowNote(item, formatters, es, 'discord', emoji.maxBytes)).toContain('256 KB')
+      expect(rowNote(item, formatters, en, 'discord', emoji.maxBytes)).toContain(
+        'Does not fit the limit of 256 KB',
+      )
+    })
+  })
+
+  describe('the details', () => {
+    const labelled = (item: QueueItem, profile: Profile) =>
+      Object.fromEntries(
+        rowDetails(item, profile, formatters, es, 'discord').map((row) => [row.label, row]),
+      )
+
+    it('adds what the animation is: frames, duration, rate, colours and steps', () => {
+      const rows = labelled(
+        animated(900_000, 400_000, {}, [{ kind: 'fps', from: 15, to: 10 }]),
+        sticker,
+      )
+
+      expect(rows['Fotogramas']?.value).toBe('20')
+      expect(rows['Duración']?.value).toMatch(/^2.?000 ms$/)
+      expect(rows['Fotogramas por segundo']?.value).toBe('10')
+      expect(rows['Colores']?.value).toBe('64')
+      expect(rows['Se ajustó']?.value).toBe('se bajó a 10 fps')
+    })
+
+    it('measures the margin against the limit and not against the original', () => {
+      // A 30 KB original: measured against it, this would have read as an excess.
+      const rows = labelled(animated(30_000, 200_000), sticker)
+
+      expect(rows['Margen']?.value).toBe('312 KB')
+      expect(rows['Exceso']).toBeUndefined()
+    })
+
+    it('reports the excess of a file that did not fit, in the failing tone', () => {
+      const rows = labelled(animated(900_000, 600_000, { withinBudget: false }), sticker)
+
+      expect(rows['Exceso']).toMatchObject({ value: '88 KB', kind: 'over' })
+    })
+
+    it('keeps the saving column honest: a result that grew shows the sign', () => {
+      const rows = labelled(animated(30_000, 200_000), sticker)
+
+      expect(rows['Ahorro']?.value).toMatch(/[-−]/)
+    })
   })
 })
