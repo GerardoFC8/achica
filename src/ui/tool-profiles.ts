@@ -1,3 +1,4 @@
+import type { VideoSegment } from '../core/animation/video-segment'
 import type { OutputFormat } from '../core/codecs/encode'
 import type { OutputPlan } from '../core/pipeline'
 import { DISCORD_PERFILES, PERFILES, toOutputPlan, type Profile } from '../core/profiles'
@@ -22,6 +23,8 @@ export type ToolChoices = {
   readonly format: OutputFormat
   /** Discord stickers only: fall back to a 256 px canvas when nothing else fits. */
   readonly canvasReduction: boolean
+  /** Discord only: which part of a video becomes the animation. A still-animation ignores it. */
+  readonly video: VideoSegment
 }
 
 /**
@@ -104,7 +107,12 @@ export function profileForTool(tool: ToolId, choices: ToolChoices): Profile {
 export function planForTool(tool: ToolId, choices: ToolChoices): OutputPlan {
   // The ceiling belongs to the compressor alone, and so does the PNG rule
   // that goes with it.
-  return tool === 'comprimir'
-    ? planFor(choices.destination, choices.budget)
-    : toOutputPlan(profileForTool(tool, choices))
+  if (tool === 'comprimir') return planFor(choices.destination, choices.budget)
+
+  const plan = toOutputPlan(profileForTool(tool, choices))
+  // Always set for Discord: the runner reads it only when the file turns out
+  // to be a video by its bytes, so a GIF in the same batch is unaffected.
+  return tool === 'discord' && plan.animation !== undefined
+    ? { ...plan, animation: { ...plan.animation, video: choices.video } }
+    : plan
 }

@@ -67,6 +67,12 @@ export type AnimationSummary = {
   readonly colors: number | null
   /** What was given up to fit, in the order it was given up. */
   readonly steps: readonly Step[]
+  /**
+   * The weight limit this result was judged against (the plan's `maxBytes`).
+   * `withinBudget` is a verdict about this number, so whatever draws the row
+   * must measure against it and not against the destination selected later.
+   */
+  readonly limitBytes: number
   /** Set only for a video: which part of it was kept. */
   readonly clip?: ClipInfo
 }
@@ -290,7 +296,7 @@ async function processAnimated(
   }
 
   const result = await processAnimation(new Uint8Array(bytes), animationPlan(request, maxBytes))
-  return describeAnimation(result, bytes.byteLength)
+  return describeAnimation(result, bytes.byteLength, maxBytes)
 }
 
 const animationPlan = (request: AnimationRequest, maxBytes: number): AnimationPlan => ({
@@ -305,6 +311,7 @@ const animationPlan = (request: AnimationRequest, maxBytes: number): AnimationPl
 function describeAnimation(
   result: Result<AnimationOutcome, AnimationError>,
   bytesBefore: number,
+  limitBytes: number,
 ): Result<PipelineOutcome, PipelineError> {
   if (!result.ok) {
     return err({ code: 'animation-failed', reason: result.error.code, detail: result.error.detail })
@@ -329,6 +336,7 @@ function describeAnimation(
       fps: value.fps,
       colors: value.colors,
       steps: value.steps,
+      limitBytes,
       ...(value.clip === undefined ? {} : { clip: value.clip }),
     },
   })
@@ -353,7 +361,7 @@ export async function processVideoFrames(
     })
   }
   const result = await processFrames(frames, animationPlan(plan.animation, plan.maxBytes), context)
-  return describeAnimation(result, context.bytesBefore)
+  return describeAnimation(result, context.bytesBefore, plan.maxBytes)
 }
 
 export async function processImage(

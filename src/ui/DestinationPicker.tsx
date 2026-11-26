@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import type { VideoSegment } from '../core/animation/video-segment'
 import { PERFILES, profilesByGroup, type Profile } from '../core/profiles'
 import {
   BUDGET_PRESETS,
@@ -13,6 +14,7 @@ import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
 import { CanvasChoice, RequirementLine } from './DiscordNotes'
 import { isSticker } from './tool-profiles'
+import { VideoFields } from './VideoFields'
 import { chip, PICKER_BUTTON, PICKER_PANEL, usePicker } from './usePicker'
 
 /**
@@ -46,6 +48,9 @@ type Props = {
   /** Discord: the sticker's last-resort canvas. Offered only when a handler is given. */
   readonly canvasReduction?: boolean
   readonly onCanvasReduction?: (allowed: boolean) => void
+  /** Discord: which part of a video is used. Offered only when a handler is given. */
+  readonly video?: VideoSegment
+  readonly onVideo?: (video: VideoSegment) => void
 }
 
 const PNG_CHOICES: readonly {
@@ -84,6 +89,8 @@ export function DestinationPicker({
   showBudget = true,
   canvasReduction = false,
   onCanvasReduction,
+  video,
+  onVideo,
 }: Props) {
   const copy = useCopy()
   const words = copy.destination
@@ -91,6 +98,7 @@ export function DestinationPicker({
   const [typed, setTyped] = useState('')
   const [invalid, setInvalid] = useState(false)
   const customId = useId()
+  const summary = summaryOf(showBudget ? withBudget(selected, budget) : selected, formatters, copy)
 
   return (
     <div className="relative" ref={container}>
@@ -99,12 +107,23 @@ export function DestinationPicker({
         onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
+        title={summary}
         className={PICKER_BUTTON}
       >
         <span className="text-ink-soft">{copy.toolbar.destination}</span>
         <span className="font-medium">{words.profile(selected).label}</span>
-        <span className="tnum text-[11px] text-ink-soft">
-          {summaryOf(showBudget ? withBudget(selected, budget) : selected, formatters, copy)}
+        {/*
+          A destination with somebody else's limit (Discord) names its limit in the
+          panel, in the weight column and in the button's title; on the button
+          itself it only fits where the toolbar has room (the folder and
+          download buttons need it at 1280 px).
+        */}
+        <span
+          className={`tnum text-[11px] text-ink-soft ${
+            selected.requirement === undefined ? '' : 'hidden min-[1400px]:inline'
+          }`}
+        >
+          {summary}
         </span>
       </button>
 
@@ -165,6 +184,10 @@ export function DestinationPicker({
                 <CanvasChoice checked={canvasReduction} onChange={onCanvasReduction} />
               ) : null}
             </div>
+          ) : null}
+
+          {video !== undefined && onVideo !== undefined ? (
+            <VideoFields video={video} formatters={formatters} onChange={onVideo} />
           ) : null}
 
           {showBudget ? (

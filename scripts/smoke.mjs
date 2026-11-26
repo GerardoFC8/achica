@@ -361,6 +361,65 @@ function verifyEmoji(entries, batch) {
   }
 }
 
+/**
+ * What a GIF says about its own timing: how many frames it has and how long
+ * they last, read by walking its blocks (not by trusting the interface). Each
+ * frame's delay is in hundredths of a second, as the format has it; a delay of
+ * zero is counted as the ten that every viewer shows instead.
+ */
+function gifTiming(data) {
+  let at = 13
+  if (data[10] & 0x80) at += 3 * 2 ** ((data[10] & 7) + 1)
+  let frames = 0
+  let hundredths = 0
+  let pending = 0
+  while (at < data.length && data[at] !== 0x3b) {
+    if (data[at] === 0x21) {
+      if (data[at + 1] === 0xf9) pending = data.readUInt16LE(at + 4) || 10
+      at += 2
+    } else if (data[at] === 0x2c) {
+      const flags = data[at + 9]
+      frames += 1
+      hundredths += pending
+      pending = 0
+      at += 10
+      if (flags & 0x80) at += 3 * 2 ** ((flags & 7) + 1)
+      at += 1
+    } else {
+      return { frames, ms: hundredths * 10, broken: true }
+    }
+    // Sub-blocks: a length, that many bytes, until a zero length.
+    while (at < data.length && data[at] !== 0) at += data[at] + 1
+    at += 1
+  }
+  return { frames, ms: hundredths * 10, broken: false }
+}
+
+/**
+ * A video as a sticker GIF: what a sticker is, and in addition the segment that
+ * was asked for. Frames and duration are within 15 % (at least one frame) of
+ * the seconds and the rate chosen in the panel.
+ */
+const verifyVideoGif = (seconds, fps) => (entries, batch) => {
+  verifyStickerGif(entries, batch)
+  for (const entry of entries) {
+    const timing = gifTiming(entry.data)
+    const wantedFrames = seconds * fps
+    const wantedMs = seconds * 1000
+    check(`${entry.name} is a well-formed GIF`, !timing.broken)
+    check(
+      `${entry.name} has about ${wantedFrames} frames (seconds x fps)`,
+      Math.abs(timing.frames - wantedFrames) <= Math.max(1, wantedFrames * 0.15),
+      `${timing.frames}`,
+    )
+    check(
+      `${entry.name} lasts about ${wantedMs} ms`,
+      Math.abs(timing.ms - wantedMs) <= wantedMs * 0.15,
+      `${timing.ms} ms`,
+    )
+  }
+}
+
 /** The failed row says what to do, in words, and the page is still standing. */
 async function verifyNotAnimatedRow(page, batch) {
   const text = await page.locator('main').innerText()
@@ -522,6 +581,43 @@ const BATCHES = [
     notAnimated: /not animated/,
     page: verifyNotAnimatedRow,
   },
+  {
+    // The fixture is 2 s long: the whole of it, at 10 frames per second.
+    label: 'Discord, in Spanish, a WebM video as a sticker, 0 to 2 s at 10 fps',
+    tool: 'discord',
+    language: 'es',
+    video: { start: '0', length: '2', fps: '10' },
+    files: [fixture('generated/video-gray-steps.webm')],
+    done: 1,
+    expected: ['video-gray-steps.gif'],
+    oxipng: false,
+    verify: verifyVideoGif(2, 10),
+  },
+  {
+    // Only the duration changes, at the default 15 fps: a second, not two.
+    label: 'Discord, in English, the same video with the duration set to 1 s',
+    tool: 'discord',
+    language: 'en',
+    video: { length: '1' },
+    files: [fixture('generated/video-gray-steps.webm')],
+    done: 1,
+    expected: ['video-gray-steps.gif'],
+    oxipng: false,
+    verify: verifyVideoGif(1, 15),
+  },
+  {
+    // Only where this browser can play H.264; it says so when it cannot.
+    label: 'Discord, in Spanish, an MP4 video as a sticker, 0 to 1 s at 8 fps',
+    tool: 'discord',
+    language: 'es',
+    video: { start: '0', length: '1', fps: '8' },
+    needsMp4: true,
+    files: [fixture('generated/video-gray-steps.mp4')],
+    done: 1,
+    expected: ['video-gray-steps.gif'],
+    oxipng: false,
+    verify: verifyVideoGif(1, 8),
+  },
 ]
 
 /**
@@ -567,11 +663,12 @@ const WORDS = {
     },
     discord: {
       title: /Discord/,
-      heading: /animaciones que quieres convertir/,
+      heading: /animación o el video que quieres convertir/,
       start: /Preparar/,
       busy: 'Preparando',
       finished: (count) => `${count} ${count === 1 ? 'animación lista' : 'animaciones listas'}`,
-      single: /Descargar 1 imagen/,
+      single: /Descargar 1 animación/,
+      fields: { start: 'Inicio (s)', length: 'Duración (s)', fps: 'Fotogramas por segundo' },
     },
     auditar: {
       title: /HAR/,
@@ -615,11 +712,12 @@ const WORDS = {
     },
     discord: {
       title: /Discord/,
-      heading: /animations you want to turn into/,
+      heading: /animation or video you want to turn into/,
       start: /Prepare/,
       busy: 'Preparing',
       finished: (count) => `${count} ${count === 1 ? 'animation' : 'animations'} ready`,
-      single: /Download 1 image/,
+      single: /Download 1 animation/,
+      fields: { start: 'Start (s)', length: 'Length (s)', fps: 'Frames per second' },
     },
     auditar: {
       title: /HAR/,
@@ -715,6 +813,19 @@ async function runBatch(browser, batch, downloads) {
     const isolated = await page.evaluate(() => globalThis.crossOriginIsolated)
     check('cross-origin isolated', isolated === true)
 
+    if (batch.needsMp4) {
+      // H.264 in MP4 is a codec the browser may not ship (Playwright's Chromium
+      // and Firefox often lack it): the page's own player is the judge.
+      const canPlay = await page.evaluate(() =>
+        document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"'),
+      )
+      if (canPlay === '') {
+        console.log('  SKIPPED this browser cannot play H.264 in MP4 (canPlayType is empty)')
+        return
+      }
+      check('this browser can play H.264 in MP4', true, canPlay)
+    }
+
     if (batch.destination) {
       await page.getByRole('button', { name: words.destination }).click()
       await page.getByRole('button', { name: batch.destination }).click()
@@ -751,6 +862,19 @@ async function runBatch(browser, batch, downloads) {
         await page
           .getByRole('button', { name: new RegExp(`${words.destination.source}.*${batch.budget}`) })
           .isVisible(),
+      )
+    }
+
+    if (batch.video !== undefined) {
+      // The Video section of the destination panel, by its labels.
+      await page.getByRole('button', { name: words.destination }).click()
+      for (const [field, value] of Object.entries(batch.video)) {
+        await page.getByLabel(words.fields[field], { exact: true }).fill(value)
+      }
+      await page.keyboard.press('Escape')
+      check(
+        'the segment is set in the panel',
+        await page.getByRole('button', { name: words.destination }).isVisible(),
       )
     }
 

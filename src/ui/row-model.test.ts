@@ -8,7 +8,16 @@ import { profileForResize } from './resize-choice'
 import type { RemovedMetadata } from '../core/metadata'
 import { AUDIT_PROFILE, STRIP_PROFILE } from './tool-profiles'
 import type { ItemOutcome } from '../state/queue'
-import { animationNote, rowDetails, rowKind, rowNote, savedRatio, weightBar } from './row-model'
+import {
+  animationNote,
+  appliedLimit,
+  processedWithOther,
+  rowDetails,
+  rowKind,
+  rowNote,
+  savedRatio,
+  weightBar,
+} from './row-model'
 
 /**
  * The weight bar is the one distinctive element in the interface, so its
@@ -461,10 +470,11 @@ describe('animationNote', () => {
     fps: 15,
     colors: 32,
     steps: [],
+    limitBytes: 512_000,
     ...over,
   })
   const say = (outcome: Parameters<typeof animationNote>[0], copy = es) =>
-    animationNote(outcome, formatters, copy, 512_000)
+    animationNote(outcome, formatters, copy)
 
   it('is null for a file that is not an animation', () => {
     expect(say({ ...base })).toBeNull()
@@ -600,6 +610,9 @@ describe('a Discord result', () => {
     after: number,
     over: Partial<ItemOutcome> = {},
     steps: NonNullable<ItemOutcome['animation']>['steps'] = [],
+    /** The limit the row was processed against, which the result itself carries. */
+    limit = sticker.maxBytes ?? 0,
+    clip?: NonNullable<ItemOutcome['animation']>['clip'],
   ): QueueItem {
     const base = done(before, after)
     if (base.status !== 'done') throw new Error('the helper builds finished rows')
@@ -616,7 +629,15 @@ describe('a Discord result', () => {
         shrunkForBudget: null,
         convertedForBudget: false,
         encodes: 4,
-        animation: { frames: 20, durationMs: 2000, fps: 10, colors: 64, steps },
+        animation: {
+          frames: 20,
+          durationMs: 2000,
+          fps: 10,
+          colors: 64,
+          steps,
+          limitBytes: limit,
+          ...(clip === undefined ? {} : { clip }),
+        },
         ...over,
       },
     }
@@ -645,8 +666,8 @@ describe('a Discord result', () => {
 
     it('reads the limit of the destination: the emoji one is half the sticker one', () => {
       expect(rowKind(animated(900_000, 300_000), sticker, 'discord')).toBe('fits')
-      expect(rowKind(animated(900_000, 240_000), emoji, 'discord')).toBe('tight')
-      expect(rowKind(animated(900_000, 230_400), emoji, 'discord')).toBe('fits')
+      expect(rowKind(animated(900_000, 240_000, {}, [], 256_000), emoji, 'discord')).toBe('tight')
+      expect(rowKind(animated(900_000, 230_400, {}, [], 256_000), emoji, 'discord')).toBe('fits')
     })
 
     it('still follows the queue while there is no result', () => {
@@ -718,7 +739,7 @@ describe('a Discord result', () => {
     })
 
     it('names the emoji limit, not the sticker one', () => {
-      const item = animated(900_000, 300_000, { withinBudget: false })
+      const item = animated(900_000, 300_000, { withinBudget: false }, [], 256_000)
 
       expect(rowNote(item, formatters, es, 'discord', emoji.maxBytes)).toContain('256 KB')
       expect(rowNote(item, formatters, en, 'discord', emoji.maxBytes)).toContain(
@@ -764,6 +785,102 @@ describe('a Discord result', () => {
       const rows = labelled(animated(30_000, 200_000), sticker)
 
       expect(rows['Ahorro']?.value).toMatch(/[-−]/)
+    })
+  })
+
+  /**
+   * D61 promises no false successes. The verdict is the one reached with the
+   * limit the file was made for; the bar, the margin and the tight mark must
+   * read that same limit, even after another destination is selected.
+   */
+  describe('after the destination changes', () => {
+    // Made for the sticker (512 KB): 400 KB fits with room to spare there.
+    const forSticker = animated(900_000, 400_000)
+    // Made for the emoji (256 KB), which it did not fit.
+    const forEmoji = animated(900_000, 300_000, { withinBudget: false }, [], 256_000)
+
+    it('keeps the verdict, the bar and the margin of a sticker row when emoji is selected', () => {
+      expect(rowKind(forSticker, emoji, 'discord')).toBe('fits')
+
+      const bar = weightBar(forSticker, emoji)
+      // Against the sticker limit: 400/512 of the track, the mark at its end.
+      expect(bar?.fill).toBeCloseTo(400_000 / 512_000)
+      expect(bar?.overflow).toBeNull()
+
+      const rows = Object.fromEntries(
+        rowDetails(forSticker, emoji, formatters, es, 'discord').map((row) => [row.label, row]),
+      )
+      expect(rows['Margen']?.value).toBe('112 KB')
+      expect(rows['Exceso']).toBeUndefined()
+    })
+
+    it('never shows a failed row inside its bar, nor a fitting one over it', () => {
+      expect(rowKind(forEmoji, sticker, 'discord')).toBe('over')
+      const bar = weightBar(forEmoji, sticker)
+      expect(bar?.overflow).not.toBeNull()
+      expect(bar?.mark).toBeCloseTo(256_000 / 300_000)
+
+      const rows = Object.fromEntries(
+        rowDetails(forEmoji, sticker, formatters, es, 'discord').map((row) => [row.label, row]),
+      )
+      expect(rows['Exceso']).toMatchObject({ value: '44 KB', kind: 'over' })
+    })
+
+    it('says so, discreetly, only for a row made for another limit', () => {
+      expect(processedWithOther(forSticker, emoji)).toBe(true)
+      expect(processedWithOther(forSticker, sticker)).toBe(false)
+      expect(rowNote(forSticker, formatters, es, 'discord', emoji.maxBytes)).toContain(
+        'procesada con otro destino',
+      )
+      expect(rowNote(forSticker, formatters, es, 'discord', sticker.maxBytes)).not.toContain(
+        'otro destino',
+      )
+      expect(rowNote(forSticker, formatters, en, 'discord', emoji.maxBytes)).toContain(
+        'made for another destination',
+      )
+    })
+
+    it('names, in the details, the limit the row was made for', () => {
+      const rows = Object.fromEntries(
+        rowDetails(forSticker, emoji, formatters, es, 'discord').map((row) => [row.label, row]),
+      )
+      expect(rows['Destino pide']?.value).toBe('máx. 512 KB (otro destino)')
+    })
+
+    it('appliedLimit prefers the result and falls back to the selected profile', () => {
+      expect(appliedLimit(forSticker, emoji)).toBe(512_000)
+      expect(appliedLimit(pending, emoji)).toBe(256_000)
+    })
+  })
+
+  describe('the video segment', () => {
+    const clip = { startSeconds: 0, lengthSeconds: 1, sourceDurationSeconds: 2 }
+    const fromVideo = animated(900_000, 300_000, {}, [], 512_000, clip)
+
+    it('is said in the note as what was kept', () => {
+      expect(rowNote(fromVideo, formatters, es, 'discord', sticker.maxBytes)).toContain(
+        'Tramo de 0 a 1 s de 2 s',
+      )
+      expect(rowNote(fromVideo, formatters, en, 'discord', sticker.maxBytes)).toContain(
+        'Segment from 0 to 1 s of 2 s',
+      )
+    })
+
+    it('is a row of the details: start, length used and the original duration', () => {
+      const rows = Object.fromEntries(
+        rowDetails(fromVideo, sticker, formatters, es, 'discord').map((row) => [row.label, row]),
+      )
+      expect(rows['Tramo del video']?.value).toBe('desde 0 s, 1 s de 2 s')
+
+      const english = Object.fromEntries(
+        rowDetails(fromVideo, sticker, formatters, en, 'discord').map((row) => [row.label, row]),
+      )
+      expect(english['Video segment']?.value).toBe('from 0 s, 1 s of 2 s')
+    })
+
+    it('is absent for an animation that was not cut out of a video', () => {
+      const rows = rowDetails(animated(900_000, 300_000), sticker, formatters, es, 'discord')
+      expect(rows.some((row) => row.label === 'Tramo del video')).toBe(false)
     })
   })
 })

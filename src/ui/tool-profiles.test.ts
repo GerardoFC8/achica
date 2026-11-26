@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DISCORD_PERFILES, PERFILES, toOutputPlan } from '../core/profiles'
+import { DEFAULT_VIDEO_SEGMENT } from '../core/animation/video-segment'
 import { NO_BUDGET } from './budget'
 import { DEFAULT_FORMAT } from './format-choice'
 import { DEFAULT_RESIZE } from './resize-choice'
@@ -25,6 +26,7 @@ const choices = (destination = AUDIT_PROFILE): ToolChoices => ({
   resize: DEFAULT_RESIZE,
   format: DEFAULT_FORMAT,
   canvasReduction: false,
+  video: DEFAULT_VIDEO_SEGMENT,
 })
 
 describe('the audit destination', () => {
@@ -109,6 +111,7 @@ describe('what Discord offers', () => {
     expect(plan.animation).toEqual({
       layout: { kind: 'sticker', size: 320 },
       format: 'gif',
+      video: DEFAULT_VIDEO_SEGMENT,
     })
     expect(plan.animation?.allowCanvasReduction).toBeUndefined()
   })
@@ -127,6 +130,18 @@ describe('what Discord offers', () => {
     // An emoji is shrunk instead, so the choice must not leak into its plan.
     expect(planForTool('discord', ticked(emojiGif)).animation?.allowCanvasReduction).toBeUndefined()
     expect(planForTool('discord', ticked(emojiGif)).maxBytes).toBe(256_000)
+  })
+
+  it('always carries the chosen video segment in the Discord plan, and nowhere else', () => {
+    const video = { startSeconds: 2, lengthSeconds: 3.5, fps: 12 }
+    const chosen = { ...choices(stickerGif), video }
+
+    expect(planForTool('discord', chosen).animation?.video).toEqual(video)
+    expect(planForTool('discord', { ...chosen, destination: emojiGif }).animation?.video).toEqual(
+      video,
+    )
+    const web = PERFILES[0] ?? stickerGif
+    expect(planForTool('comprimir', { ...chosen, destination: web }).animation).toBeUndefined()
   })
 
   it('measures every row against the same profile the plan was made from', () => {

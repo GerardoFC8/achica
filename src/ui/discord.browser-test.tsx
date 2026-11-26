@@ -81,12 +81,16 @@ describe('the empty screen', () => {
     await expect
       .element(page.getByRole('heading', { level: 1, name: /sticker o emoji de Discord/ }))
       .toBeVisible()
-    await expect.element(page.getByText('GIF, APNG o WebP animado')).toBeVisible()
+    await expect
+      .element(page.getByText('GIF, APNG, WebP animado o video (MP4, WebM)'))
+      .toBeVisible()
     await expect.element(page.getByText('Nada sale de tu dispositivo')).toBeVisible()
+    // The honest sentence about video: it plays in this tab.
+    await expect.element(page.getByText(/se reproduce en esta pestaña.*visible/)).toBeVisible()
 
     const input = document.querySelector('input[type=file]')
     expect(input?.getAttribute('accept')).toBe(
-      'image/gif,image/png,image/webp,.gif,.png,.apng,.webp',
+      'image/gif,image/png,image/webp,video/mp4,video/webm,.gif,.png,.apng,.webp,.mp4,.m4v,.mov,.webm',
     )
     expect(input?.hasAttribute('multiple')).toBe(true)
 
@@ -104,7 +108,9 @@ describe('the empty screen', () => {
     await expect
       .element(page.getByRole('heading', { level: 1, name: /Discord sticker or emoji/ }))
       .toBeVisible()
-    await expect.element(page.getByText('GIF, APNG or animated WebP')).toBeVisible()
+    await expect
+      .element(page.getByText('GIF, APNG, animated WebP or video (MP4, WebM)'))
+      .toBeVisible()
   })
 })
 
@@ -378,7 +384,9 @@ describe('what cannot be made', () => {
       await expect.element(page.getByRole('button', { name: /Justos/ })).not.toBeInTheDocument()
 
       // It is still a file the user can take.
-      await expect.element(page.getByRole('button', { name: 'Descargar 1 imagen' })).toBeVisible()
+      await expect
+        .element(page.getByRole('button', { name: 'Descargar 1 animación' }))
+        .toBeVisible()
       await expect
         .element(page.getByRole('button', { name: 'Descargar', exact: true }))
         .toBeVisible()

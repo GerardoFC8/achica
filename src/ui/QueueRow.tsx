@@ -4,7 +4,7 @@ import type { ToolId } from '../tools/registry'
 import { useAudit } from '../state/audit-store'
 import { useCopy, type Copy } from './copy'
 import type { Formatters } from './format'
-import { rowDetails, rowNote, savedRatio, weightBar, type RowKind } from './row-model'
+import { appliedLimit, rowDetails, rowNote, savedRatio, weightBar, type RowKind } from './row-model'
 import { AnimationPreview } from './AnimationPreview'
 import { useTool, useToolWords } from './tool-context'
 import { STRIPE_TONE, TEXT_TONE } from './tone'
@@ -34,18 +34,17 @@ function describeBar(
 ): string {
   if (item.status !== 'done') return rowNote(item, formatters, copy, tool)
 
-  // The track is the limit itself, so the sentence names the limit and not the original.
-  if (profile.animation !== undefined && profile.maxBytes !== undefined) {
-    return copy.row.limitBar(
-      formatters.bytes(item.outcome.bytesAfter),
-      formatters.bytes(profile.maxBytes),
-    )
+  // The track is the limit itself, so the sentence names the limit the row
+  // was judged against (not the original, and not the selected destination's).
+  const limit = appliedLimit(item, profile)
+  if (item.outcome.animation !== undefined && limit !== undefined) {
+    return copy.row.limitBar(formatters.bytes(item.outcome.bytesAfter), formatters.bytes(limit))
   }
 
   return copy.row.bar(
     formatters.bytes(item.bytesBefore),
     formatters.bytes(item.outcome.bytesAfter),
-    profile.maxBytes === undefined ? null : formatters.bytes(profile.maxBytes),
+    limit === undefined ? null : formatters.bytes(limit),
   )
 }
 
@@ -198,6 +197,7 @@ export function QueueRow({
                 <dt className="shrink-0 text-xs text-ink-soft">{detail.label}</dt>
                 <span className="flex-1 -translate-y-[3px] border-b border-dotted border-rule" />
                 <dd
+                  title={detail.value}
                   className={`tnum min-w-0 shrink truncate text-xs ${
                     detail.kind === undefined ? '' : TEXT_TONE[detail.kind]
                   }`}

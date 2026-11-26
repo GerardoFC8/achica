@@ -51,6 +51,36 @@ function budgetMark(item: QueueItem, profile: Profile): number | null {
   return profile.maxBytes / item.bytesBefore
 }
 
+/**
+ * The weight limit a finished row was judged against.
+ *
+ * An animation carries it in its own result, because the destination selected
+ * now may not be the one it was processed with: `withinBudget` is a verdict
+ * about that number, and a bar or a margin measured against another one would
+ * contradict it (D61). Every other row is measured against the selected
+ * profile, as before.
+ */
+export function appliedLimit(item: QueueItem, profile: Profile): number | undefined {
+  if (item.status === 'done' && item.outcome.animation !== undefined) {
+    return item.outcome.animation.limitBytes
+  }
+  return profile.maxBytes
+}
+
+/**
+ * True when a finished animation was fitted to a limit other than the selected
+ * destination's. The queue does not remember which destination a row used, so
+ * the limit is the evidence: it is the one thing the verdict depends on.
+ */
+export function processedWithOther(item: QueueItem, profile: Profile): boolean {
+  return (
+    item.status === 'done' &&
+    item.outcome.animation !== undefined &&
+    profile.maxBytes !== undefined &&
+    item.outcome.animation.limitBytes !== profile.maxBytes
+  )
+}
+
 export function rowKind(item: QueueItem, profile: Profile, tool: ToolId): RowKind {
   if (item.status !== 'done') return item.status
 
@@ -63,7 +93,7 @@ export function rowKind(item: QueueItem, profile: Profile, tool: ToolId): RowKin
    */
   if (tool === 'discord') {
     if (!item.outcome.withinBudget) return 'over'
-    const limit = profile.maxBytes
+    const limit = appliedLimit(item, profile)
     return limit !== undefined && item.outcome.bytesAfter > limit * TIGHT_FRACTION
       ? 'tight'
       : 'fits'
@@ -117,6 +147,9 @@ export function weightBar(item: QueueItem, profile: Profile): WeightBar | null {
    */
   if (item.status === 'failed' || item.status === 'cancelled') return null
 
+  if (item.status === 'done' && item.outcome.animation !== undefined) {
+    return limitBar(item, item.outcome.animation.limitBytes)
+  }
   if (profile.animation !== undefined && profile.maxBytes !== undefined) {
     return limitBar(item, profile.maxBytes)
   }
@@ -140,8 +173,12 @@ export function rowNote(
   formatters: Formatters,
   copy: Copy,
   tool: ToolId,
-  /** The destination's absolute weight limit, which an animation's note names. */
-  maxBytes?: number,
+  /**
+   * The selected destination's limit. The note names the limit the row was
+   * judged against, which is the animation's own; this one only tells whether
+   * the selection has moved to another destination since.
+   */
+  selectedMaxBytes?: number,
 ): string {
   const { note } = copy
 
@@ -157,9 +194,11 @@ export function rowNote(
     case 'done': {
       const { outcome } = item
 
-      if (outcome.animation !== undefined && maxBytes !== undefined) {
-        const animation = animationNote(outcome, formatters, copy, maxBytes)
+      if (outcome.animation !== undefined) {
+        const animation = animationNote(outcome, formatters, copy)
         if (animation !== null) {
+          const other =
+            selectedMaxBytes !== undefined && selectedMaxBytes !== outcome.animation.limitBytes
           // The verdict leads when the file does not fit: the row truncates, and
           // that is the one thing that must not be cut.
           return [
@@ -167,6 +206,7 @@ export function rowNote(
             animation.headline,
             ...(animation.clip === null ? [] : [animation.clip]),
             ...animation.steps,
+            ...(other ? [copy.note.animation.otherDestination] : []),
           ].join(' · ')
         }
       }
@@ -259,8 +299,6 @@ export function animationNote(
   outcome: Pick<ItemOutcome, 'animation' | 'withinBudget' | 'width' | 'height' | 'bytesAfter'>,
   formatters: Formatters,
   copy: Copy,
-  /** The destination's weight limit in bytes, named when the file does not fit. */
-  maxBytes: number,
 ): AnimationNote | null {
   const { animation } = outcome
   if (animation === undefined) return null
@@ -310,7 +348,7 @@ export function animationNote(
     fits: outcome.withinBudget,
     verdict: outcome.withinBudget
       ? words.fits
-      : words.over(formatters.bytes(outcome.bytesAfter), formatters.bytes(maxBytes)),
+      : words.over(formatters.bytes(outcome.bytesAfter), formatters.bytes(animation.limitBytes)),
   }
 }
 
@@ -426,14 +464,14 @@ function detailsOf(
   const kind = rowKind(item, profile, tool)
   // An animation is enlarged to its canvas, so its original weight says
   // nothing about its room: the limit is the limit.
+  const limit = appliedLimit(item, profile)
   const ceiling =
-    profile.maxBytes === undefined
+    limit === undefined
       ? null
-      : profile.animation !== undefined
-        ? profile.maxBytes
-        : Math.min(profile.maxBytes, item.bytesBefore)
+      : outcome.animation !== undefined
+        ? limit
+        : Math.min(limit, item.bytesBefore)
   const margin = ceiling === null ? null : ceiling - outcome.bytesAfter
-  const maxBytes = profile.maxBytes ?? null
 
   if (outcome.metadata !== undefined) {
     const facts = stripFacts(outcome.metadata, formatters)
@@ -459,8 +497,8 @@ function detailsOf(
 
   const animation = outcome.animation
   if (animation !== undefined) {
-    const steps =
-      maxBytes === null ? [] : (animationNote(outcome, formatters, copy, maxBytes)?.steps ?? [])
+    const steps = animationNote(outcome, formatters, copy)?.steps ?? []
+    const { clip } = animation
     return [
       { label: details.output, value: outcome.format.toUpperCase() },
       { label: details.dimensions, value: formatters.dimensions(outcome.width, outcome.height) },
@@ -479,7 +517,23 @@ function detailsOf(
         value: steps.length === 0 ? details.adjustedNothing : steps.join(', '),
       },
       { label: details.encodes, value: formatters.count(outcome.encodes) },
-      target,
+      ...(clip === undefined
+        ? []
+        : [
+            {
+              label: details.clip,
+              value: details.clipValue(
+                formatters.seconds(clip.startSeconds),
+                formatters.seconds(clip.lengthSeconds),
+                formatters.seconds(clip.sourceDurationSeconds),
+              ),
+            },
+          ]),
+      // Says the limit the row was judged against, which may not be the
+      // selected destination's: the margin below is measured against it.
+      outcome.animation !== undefined && processedWithOther(item, profile)
+        ? { label: details.target, value: details.processedWithOther(formatters.bytes(limit ?? 0)) }
+        : target,
       ...(margin === null
         ? []
         : [

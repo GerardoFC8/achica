@@ -109,6 +109,7 @@ describe('processVideoFrames', () => {
     expect([value.width, value.height]).toEqual([16, 16])
     expect(value.animation?.frames).toBe(6)
     expect(value.animation?.clip).toEqual(clip)
+    expect(value.animation?.limitBytes).toBe(100_000)
     // The GIF it wrote is a GIF.
     expect(String.fromCharCode(...value.output.slice(0, 3))).toBe('GIF')
   })

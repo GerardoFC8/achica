@@ -111,6 +111,8 @@ describe('an animation through the worker', () => {
       expect(outcome.shrunkForBudget).toBeNull()
       expect(outcome.bytesAfter).toBe(outcome.output.length)
       expect(outcome.withinBudget).toBe(outcome.bytesAfter <= profile.maxBytes)
+      // The limit the verdict was reached against travels with the result.
+      expect(outcome.animation?.limitBytes).toBe(profile.maxBytes)
       expect(outcome.animation?.frames).toBeGreaterThan(1)
 
       const seen = await inspect(outcome.output, mimeTypeOfKind(outcome.format))

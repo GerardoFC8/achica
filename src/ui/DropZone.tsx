@@ -25,11 +25,13 @@ export function DropZone({ onFiles, reading = false, error = null }: Props) {
   const words = useToolWords()
   const [over, setOver] = useState(false)
   const audit = tool === 'auditar'
-  // An animation is told by its bytes, not by its type, and an APNG often
-  // arrives as a plain PNG or with no type at all: the extensions go too.
+  // An animation or a video is told by its bytes, not by its type, and an
+  // APNG often arrives as a plain PNG or with no type at all: the extensions
+  // go too. A .mov is offered because the bytes may be an MP4 in disguise;
+  // the runner decides, and refuses what it cannot read.
   const accept =
     tool === 'discord'
-      ? 'image/gif,image/png,image/webp,.gif,.png,.apng,.webp'
+      ? 'image/gif,image/png,image/webp,video/mp4,video/webm,.gif,.png,.apng,.webp,.mp4,.m4v,.mov,.webm'
       : audit
         ? '.har,.json,application/json'
         : 'image/*'
@@ -75,6 +77,11 @@ export function DropZone({ onFiles, reading = false, error = null }: Props) {
         </button>
         {/* A quiet fact about the tool, not a claim about the tool. */}
         {words.hint === undefined ? null : <p className="text-[13px] leading-4">{words.hint}</p>}
+        {words.dropNote === undefined ? null : (
+          <p className="max-w-prose text-center text-xs leading-4 text-balance text-ink-soft">
+            {words.dropNote}
+          </p>
+        )}
         <p className="text-xs leading-4 text-ink-soft">{copy.drop.promise}</p>
 
         {audit ? (

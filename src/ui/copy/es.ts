@@ -32,6 +32,10 @@ export interface ToolWords {
   readonly running: string
   /** A short line under the heading, for a tool that takes a narrower set of inputs. */
   readonly hint?: string
+  /** A plain fact the user needs before dropping, said under the hint. */
+  readonly dropNote?: string
+  /** The toolbar's download button once something is done: one file, or a ZIP. */
+  readonly download: (done: number, count: string) => string
   /** The totals line once something has finished. */
   readonly finished: (done: number, count: string) => string
   /** The selection action that runs the same files again. */
@@ -123,6 +127,8 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay nada que comprimir',
       tableLabel: 'Cola de compresión',
       weightHeader: 'Peso contra presupuesto',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, comprimida`,
     },
     redimensionar: {
@@ -135,6 +141,8 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay nada que redimensionar',
       tableLabel: 'Cola de redimensionado',
       weightHeader: 'Peso antes y después',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, redimensionada`,
     },
     convertir: {
@@ -147,6 +155,8 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay nada que convertir',
       tableLabel: 'Cola de conversión',
       weightHeader: 'Peso antes y después',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, convertida`,
     },
     'quitar-exif': {
@@ -159,11 +169,16 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay nada que limpiar',
       tableLabel: 'Cola de limpieza',
       weightHeader: 'Peso antes y después',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, limpiada`,
     },
     discord: {
-      heading: 'Arrastra aquí las animaciones que quieres convertir en sticker o emoji de Discord',
-      hint: 'GIF, APNG o WebP animado',
+      heading:
+        'Arrastra aquí la animación o el video que quieres convertir en sticker o emoji de Discord',
+      hint: 'GIF, APNG, WebP animado o video (MP4, WebM)',
+      dropNote:
+        'Un video se reproduce en esta pestaña mientras se prepara, así que hay que mantenerla visible.',
       start: (pending, count) => `Preparar ${count} ${plural(pending, 'animación', 'animaciones')}`,
       running: 'Preparando',
       finished: (done, count) =>
@@ -172,6 +187,8 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay ninguna animación que preparar',
       tableLabel: 'Cola de animaciones',
       weightHeader: 'Peso contra el límite de Discord',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 animación' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, ajustada para Discord`,
     },
     auditar: {
@@ -184,6 +201,8 @@ export const es = {
       emptyFile: 'Archivo vacío, no hay nada que medir',
       tableLabel: 'Imágenes del HAR',
       weightHeader: 'Peso antes y después',
+      download: (done, count) =>
+        done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
       resultAlt: (name) => `${name}, recomprimida`,
     },
   } satisfies Record<ToolId, ToolWords>,
@@ -261,8 +280,6 @@ export const es = {
   toolbar: {
     destination: 'Destino',
     saveToFolder: 'Guardar en una carpeta',
-    download: (done: number, count: string) =>
-      done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
     cancel: 'Cancelar',
     stripLabel: 'Sin recodificar',
     stripTitle:
@@ -344,6 +361,25 @@ export const es = {
     fixed: 'La calidad es fija y es la que recomendamos para cada formato.',
   },
 
+  /** The Discord panel's section for cutting a video (the tool's own numbers, not Discord's). */
+  video: {
+    title: 'Video',
+    onlyVideos: 'Solo cuenta para los archivos de video.',
+    start: 'Inicio (s)',
+    length: 'Duración (s)',
+    fps: 'Fotogramas por segundo',
+    /** Why there is a cap, and whose it is. */
+    capNote: (seconds: string, frames: string) =>
+      `El tope de ${seconds} s y ${frames} fotogramas es de achica, no de Discord: reproducir el tramo lleva tanto tiempo como dure, y los fotogramas se guardan en memoria.`,
+    problems: {
+      empty: 'Escribe un número.',
+      notNumber: 'Eso no es un número. Escribe, por ejemplo, 2,5.',
+      negative: 'No puede ser negativo.',
+    },
+    /** A valid number that was cut to the tool's bounds. */
+    adjusted: (value: string) => `Se ajustó a ${value}, el límite de la herramienta.`,
+  },
+
   filters: {
     todos: 'Todos',
     fits: 'Entraron con margen',
@@ -416,6 +452,8 @@ export const es = {
       },
       /** Which part of a video was kept: a choice the user made, not a failure. */
       clip: (from: string, to: string, total: string) => `Tramo de ${from} a ${to} s de ${total} s`,
+      /** Said when the selected destination is no longer the one the row was made for. */
+      otherDestination: 'procesada con otro destino',
       fits: 'Entra en el límite',
       over: (size: string, limit: string) =>
         `No entra en el límite de ${limit}: es la versión más pequeña que se pudo hacer (${size})`,
@@ -453,6 +491,11 @@ export const es = {
     duration: 'Duración',
     fps: 'Fotogramas por segundo',
     colors: 'Colores',
+    clip: 'Tramo del video',
+    clipValue: (from: string, length: string, total: string) =>
+      `desde ${from} s, ${length} s de ${total} s`,
+    /** The target line of a row made for another destination: its own limit, said as such. */
+    processedWithOther: (limit: string) => `máx. ${limit} (otro destino)`,
     adjusted: 'Se ajustó',
     adjustedNothing: 'nada, entró tal cual',
     preview: 'Vista previa',

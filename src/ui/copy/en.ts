@@ -107,6 +107,7 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is nothing to compress',
       tableLabel: 'Compression queue',
       weightHeader: 'Weight against the limit',
+      download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
       resultAlt: (name) => `${name}, compressed`,
     },
     redimensionar: {
@@ -118,6 +119,7 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is nothing to resize',
       tableLabel: 'Resize queue',
       weightHeader: 'Weight before and after',
+      download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
       resultAlt: (name) => `${name}, resized`,
     },
     convertir: {
@@ -129,6 +131,7 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is nothing to convert',
       tableLabel: 'Conversion queue',
       weightHeader: 'Weight before and after',
+      download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
       resultAlt: (name) => `${name}, converted`,
     },
     'quitar-exif': {
@@ -140,11 +143,13 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is nothing to clean',
       tableLabel: 'Cleaning queue',
       weightHeader: 'Weight before and after',
+      download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
       resultAlt: (name) => `${name}, cleaned`,
     },
     discord: {
-      heading: 'Drop the animations you want to turn into a Discord sticker or emoji here',
-      hint: 'GIF, APNG or animated WebP',
+      heading: 'Drop the animation or video you want to turn into a Discord sticker or emoji here',
+      hint: 'GIF, APNG, animated WebP or video (MP4, WebM)',
+      dropNote: 'A video plays in this tab while it is prepared, so the tab has to stay visible.',
       start: (pending, count) => `Prepare ${count} ${plural(pending, 'animation', 'animations')}`,
       running: 'Preparing',
       finished: (done, count) => `${count} ${plural(done, 'animation', 'animations')} ready`,
@@ -152,6 +157,8 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is no animation to prepare',
       tableLabel: 'Animation queue',
       weightHeader: 'Weight against the Discord limit',
+      download: (done, count) =>
+        done === 1 ? 'Download 1 animation' : `Download ${count} as a ZIP`,
       resultAlt: (name) => `${name}, fitted for Discord`,
     },
     auditar: {
@@ -164,6 +171,7 @@ export const en: Copy = {
       emptyFile: 'Empty file, there is nothing to measure',
       tableLabel: 'Images in the HAR',
       weightHeader: 'Weight before and after',
+      download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
       resultAlt: (name) => `${name}, recompressed`,
     },
   },
@@ -233,7 +241,6 @@ export const en: Copy = {
   toolbar: {
     destination: 'Destination',
     saveToFolder: 'Save to a folder',
-    download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
     cancel: 'Cancel',
     stripLabel: 'No re-encoding',
     stripTitle:
@@ -309,6 +316,22 @@ export const en: Copy = {
     fixed: 'Quality is fixed, the one we recommend for each format.',
   },
 
+  video: {
+    title: 'Video',
+    onlyVideos: 'Only used for video files.',
+    start: 'Start (s)',
+    length: 'Length (s)',
+    fps: 'Frames per second',
+    capNote: (seconds, frames) =>
+      `The cap of ${seconds} s and ${frames} frames is achica's, not Discord's: playing the segment takes as long as it lasts, and the frames are held in memory.`,
+    problems: {
+      empty: 'Type a number.',
+      notNumber: 'That is not a number. Type, for example, 2.5.',
+      negative: 'It cannot be negative.',
+    },
+    adjusted: (value) => `Adjusted to ${value}, the tool's limit.`,
+  },
+
   filters: {
     todos: 'All',
     fits: 'Fit with room',
@@ -374,6 +397,7 @@ export const en: Copy = {
         diffOff: 'cropping to what changes turned off',
       },
       clip: (from, to, total) => `Segment from ${from} to ${to} s of ${total} s`,
+      otherDestination: 'made for another destination',
       fits: 'Fits the limit',
       over: (size, limit) =>
         `Does not fit the limit of ${limit}: this is the smallest version that could be made (${size})`,
@@ -411,6 +435,9 @@ export const en: Copy = {
     duration: 'Duration',
     fps: 'Frames per second',
     colors: 'Colours',
+    clip: 'Video segment',
+    clipValue: (from, length, total) => `from ${from} s, ${length} s of ${total} s`,
+    processedWithOther: (limit) => `max. ${limit} (other destination)`,
     adjusted: 'Adjusted',
     adjustedNothing: 'nothing, it fitted as it was',
     preview: 'Preview',
