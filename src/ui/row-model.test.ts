@@ -7,7 +7,8 @@ import { profileForFormat } from './format-choice'
 import { profileForResize } from './resize-choice'
 import type { RemovedMetadata } from '../core/metadata'
 import { AUDIT_PROFILE, STRIP_PROFILE } from './tool-profiles'
-import { rowDetails, rowKind, rowNote, savedRatio, weightBar } from './row-model'
+import type { ItemOutcome } from '../state/queue'
+import { animationNote, rowDetails, rowKind, rowNote, savedRatio, weightBar } from './row-model'
 
 /**
  * The weight bar is the one distinctive element in the interface, so its
@@ -441,5 +442,101 @@ describe('the audit reads an image that did not improve as already fine', () => 
     expect(
       rowDetails(done(1_000, 400), AUDIT_PROFILE, formatters, es, 'auditar')[0]?.label,
     ).not.toBe('Dirección en el HAR')
+  })
+})
+
+describe('animationNote', () => {
+  const formatters = createFormatters(DEFAULT_LOCALE)
+  const base = {
+    withinBudget: true,
+    width: 320,
+    height: 320,
+    bytesAfter: 480_000,
+  }
+  const animation = (
+    over: Partial<NonNullable<ItemOutcome['animation']>> = {},
+  ): NonNullable<ItemOutcome['animation']> => ({
+    frames: 30,
+    durationMs: 2000,
+    fps: 15,
+    colors: 32,
+    steps: [],
+    ...over,
+  })
+  const say = (outcome: Parameters<typeof animationNote>[0], copy = es) =>
+    animationNote(outcome, formatters, copy)
+
+  it('is null for a file that is not an animation', () => {
+    expect(say({ ...base })).toBeNull()
+  })
+
+  it('states the fps, the colours and the canvas', () => {
+    const note = say({ ...base, animation: animation() })
+
+    expect(note?.headline).toBe('15 fps · 32 colores · lienzo 320 × 320')
+    expect(note?.steps).toEqual([])
+    expect(note?.fits).toBe(true)
+    expect(note?.verdict).toBe('Entra en el límite')
+  })
+
+  it('says full colour for a lossless APNG', () => {
+    expect(say({ ...base, animation: animation({ colors: null }) })?.headline).toContain(
+      'color completo',
+    )
+  })
+
+  it('puts what was given up in words, in the order it was given up', () => {
+    const note = say({
+      ...base,
+      animation: animation({
+        fps: 4,
+        colors: 32,
+        steps: [
+          { kind: 'palette', colors: 32 },
+          { kind: 'fps', from: 15, to: 4 },
+          { kind: 'scale', to: 0.7 },
+          { kind: 'canvas', to: 256 },
+          { kind: 'optimise', on: false },
+        ],
+      }),
+    })
+
+    expect(note?.steps).toEqual([
+      'paleta de 32 colores',
+      'se bajó a 4 fps',
+      'tamaño reducido al 70 %',
+      'lienzo reducido a 256 px',
+      'recorte por diferencias desactivado',
+    ])
+  })
+
+  it('does not report the default cropping as something given up', () => {
+    const note = say({ ...base, animation: animation({ steps: [{ kind: 'optimise', on: true }] }) })
+
+    expect(note?.steps).toEqual([])
+  })
+
+  it('flags a result that did not fit, with the size it ended at', () => {
+    const note = say({ ...base, withinBudget: false, bytesAfter: 600_000, animation: animation() })
+
+    expect(note?.fits).toBe(false)
+    expect(note?.verdict).toContain('No entra en el límite')
+    expect(note?.verdict).toContain('600')
+  })
+
+  it('reads in English too, with nothing left undefined', () => {
+    const note = say(
+      {
+        ...base,
+        withinBudget: false,
+        animation: animation({ steps: [{ kind: 'fps', from: 15, to: 6 }] }),
+      },
+      en,
+    )
+
+    expect(note?.headline).toBe('15 fps · 32 colours · canvas 320 × 320')
+    expect(note?.steps).toEqual(['lowered to 6 fps'])
+    expect(note?.verdict).toContain('Does not fit')
+    expect(JSON.stringify(note)).not.toContain('undefined')
   })
 })

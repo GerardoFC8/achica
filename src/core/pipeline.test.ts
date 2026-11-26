@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextScaleForBudget } from './pipeline'
+import { nextScaleForBudget, processImage } from './pipeline'
 
 /**
  * The pure half of the pipeline: how far to shrink when the budget is out of
@@ -50,5 +50,33 @@ describe('nextScaleForBudget', () => {
   it('falls back to halving on nonsense input', () => {
     expect(nextScaleForBudget(0, 100)).toBe(0.5)
     expect(nextScaleForBudget(100, 0)).toBe(0.5)
+  })
+})
+
+describe('processImage with an animation plan', () => {
+  const ANIMATION = { layout: { kind: 'sticker', size: 320 }, format: 'gif' } as const
+
+  it('does not go through still-image detection: an empty file is the animation error', async () => {
+    const result = await processImage(new ArrayBuffer(0), {
+      format: 'keep',
+      maxBytes: 512_000,
+      animation: ANIMATION,
+    })
+
+    // A still plan would say `empty-file` as a DetectionError; this one says it
+    // as an animation failure, which is how the interface tells them apart.
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'animation-failed', reason: 'empty-file', detail: expect.any(String) },
+    })
+  })
+
+  it('refuses a plan with no budget instead of guessing one', async () => {
+    const result = await processImage(new ArrayBuffer(8), { format: 'keep', animation: ANIMATION })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toMatchObject({ code: 'animation-failed', reason: 'bad-option' })
+    }
   })
 })

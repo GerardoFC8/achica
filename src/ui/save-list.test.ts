@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { OutputKind } from '../core/output-kind'
 import type { QueueItem } from '../state/queue'
 import { saveList } from './save-list'
 
@@ -10,7 +11,7 @@ import { saveList } from './save-list'
 
 const source = (name: string): File => new File([new Uint8Array(2)], name)
 
-function done(name: string, format: 'webp' | 'jpeg'): QueueItem {
+function done(name: string, format: OutputKind): QueueItem {
   return {
     id: name,
     file: source(name),
@@ -65,6 +66,12 @@ describe('saveList', () => {
     }
 
     expect(saveList([pending, done('ok.jpg', 'jpeg'), failed])).toHaveLength(1)
+  })
+
+  it('names a GIF and an APNG by what they are: .gif and .png', () => {
+    expect(
+      saveList([done('baile.webp', 'gif'), done('baile.gif', 'apng')]).map((file) => file.name),
+    ).toEqual(['baile.gif', 'baile.png'])
   })
 
   it('carries the blob itself, not a copy of its bytes', () => {

@@ -20,6 +20,7 @@ const GROUPS: Readonly<Record<ProfileGroup, string>> = {
   Formato: 'Format',
   Metadatos: 'Metadata',
   Auditoría: 'Audit',
+  Discord: 'Discord',
 }
 
 /**
@@ -45,6 +46,18 @@ export const PROFILE_TEXT: Readonly<
   'auditoria-mismo-formato': {
     label: 'Same format and size',
     note: 'Recompresses each image without changing its format or its dimensions, so the saving is what swapping the file for a lighter one would give, with no change to the page. It assumes neither a new format nor the size an image is painted at.',
+  },
+  'discord-sticker-gif': {
+    label: 'Discord animated sticker (GIF)',
+    note: 'A square 320 × 320 px canvas with a transparent background and a GIF of up to 512,000 bytes. If it does not fit, it lowers the frames per second and the colours, and flags the result if it is still too heavy. GIF only has all-or-nothing transparency, so soft edges come out jagged.',
+  },
+  'discord-sticker-apng': {
+    label: 'Discord animated sticker (APNG)',
+    note: 'A square 320 × 320 px canvas and an APNG of up to 512,000 bytes, with soft transparency. It is saved as .png, because Discord rejects the .apng extension. If it does not fit, it lowers the frames per second and the colours.',
+  },
+  'discord-emoji-gif': {
+    label: 'Discord animated emoji (GIF)',
+    note: 'Fits inside 128 × 128 px without being enlarged, keeps its proportions and weighs up to 256,000 bytes. If it does not fit, it lowers the frames per second and the colours.',
   },
   miniatura: {
     label: 'Thumbnail',
@@ -327,6 +340,22 @@ export const en: Copy = {
       keptOrientation
         ? 'It only had the orientation, which is kept: left as it was'
         : 'It had no metadata: left as it was',
+    animation: {
+      fps: (fps) => `${fps} fps`,
+      colors: (colors) => `${colors} colours`,
+      fullColor: 'full colour',
+      canvas: (size) => `canvas ${size}`,
+      steps: {
+        fps: (to) => `lowered to ${to} fps`,
+        palette: (colors) => `${colors}-colour palette`,
+        scale: (percent) => `size reduced to ${percent}%`,
+        canvas: (px) => `canvas reduced to ${px} px`,
+        diffOff: 'cropping to what changes turned off',
+      },
+      fits: 'Fits the limit',
+      over: (size) =>
+        `Does not fit the limit: this is the smallest version that could be made (${size})`,
+    },
     stripped: (facts) =>
       facts.parts.includes('exif-unreadable')
         ? `Removed ${stripList(facts)}; the orientation could not be kept`
@@ -416,5 +445,18 @@ export const en: Copy = {
       `Damaged ${format}: the file is cut off or its structure is invalid, so its metadata could not be removed safely. Nothing was changed`,
     workerCrashed:
       'The browser stopped the process, probably for lack of memory. Try fewer files at a time',
+    animation: {
+      notAnimated:
+        'This image is not animated. Discord already rescales still images by itself: use Compress or Resize',
+      unsupportedBrowser: 'This browser cannot read animations. Try Chrome, Edge or Firefox',
+      unsupportedFormat:
+        'Only GIF, APNG and animated WebP animations can be read. For any other image use Compress or Convert',
+      corrupt: 'The animation is damaged or cut off, so it could not be read. Try another file',
+      tooLarge: 'The animation is too large. Try a shorter or smaller one',
+      resizeFailed: 'The frames could not be resized. Try a smaller animation',
+      compressionUnavailable:
+        'This browser cannot compress the APNG. Try Chrome, Edge or Firefox, or choose GIF',
+      encodeFailed: 'The output animation could not be generated',
+    },
   },
 }

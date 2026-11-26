@@ -374,6 +374,23 @@ export const es = {
       keptOrientation
         ? 'Solo tenía la orientación, que se conserva: quedó igual'
         : 'No tenía metadatos: quedó igual',
+    /** What an animation came out as, and what it gave up to fit its budget. */
+    animation: {
+      fps: (fps: string) => `${fps} fps`,
+      colors: (colors: number) => `${colors} colores`,
+      fullColor: 'color completo',
+      canvas: (size: string) => `lienzo ${size}`,
+      steps: {
+        fps: (to: string) => `se bajó a ${to} fps`,
+        palette: (colors: number) => `paleta de ${colors} colores`,
+        scale: (percent: number) => `tamaño reducido al ${percent} %`,
+        canvas: (px: number) => `lienzo reducido a ${px} px`,
+        diffOff: 'recorte por diferencias desactivado',
+      },
+      fits: 'Entra en el límite',
+      over: (size: string) =>
+        `No entra en el límite: es la versión más pequeña que se pudo hacer (${size})`,
+    },
     stripped: (facts: StripFacts) =>
       facts.parts.includes('exif-unreadable')
         ? `Se quitó ${stripList(facts)}; no se pudo conservar la orientación`
@@ -465,6 +482,22 @@ export const es = {
       `${format} dañado: el archivo está cortado o su estructura no es válida, así que no se pudieron quitar los metadatos con seguridad. No se cambió nada`,
     workerCrashed:
       'El navegador cortó el proceso, probablemente por falta de memoria. Prueba con menos archivos a la vez',
+    animation: {
+      notAnimated:
+        'Esta imagen no está animada. Discord ya reescala las estáticas por su cuenta: usa Comprimir o Redimensionar',
+      unsupportedBrowser:
+        'Este navegador no puede leer animaciones. Prueba con Chrome, Edge o Firefox',
+      unsupportedFormat:
+        'Solo se leen animaciones GIF, APNG y WebP animado. Para otro tipo de imagen usa Comprimir o Convertir',
+      corrupt:
+        'La animación está dañada o cortada, así que no se pudo leer. Prueba con otro archivo',
+      tooLarge: 'La animación es demasiado grande. Prueba con una más corta o más pequeña',
+      resizeFailed:
+        'No se pudo cambiar el tamaño de los fotogramas. Prueba con una animación más pequeña',
+      compressionUnavailable:
+        'Este navegador no puede comprimir el APNG. Prueba con Chrome, Edge o Firefox, o elige GIF',
+      encodeFailed: 'No se pudo generar la animación de salida',
+    },
   },
 }
 

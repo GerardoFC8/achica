@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PERFILES } from '../../core/profiles'
+import { DISCORD_PERFILES, PERFILES } from '../../core/profiles'
 import { copyFor, en, es } from '.'
 import { PROFILE_TEXT } from './en'
 import { AUDIT_PROFILE } from '../tool-profiles'
@@ -32,6 +32,16 @@ describe('the English catalogue', () => {
       expect(PROFILE_TEXT[profile.id], profile.id).toBeDefined()
       expect(text.label).not.toBe(profile.label)
       expect(text.note?.length ?? 0).toBeGreaterThan(20)
+    }
+  })
+
+  it('names and explains the Discord destinations too', () => {
+    for (const profile of DISCORD_PERFILES) {
+      const text = en.destination.profile(profile)
+      expect(PROFILE_TEXT[profile.id], profile.id).toBeDefined()
+      expect(text.label).not.toBe(profile.label)
+      expect(text.note?.length ?? 0).toBeGreaterThan(20)
+      expect(en.destination.group(profile.group)).toBe('Discord')
     }
   })
 

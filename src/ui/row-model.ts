@@ -1,6 +1,6 @@
 import type { Profile } from '../core/profiles'
 import type { ToolId } from '../tools/registry'
-import type { QueueItem } from '../state/queue'
+import type { ItemOutcome, QueueItem } from '../state/queue'
 import type { RemovedMetadata } from '../core/metadata'
 import type { Copy } from './copy'
 import type { StripFacts, StripPart } from './copy/es'
@@ -172,6 +172,67 @@ export function stripFacts(metadata: RemovedMetadata, formatters: Formatters): S
 
 const removedNothing = (facts: StripFacts): boolean =>
   facts.parts.length === 0 && facts.trailing === null
+
+/** What the row says about an animation: the numbers, what was given up, and whether it fit. */
+export type AnimationNote = {
+  /** For example "15 fps · 32 colores · lienzo 320 × 320". */
+  readonly headline: string
+  /** What was given up to fit, in the order it was given up, in words. Empty when nothing was. */
+  readonly steps: readonly string[]
+  /** Whether the result is within the destination's weight limit. */
+  readonly fits: boolean
+  readonly verdict: string
+}
+
+/**
+ * The note for an animated result, or null for any other file. Pure: it reads
+ * the outcome and nothing else, so it is tested in Node.
+ */
+export function animationNote(
+  outcome: Pick<ItemOutcome, 'animation' | 'withinBudget' | 'width' | 'height' | 'bytesAfter'>,
+  formatters: Formatters,
+  copy: Copy,
+): AnimationNote | null {
+  const { animation } = outcome
+  if (animation === undefined) return null
+
+  const words = copy.note.animation
+  const steps: string[] = []
+
+  for (const step of animation.steps) {
+    switch (step.kind) {
+      case 'fps':
+        steps.push(words.steps.fps(formatters.count(step.to)))
+        break
+      case 'palette':
+        steps.push(words.steps.palette(step.colors))
+        break
+      case 'scale':
+        steps.push(words.steps.scale(Math.round(step.to * 100)))
+        break
+      case 'canvas':
+        steps.push(words.steps.canvas(step.to))
+        break
+      case 'optimise':
+        // Turning it on is the default, not something that was given up.
+        if (!step.on) steps.push(words.steps.diffOff)
+        break
+    }
+  }
+
+  const headline = [
+    words.fps(formatters.count(animation.fps)),
+    animation.colors === null ? words.fullColor : words.colors(animation.colors),
+    words.canvas(formatters.dimensions(outcome.width, outcome.height)),
+  ].join(' · ')
+
+  return {
+    headline,
+    steps,
+    fits: outcome.withinBudget,
+    verdict: outcome.withinBudget ? words.fits : words.over(formatters.bytes(outcome.bytesAfter)),
+  }
+}
 
 /** Negative when the result grew, which the interface shows rather than hides. */
 export function savedRatio(item: QueueItem): number | null {

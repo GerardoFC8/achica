@@ -1,3 +1,4 @@
+import type { AnimationFailure } from '../core/pipeline'
 import type { JobError } from '../workers/protocol'
 import type { ToolId } from '../tools/registry'
 import { MAX_ENTRIES } from '../core/har'
@@ -22,6 +23,7 @@ const FORMAT_NAMES: Readonly<Record<string, string>> = {
   avif: 'AVIF',
   heic: 'HEIC',
   gif: 'GIF',
+  apng: 'APNG',
   tiff: 'TIFF',
   bmp: 'BMP',
 }
@@ -56,6 +58,50 @@ export function describeJobError(error: JobError, copy: Copy, tool: ToolId): str
 
     case 'worker-crashed':
       return errors.workerCrashed
+
+    case 'animation-failed':
+      return describeAnimationFailure(error.reason, copy, tool)
+  }
+}
+
+/**
+ * Why an animation could not be made, in words that say what to do. Every
+ * reason is listed, so a code added to the core does not compile until it has
+ * a sentence (or is knowingly folded into the generic encode failure).
+ */
+function describeAnimationFailure(
+  reason: AnimationFailure['reason'],
+  copy: Copy,
+  tool: ToolId,
+): string {
+  const words = copy.errors.animation
+
+  switch (reason) {
+    case 'empty-file':
+      return copy.tools[tool].emptyFile
+    case 'not-animated':
+      return words.notAnimated
+    case 'animation-unsupported':
+      return words.unsupportedBrowser
+    case 'unsupported-format':
+      return words.unsupportedFormat
+    case 'corrupt':
+      return words.corrupt
+    case 'too-large':
+      return words.tooLarge
+    case 'resize-failed':
+      return words.resizeFailed
+    case 'compression-unavailable':
+      return words.compressionUnavailable
+    case 'no-frames':
+    case 'too-many-frames':
+    case 'bad-dimensions':
+    case 'size-mismatch':
+    case 'bad-frame-data':
+    case 'bad-delay':
+    case 'bad-option':
+    case 'compression-failed':
+      return words.encodeFailed
   }
 }
 

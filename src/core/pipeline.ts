@@ -1,4 +1,6 @@
 import { flattenOnWhite, hasTransparency } from './alpha'
+import { processAnimation, type AnimationLayout, type Step } from './animation'
+import type { AnimationError, AnimationFormat } from './animation/types'
 import { searchQualityForBudget } from './budget'
 import { decodeImage, type DecodeError } from './codecs/decode'
 import {
@@ -11,6 +13,7 @@ import {
 import { detectSupportedFormat, type DetectionError } from './detect'
 import { stripMetadata, type RemovedMetadata, type StripError } from './metadata'
 import { isSameSize, resampleImage, resolveTargetSize, scaleBy, type Dimensions } from './resize'
+import type { OutputKind } from './output-kind'
 import { err, ok, type Result } from './result'
 
 /**
@@ -24,6 +27,29 @@ import { err, ok, type Result } from './result'
  * the honest place to measure elapsed milliseconds; putting a clock in this
  * layer would make it untestable and buy nothing.
  */
+
+/**
+ * An animated destination (sticker, emoji). `OutputPlan.maxBytes` is its
+ * budget, and `OutputPlan.format` is ignored.
+ */
+export type AnimationRequest = {
+  /** Sticker: a square canvas, enlarged and padded. Emoji: shrunk to fit, never enlarged. */
+  readonly layout: AnimationLayout
+  readonly format: AnimationFormat
+  /** Sticker only: may fall back to a 256 px canvas as a last resort. Default false. */
+  readonly allowCanvasReduction?: boolean
+}
+
+/** What the budget search did to an animation, for the row to say. */
+export type AnimationSummary = {
+  readonly frames: number
+  readonly durationMs: number
+  readonly fps: number
+  /** Palette size; null for lossless RGBA APNG. */
+  readonly colors: number | null
+  /** What was given up to fit, in the order it was given up. */
+  readonly steps: readonly Step[]
+}
 
 export type OutputPlan = {
   /** `keep` means whatever the input turned out to be, decided by its bytes. */
@@ -55,11 +81,19 @@ export type OutputPlan = {
    * confused with `Profile.stripMetadata`, which describes the recompress path.
    */
   readonly stripOnly?: boolean
+  /**
+   * Treat the file as an animation: no still-image detection, no still
+   * decoder, no still encoder. `maxBytes` is required and is the budget; the
+   * rest of the plan (format, dimensions, quality) does not apply. A budget
+   * that cannot be met is not an error: see `withinBudget`.
+   */
+  readonly animation?: AnimationRequest
 }
 
 export type PipelineOutcome = {
   readonly output: EncodedBytes
-  readonly format: OutputFormat
+  /** What the file is. An animation is `gif` or `apng`, never one of the still formats. */
+  readonly format: OutputKind
   readonly bytesBefore: number
   readonly bytesAfter: number
   readonly width: number
@@ -75,9 +109,25 @@ export type PipelineOutcome = {
   readonly encodes: number
   /** Set only by a strip-only plan: what was removed from the file. */
   readonly metadata?: RemovedMetadata
+  /** Set only by an animation plan: what the file is and what was given up to fit. */
+  readonly animation?: AnimationSummary
 }
 
-export type PipelineError = DetectionError | DecodeError | EncodeError | StripError
+/**
+ * An animation could not be read, framed or written. Wrapped under one code
+ * instead of spread into the union, because its codes (`corrupt`,
+ * `unsupported-format`, `empty-file`) collide with still-image errors that
+ * carry other fields.
+ */
+export type AnimationFailure = {
+  readonly code: 'animation-failed'
+  readonly reason: AnimationError['code']
+  /** For logs, never for the interface. */
+  readonly detail: string
+}
+
+export type PipelineError =
+  DetectionError | DecodeError | EncodeError | StripError | AnimationFailure
 
 const DEFAULT_QUALITY = 75
 
@@ -186,6 +236,62 @@ function stripOnly(bytes: ArrayBuffer): Result<PipelineOutcome, PipelineError> {
   })
 }
 
+/**
+ * The animation path: its own module does the work, this only translates.
+ *
+ * A budget that cannot be met is still a success (`withinBudget: false` with
+ * the smallest file that was produced), because the user can still use that
+ * file and the row says it did not fit. Only a file that cannot be read or
+ * written at all is an error.
+ */
+async function processAnimated(
+  bytes: ArrayBuffer,
+  request: AnimationRequest,
+  maxBytes: number | undefined,
+): Promise<Result<PipelineOutcome, PipelineError>> {
+  if (maxBytes === undefined) {
+    return err({
+      code: 'animation-failed',
+      reason: 'bad-option',
+      detail: 'an animation plan needs maxBytes',
+    })
+  }
+
+  const result = await processAnimation(new Uint8Array(bytes), {
+    layout: request.layout,
+    format: request.format,
+    maxBytes,
+    ...(request.allowCanvasReduction === undefined
+      ? {}
+      : { allowCanvasReduction: request.allowCanvasReduction }),
+  })
+  if (!result.ok) {
+    return err({ code: 'animation-failed', reason: result.error.code, detail: result.error.detail })
+  }
+
+  const { value } = result
+  return ok({
+    output: value.bytes,
+    format: value.format,
+    bytesBefore: bytes.byteLength,
+    bytesAfter: value.bytes.length,
+    width: value.width,
+    height: value.height,
+    quality: null,
+    withinBudget: value.withinBudget,
+    shrunkForBudget: null,
+    convertedForBudget: false,
+    encodes: value.encodes,
+    animation: {
+      frames: value.frames,
+      durationMs: value.durationMs,
+      fps: value.fps,
+      colors: value.colors,
+      steps: value.steps,
+    },
+  })
+}
+
 export async function processImage(
   bytes: ArrayBuffer,
   plan: OutputPlan,
@@ -193,6 +299,7 @@ export async function processImage(
   const bytesBefore = bytes.byteLength
 
   if (plan.stripOnly === true) return stripOnly(bytes)
+  if (plan.animation !== undefined) return processAnimated(bytes, plan.animation, plan.maxBytes)
 
   const detected = detectSupportedFormat(new Uint8Array(bytes))
   if (!detected.ok) return err(detected.error)

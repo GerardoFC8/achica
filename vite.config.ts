@@ -91,7 +91,11 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'firefox',
-          include: ['src/output/**/*.browser-test.ts', 'src/core/animation/**/*.browser-test.ts'],
+          include: [
+            'src/output/**/*.browser-test.ts',
+            'src/core/animation/**/*.browser-test.ts',
+            'src/workers/animation.browser-test.ts',
+          ],
           browser: {
             enabled: true,
             provider: playwright(),
