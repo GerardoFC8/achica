@@ -414,6 +414,8 @@ export const es = {
         canvas: (px: number) => `lienzo reducido a ${px} px`,
         diffOff: 'recorte por diferencias desactivado',
       },
+      /** Which part of a video was kept: a choice the user made, not a failure. */
+      clip: (from: string, to: string, total: string) => `Tramo de ${from} a ${to} s de ${total} s`,
       fits: 'Entra en el límite',
       over: (size: string, limit: string) =>
         `No entra en el límite de ${limit}: es la versión más pequeña que se pudo hacer (${size})`,
@@ -531,6 +533,18 @@ export const es = {
       compressionUnavailable:
         'Este navegador no puede comprimir el APNG. Prueba con Chrome, Edge o Firefox, o elige GIF',
       encodeFailed: 'No se pudo generar la animación de salida',
+    },
+    /** A video that could not be turned into frames. */
+    video: {
+      codecUnsupported:
+        'Este navegador no puede leer el códec de este video (por ejemplo, HEVC). Prueba con Chrome, Edge o Firefox, o conviértelo a H.264',
+      stalled: 'Mantén esta pestaña visible mientras se prepara el video y vuelve a intentarlo',
+      noVideoTrack: 'El archivo no tiene imagen, solo audio. Elige un video MP4 o WebM',
+      unsupportedVideo:
+        'Solo se leen videos MP4 y WebM. Convierte el archivo a uno de esos formatos',
+      corrupt: 'El video está dañado o cortado, así que no se pudo leer. Prueba con otro archivo',
+      aborted: 'Se canceló la lectura del video',
+      internal: 'No se pudo preparar el video. Vuelve a intentarlo o prueba con otro archivo',
     },
   },
 }

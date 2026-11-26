@@ -55,6 +55,8 @@ export type Formatters = {
   dimensions(width: number, height: number): string
   count(value: number): string
   ms(value: number): string
+  /** Seconds of a clip: a decimal only when there is one ("5", "1,5"). */
+  seconds(value: number): string
 }
 
 /**
@@ -81,6 +83,7 @@ export function createFormatters(locale: string): Formatters {
     maximumFractionDigits: 1,
   })
   const whole = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
+  const secondsFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 })
   const ratio = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 })
 
   return {
@@ -108,6 +111,10 @@ export function createFormatters(locale: string): Formatters {
 
     ms(value) {
       return `${whole.format(value)} ms`
+    },
+
+    seconds(value) {
+      return secondsFormat.format(value)
     },
   }
 }

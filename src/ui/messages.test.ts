@@ -4,7 +4,7 @@ import { en, es } from './copy'
 import { MAX_ENTRIES } from '../core/har'
 import { createFormatters, DEFAULT_LOCALE } from './format'
 import { MAX_HAR_BYTES, type IntakeError } from './har-intake'
-import type { AnimationFailure } from '../core/pipeline'
+import type { AnimationFailure, VideoFailure } from '../core/pipeline'
 import { describeIntakeError, describeJobError, formatName } from './messages'
 
 /**
@@ -65,6 +65,7 @@ describe('describeJobError', () => {
       { code: 'corrupt', format: 'png', detail: 'x' },
       { code: 'worker-crashed', detail: 'x' },
       { code: 'animation-failed', reason: 'not-animated', detail: 'x' },
+      { code: 'video-failed', reason: 'stalled', detail: 'x' },
     ]
 
     for (const copy of [es, en]) {
@@ -193,5 +194,56 @@ describe('describeIntakeError', () => {
     expect(say({ code: 'no-images', imageEntries: 0, noContent: false })).toMatch(
       /ninguna petición/,
     )
+  })
+})
+
+describe('describeJobError for videos', () => {
+  const REASONS = [
+    'unsupported-video',
+    'codec-unsupported',
+    'no-video-track',
+    'corrupt',
+    'stalled',
+    'aborted',
+    'bad-options',
+    'internal',
+  ] as const satisfies readonly VideoFailure['reason'][]
+
+  const say = (reason: VideoFailure['reason'], copy = es): string =>
+    describeJobError({ code: 'video-failed', reason, detail: 'internal detail' }, copy, 'discord')
+
+  it('has a sentence for every reason, in both languages, never the internal detail', () => {
+    for (const copy of [es, en]) {
+      for (const reason of REASONS) {
+        const message = say(reason, copy)
+        expect(message.length, reason).toBeGreaterThan(10)
+        expect(message, reason).not.toContain('undefined')
+        expect(message, reason).not.toContain('internal detail')
+      }
+    }
+  })
+
+  it('tells a HEVC user which browsers to try and what to convert to', () => {
+    expect(say('codec-unsupported')).toContain('HEVC')
+    expect(say('codec-unsupported')).toContain('Chrome, Edge o Firefox')
+    expect(say('codec-unsupported')).toContain('H.264')
+    expect(say('codec-unsupported', en)).toContain('Chrome, Edge or Firefox')
+    expect(say('codec-unsupported', en)).toContain('H.264')
+  })
+
+  it('asks to keep the tab visible when no frame arrived', () => {
+    expect(say('stalled')).toContain('pestaña visible')
+    expect(say('stalled', en)).toContain('tab visible')
+  })
+
+  it('does not blame a crashed worker for a video that could not be read', () => {
+    for (const reason of REASONS) {
+      expect(say(reason)).not.toBe(es.errors.workerCrashed)
+    }
+  })
+
+  it('says which containers are readable', () => {
+    expect(say('unsupported-video')).toContain('MP4 y WebM')
+    expect(say('unsupported-video', en)).toContain('MP4 and WebM')
   })
 })

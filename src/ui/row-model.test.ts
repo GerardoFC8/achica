@@ -526,6 +526,43 @@ describe('animationNote', () => {
     expect(note?.verdict).toContain('512')
   })
 
+  describe('a clip cut out of a video', () => {
+    const clip = { startSeconds: 0, lengthSeconds: 5, sourceDurationSeconds: 42 }
+
+    it('says which part was kept, in both languages', () => {
+      const outcome = { ...base, animation: animation({ clip }) }
+
+      expect(say(outcome)?.clip).toBe('Tramo de 0 a 5 s de 42 s')
+      expect(say(outcome, en)?.clip).toBe('Segment from 0 to 5 s of 42 s')
+    })
+
+    it('formats the numbers like the rest of the row, with a decimal only when there is one', () => {
+      const outcome = {
+        ...base,
+        animation: animation({
+          clip: { startSeconds: 1.5, lengthSeconds: 2.25, sourceDurationSeconds: 1234.5 },
+        }),
+      }
+
+      expect(say(outcome)?.clip).toBe('Tramo de 1.5 a 3.8 s de 1,234.5 s')
+    })
+
+    it('is null for an animation that did not come from a video', () => {
+      expect(say({ ...base, animation: animation() })?.clip).toBeNull()
+    })
+
+    it('is a fact of the segment, never a verdict: it is not in the verdict, and nothing names Discord', () => {
+      const over = say({ ...base, withinBudget: false, animation: animation({ clip }) })
+
+      expect(over?.verdict).not.toContain('Tramo')
+      for (const copy of [es, en]) {
+        const text = say({ ...base, animation: animation({ clip }) }, copy)?.clip ?? ''
+        expect(text).not.toMatch(/discord/i)
+        expect(text).not.toMatch(/error|fall|fail|límite|limit/i)
+      }
+    })
+  })
+
   it('reads in English too, with nothing left undefined', () => {
     const note = say(
       {

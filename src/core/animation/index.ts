@@ -41,7 +41,20 @@ export {
 } from './ladder'
 export {
   processAnimation,
+  processFrames,
   type AnimationLayout,
   type AnimationOutcome,
   type AnimationPlan,
+  type FramesContext,
 } from './process'
+export {
+  DEFAULT_VIDEO_SEGMENT,
+  MAX_CLIP_FRAMES,
+  MAX_CLIP_SECONDS,
+  MAX_VIDEO_FPS,
+  MIN_VIDEO_FPS,
+  normalizeVideoSegment,
+  type ClipInfo,
+  type VideoFailureReason,
+  type VideoSegment,
+} from './video-segment'

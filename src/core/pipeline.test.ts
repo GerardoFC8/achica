@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextScaleForBudget, processImage } from './pipeline'
+import { nextScaleForBudget, processImage, processVideoFrames } from './pipeline'
 
 /**
  * The pure half of the pipeline: how far to shrink when the budget is out of
@@ -77,6 +77,62 @@ describe('processImage with an animation plan', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.error).toMatchObject({ code: 'animation-failed', reason: 'bad-option' })
+    }
+  })
+})
+
+describe('processVideoFrames', () => {
+  const ANIMATION = { layout: { kind: 'sticker', size: 16 }, format: 'gif' } as const
+  const frame = (shade: number) => ({
+    data: new Uint8ClampedArray(16 * 16 * 4).fill(shade),
+    width: 16,
+    height: 16,
+    delayMs: 100,
+  })
+  const frames = Array.from({ length: 6 }, (_, k) => frame(k * 40))
+
+  it('turns extracted frames into a PipelineOutcome with the clip and the video weight', async () => {
+    const clip = { startSeconds: 1, lengthSeconds: 0.6, sourceDurationSeconds: 9 }
+    const result = await processVideoFrames(
+      frames,
+      { format: 'keep', maxBytes: 100_000, animation: ANIMATION },
+      { bytesBefore: 777_000, clip },
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const { value } = result
+    expect(value.format).toBe('gif')
+    expect(value.bytesBefore).toBe(777_000)
+    expect(value.bytesAfter).toBe(value.output.length)
+    expect(value.withinBudget).toBe(value.bytesAfter <= 100_000)
+    expect([value.width, value.height]).toEqual([16, 16])
+    expect(value.animation?.frames).toBe(6)
+    expect(value.animation?.clip).toEqual(clip)
+    // The GIF it wrote is a GIF.
+    expect(String.fromCharCode(...value.output.slice(0, 3))).toBe('GIF')
+  })
+
+  it('a budget it cannot meet is a success marked withinBudget false', async () => {
+    const result = await processVideoFrames(
+      frames,
+      { format: 'keep', maxBytes: 10, animation: ANIMATION },
+      { bytesBefore: 1 },
+    )
+
+    expect(result.ok && result.value.withinBudget).toBe(false)
+  })
+
+  it('refuses a plan without an animation or a budget', async () => {
+    for (const plan of [
+      { format: 'keep', maxBytes: 100 },
+      { format: 'keep', animation: ANIMATION },
+    ] as const) {
+      const result = await processVideoFrames(frames, plan, { bytesBefore: 1 })
+      expect(!result.ok && result.error).toMatchObject({
+        code: 'animation-failed',
+        reason: 'bad-option',
+      })
     }
   })
 })

@@ -373,6 +373,7 @@ export const en: Copy = {
         canvas: (px) => `canvas reduced to ${px} px`,
         diffOff: 'cropping to what changes turned off',
       },
+      clip: (from, to, total) => `Segment from ${from} to ${to} s of ${total} s`,
       fits: 'Fits the limit',
       over: (size, limit) =>
         `Does not fit the limit of ${limit}: this is the smallest version that could be made (${size})`,
@@ -485,6 +486,16 @@ export const en: Copy = {
       compressionUnavailable:
         'This browser cannot compress the APNG. Try Chrome, Edge or Firefox, or choose GIF',
       encodeFailed: 'The output animation could not be generated',
+    },
+    video: {
+      codecUnsupported:
+        'This browser cannot read the codec of this video (for example, HEVC). Try Chrome, Edge or Firefox, or convert it to H.264',
+      stalled: 'Keep this tab visible while the video is being prepared, and try again',
+      noVideoTrack: 'The file has no picture, only audio. Choose an MP4 or WebM video',
+      unsupportedVideo: 'Only MP4 and WebM videos can be read. Convert the file to one of those',
+      corrupt: 'The video is damaged or cut off, so it could not be read. Try another file',
+      aborted: 'Reading the video was cancelled',
+      internal: 'The video could not be prepared. Try again or try another file',
     },
   },
 }

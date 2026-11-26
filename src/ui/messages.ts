@@ -1,4 +1,4 @@
-import type { AnimationFailure } from '../core/pipeline'
+import type { AnimationFailure, VideoFailure } from '../core/pipeline'
 import type { JobError } from '../workers/protocol'
 import type { ToolId } from '../tools/registry'
 import { MAX_ENTRIES } from '../core/har'
@@ -61,6 +61,32 @@ export function describeJobError(error: JobError, copy: Copy, tool: ToolId): str
 
     case 'animation-failed':
       return describeAnimationFailure(error.reason, copy, tool)
+
+    case 'video-failed':
+      return describeVideoFailure(error.reason, copy)
+  }
+}
+
+/** Why a video could not be read, with what to do about it. */
+function describeVideoFailure(reason: VideoFailure['reason'], copy: Copy): string {
+  const words = copy.errors.video
+
+  switch (reason) {
+    case 'codec-unsupported':
+      return words.codecUnsupported
+    case 'stalled':
+      return words.stalled
+    case 'no-video-track':
+      return words.noVideoTrack
+    case 'unsupported-video':
+      return words.unsupportedVideo
+    case 'corrupt':
+      return words.corrupt
+    case 'aborted':
+      return words.aborted
+    case 'bad-options':
+    case 'internal':
+      return words.internal
   }
 }
 

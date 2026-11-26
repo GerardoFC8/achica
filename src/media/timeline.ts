@@ -1,3 +1,4 @@
+import { MAX_CLIP_FRAMES, MAX_CLIP_SECONDS } from '../core/animation/video-segment'
 import { err, ok, type Result } from '../core/result'
 
 /**
@@ -7,14 +8,8 @@ import { err, ok, type Result } from '../core/result'
  * request is clipped to the video and to achica's own caps.
  */
 
-/**
- * achica's own caps on one extracted clip. They are NOT a Discord limit
- * (D61 measured that Discord accepted a 7 s animation and enforces only the
- * byte weight): they bound the memory and the time of one extraction. 225 is
- * 15 s at 15 fps, the usual rate for a sticker.
- */
-export const MAX_CLIP_SECONDS = 15
-export const MAX_CLIP_FRAMES = 225
+/** achica's own caps (not Discord's): they live in the core, with the plan's segment. */
+export { MAX_CLIP_FRAMES, MAX_CLIP_SECONDS }
 
 export type ClipRequest = {
   readonly durationSeconds: number

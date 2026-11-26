@@ -165,6 +165,7 @@ export function rowNote(
           return [
             ...(animation.fits ? [] : [animation.verdict]),
             animation.headline,
+            ...(animation.clip === null ? [] : [animation.clip]),
             ...animation.steps,
           ].join(' · ')
         }
@@ -239,6 +240,12 @@ export type AnimationNote = {
   readonly headline: string
   /** What was given up to fit, in the order it was given up, in words. Empty when nothing was. */
   readonly steps: readonly string[]
+  /**
+   * For a video: which part was kept, like "de 0 a 5 s de 42 s". It is the
+   * user's own choice of segment, so it is said as a fact and never as a
+   * verdict. Null for an animation that was not cut out of a video.
+   */
+  readonly clip: string | null
   /** Whether the result is within the destination's weight limit. */
   readonly fits: boolean
   readonly verdict: string
@@ -288,9 +295,18 @@ export function animationNote(
     words.canvas(formatters.dimensions(outcome.width, outcome.height)),
   ].join(' · ')
 
+  const { clip } = animation
   return {
     headline,
     steps,
+    clip:
+      clip === undefined
+        ? null
+        : words.clip(
+            formatters.seconds(clip.startSeconds),
+            formatters.seconds(clip.startSeconds + clip.lengthSeconds),
+            formatters.seconds(clip.sourceDurationSeconds),
+          ),
     fits: outcome.withinBudget,
     verdict: outcome.withinBudget
       ? words.fits

@@ -95,6 +95,7 @@ export default defineConfig({
             'src/output/**/*.browser-test.ts',
             'src/core/animation/**/*.browser-test.ts',
             'src/workers/animation.browser-test.ts',
+            'src/workers/video.browser-test.ts',
             'src/media/**/*.browser-test.ts',
           ],
           browser: {

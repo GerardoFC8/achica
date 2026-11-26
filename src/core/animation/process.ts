@@ -2,7 +2,8 @@ import { err, ok, type Result } from '../result'
 import { decodeAnimation } from './decode'
 import type { FitMode } from './fit'
 import { fitAnimationToBudget, type LadderDeps, type Step } from './ladder'
-import type { AnimationError, AnimationFormat } from './types'
+import type { AnimationError, AnimationFormat, Frame } from './types'
+import type { ClipInfo } from './video-segment'
 
 /**
  * Decode, reframe, then search for the settings that fit the byte budget.
@@ -39,6 +40,8 @@ export type AnimationOutcome = {
   readonly withinBudget: boolean
   readonly bytesBefore: number
   readonly encodes: number
+  /** Set only when the frames came from a video: which part of it was kept. */
+  readonly clip?: ClipInfo
 }
 
 export async function processAnimation(
@@ -50,8 +53,40 @@ export async function processAnimation(
   const decoded = await decodeAnimation(bytes, { fit: plan.layout })
   if (!decoded.ok) return err(decoded.error)
 
+  return fitFrames(decoded.value.frames, plan, { bytesBefore: bytes.length }, deps)
+}
+
+/** What the caller knows about frames that were made somewhere else. */
+export type FramesContext = {
+  /** The weight of the file the frames came from. */
+  readonly bytesBefore: number
+  /** For a video: which part of it the frames are. */
+  readonly clip?: ClipInfo
+}
+
+/**
+ * The same search, over frames that are already decoded and already at their
+ * final size (the video extractor makes them on the main thread). Nothing is
+ * decoded here. A budget that cannot be met is still a success, marked
+ * `withinBudget: false`.
+ */
+export function processFrames(
+  frames: readonly Frame[],
+  plan: AnimationPlan,
+  context: FramesContext,
+  deps: LadderDeps = {},
+): Promise<Result<AnimationOutcome, AnimationError>> {
+  return fitFrames(frames, plan, context, deps)
+}
+
+async function fitFrames(
+  frames: readonly Frame[],
+  plan: AnimationPlan,
+  context: FramesContext,
+  deps: LadderDeps,
+): Promise<Result<AnimationOutcome, AnimationError>> {
   const fitted = await fitAnimationToBudget(
-    decoded.value.frames,
+    frames,
     {
       format: plan.format,
       layout: plan.layout.kind,
@@ -76,7 +111,8 @@ export async function processAnimation(
     colors: outcome.colors,
     steps: outcome.steps,
     withinBudget: outcome.withinBudget,
-    bytesBefore: bytes.length,
+    bytesBefore: context.bytesBefore,
     encodes: outcome.encodes,
+    ...(context.clip === undefined ? {} : { clip: context.clip }),
   })
 }

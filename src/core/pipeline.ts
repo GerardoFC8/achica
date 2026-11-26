@@ -1,6 +1,17 @@
 import { flattenOnWhite, hasTransparency } from './alpha'
-import { processAnimation, type AnimationLayout, type Step } from './animation'
-import type { AnimationError, AnimationFormat } from './animation/types'
+import {
+  processAnimation,
+  processFrames,
+  type AnimationLayout,
+  type AnimationOutcome,
+  type AnimationPlan,
+  type ClipInfo,
+  type FramesContext,
+  type Step,
+  type VideoFailureReason,
+  type VideoSegment,
+} from './animation'
+import type { AnimationError, AnimationFormat, Frame } from './animation/types'
 import { searchQualityForBudget } from './budget'
 import { decodeImage, type DecodeError } from './codecs/decode'
 import {
@@ -38,6 +49,13 @@ export type AnimationRequest = {
   readonly format: AnimationFormat
   /** Sticker only: may fall back to a 256 px canvas as a last resort. Default false. */
   readonly allowCanvasReduction?: boolean
+  /**
+   * Which part of a VIDEO becomes the animation. Present, a file whose bytes
+   * are an MP4 or WebM is read as a video (the runner extracts its frames on
+   * the main thread); any other file takes the animation route as always.
+   * The interface sets it on the plan; a profile never does.
+   */
+  readonly video?: VideoSegment
 }
 
 /** What the budget search did to an animation, for the row to say. */
@@ -49,6 +67,8 @@ export type AnimationSummary = {
   readonly colors: number | null
   /** What was given up to fit, in the order it was given up. */
   readonly steps: readonly Step[]
+  /** Set only for a video: which part of it was kept. */
+  readonly clip?: ClipInfo
 }
 
 export type OutputPlan = {
@@ -126,8 +146,20 @@ export type AnimationFailure = {
   readonly detail: string
 }
 
+/**
+ * A video could not be turned into frames (before any encoding). Its own code
+ * and not `worker-crashed`: nothing crashed, and the reasons have their own
+ * advice (HEVC, a hidden tab, audio only).
+ */
+export type VideoFailure = {
+  readonly code: 'video-failed'
+  readonly reason: VideoFailureReason
+  /** For logs, never for the interface. */
+  readonly detail: string
+}
+
 export type PipelineError =
-  DetectionError | DecodeError | EncodeError | StripError | AnimationFailure
+  DetectionError | DecodeError | EncodeError | StripError | AnimationFailure | VideoFailure
 
 const DEFAULT_QUALITY = 75
 
@@ -257,14 +289,23 @@ async function processAnimated(
     })
   }
 
-  const result = await processAnimation(new Uint8Array(bytes), {
-    layout: request.layout,
-    format: request.format,
-    maxBytes,
-    ...(request.allowCanvasReduction === undefined
-      ? {}
-      : { allowCanvasReduction: request.allowCanvasReduction }),
-  })
+  const result = await processAnimation(new Uint8Array(bytes), animationPlan(request, maxBytes))
+  return describeAnimation(result, bytes.byteLength)
+}
+
+const animationPlan = (request: AnimationRequest, maxBytes: number): AnimationPlan => ({
+  layout: request.layout,
+  format: request.format,
+  maxBytes,
+  ...(request.allowCanvasReduction === undefined
+    ? {}
+    : { allowCanvasReduction: request.allowCanvasReduction }),
+})
+
+function describeAnimation(
+  result: Result<AnimationOutcome, AnimationError>,
+  bytesBefore: number,
+): Result<PipelineOutcome, PipelineError> {
   if (!result.ok) {
     return err({ code: 'animation-failed', reason: result.error.code, detail: result.error.detail })
   }
@@ -273,7 +314,7 @@ async function processAnimated(
   return ok({
     output: value.bytes,
     format: value.format,
-    bytesBefore: bytes.byteLength,
+    bytesBefore,
     bytesAfter: value.bytes.length,
     width: value.width,
     height: value.height,
@@ -288,8 +329,31 @@ async function processAnimated(
       fps: value.fps,
       colors: value.colors,
       steps: value.steps,
+      ...(value.clip === undefined ? {} : { clip: value.clip }),
     },
   })
+}
+
+/**
+ * The video route: frames already extracted at their final size (by
+ * `extractVideoFrames`, on the main thread) go straight to the budget search.
+ * `bytesBefore` is the video file's own weight, so the row's saving is about
+ * the file the user dropped.
+ */
+export async function processVideoFrames(
+  frames: readonly Frame[],
+  plan: OutputPlan,
+  context: FramesContext,
+): Promise<Result<PipelineOutcome, PipelineError>> {
+  if (plan.animation === undefined || plan.maxBytes === undefined) {
+    return err({
+      code: 'animation-failed',
+      reason: 'bad-option',
+      detail: 'a video plan needs an animation request and maxBytes',
+    })
+  }
+  const result = await processFrames(frames, animationPlan(plan.animation, plan.maxBytes), context)
+  return describeAnimation(result, context.bytesBefore)
 }
 
 export async function processImage(

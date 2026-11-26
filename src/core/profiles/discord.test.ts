@@ -63,6 +63,22 @@ describe('the Discord profiles', () => {
     }
   })
 
+  it('carry no video segment: the interface puts it on the plan, never the profile', () => {
+    for (const profile of DISCORD_PERFILES) {
+      expect(profile.animation.video, profile.id).toBeUndefined()
+      expect(toOutputPlan(profile).animation?.video, profile.id).toBeUndefined()
+    }
+  })
+
+  it('pass a segment put on the profile animation through to the plan untouched', () => {
+    const [first] = DISCORD_PERFILES
+    if (first === undefined) throw new Error('no profile')
+    const video = { startSeconds: 2, lengthSeconds: 4, fps: 12 }
+    const plan = toOutputPlan({ ...first, animation: { ...first.animation, video } })
+
+    expect(plan.animation?.video).toEqual(video)
+  })
+
   it('leave a still profile plan without an animation', () => {
     for (const profile of PERFILES) expect(toOutputPlan(profile).animation).toBeUndefined()
   })

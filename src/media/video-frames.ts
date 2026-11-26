@@ -1,5 +1,6 @@
 import { planFit, type FitMode } from '../core/animation/fit'
 import type { Frame } from '../core/animation/types'
+import type { VideoFailureReason } from '../core/animation/video-segment'
 import { err, ok, type Result } from '../core/result'
 import { SNIFF_BYTES, sniffVideoContainer } from './sniff'
 import {
@@ -43,6 +44,14 @@ import {
  * - Failures are values, and the single <video> is never added to the page;
  *   its object URL is revoked and its source released on every path.
  *
+ * - UNDER LOAD FRAMES ARE REPEATED. Playing in real time means the browser may
+ *   drop frames when the machine is busy (measured: 125 of 150 presented in
+ *   Firefox while other test files ran). The nearest-frame rule keeps the
+ *   timeline honest: a dropped frame is served by its neighbour, so the result
+ *   is never shifted and never out of order, but some frames repeat.
+ *   `repeatedFrames` counts them (it also counts the repeats that are by
+ *   design when the target rate is above the source rate).
+ *
  * Not handled, and said so: rotation stored in the metadata (phone videos) is
  * whatever the browser reports as videoWidth/Height; variable frame rate is
  * covered only because targets are chosen by media time.
@@ -55,21 +64,8 @@ export const DEFAULT_STALL_MS = 4000
 /** Metadata and seeks may be slow on a big file; they get at least this long. */
 const MIN_LOAD_WAIT_MS = 10_000
 
-export type VideoErrorCode =
-  /** Not an MP4 or WebM by its bytes (includes an empty file). */
-  | 'unsupported-video'
-  /** The browser cannot decode it: HEVC is the expected case. */
-  | 'codec-unsupported'
-  /** Audio only. */
-  | 'no-video-track'
-  | 'corrupt'
-  /** No frame arrived in time: usually a tab that is not visible. */
-  | 'stalled'
-  | 'aborted'
-  /** fps, start or length that cannot work. */
-  | 'bad-options'
-  /** Anything unforeseen; kept as a value so it cannot look like a crashed worker. */
-  | 'internal'
+/** The reasons are the core's (they travel in the job's error); see VideoFailureReason. */
+export type VideoErrorCode = VideoFailureReason
 
 export type VideoError = { readonly code: VideoErrorCode; readonly message: string }
 
@@ -94,6 +90,12 @@ export type ExtractedVideo = {
     readonly width: number
     readonly height: number
   }
+  /**
+   * Output frames that repeat the presented frame of the one before: dropped
+   * frames under load (see the header), plus the repeats by design when the
+   * target rate is above the source rate. Zero means one presented frame each.
+   */
+  readonly repeatedFrames: number
   /** What was really extracted, after clipping to the video and to the caps. */
   readonly clip: { readonly startSeconds: number; readonly lengthSeconds: number }
 }
@@ -272,6 +274,7 @@ async function extract(
       stallMs,
       loadWaitMs,
       onProgress: options.onProgress,
+      stats: { repeated: 0 },
     }
     const frames =
       typeof video.requestVideoFrameCallback === 'function'
@@ -282,6 +285,7 @@ async function extract(
       frames: frames.value,
       width: geometry.width,
       height: geometry.height,
+      repeatedFrames: job.stats.repeated,
       source: { durationSeconds, width: sourceWidth, height: sourceHeight },
       clip: {
         startSeconds: plan.value.startSeconds,
@@ -306,6 +310,8 @@ type Job = {
   readonly stallMs: number
   readonly loadWaitMs: number
   readonly onProgress: ((done: number, total: number) => void) | undefined
+  /** Filled by the capture: how many output frames repeated the one before. */
+  readonly stats: { repeated: number }
 }
 
 /** Reads the canvas into `count` frames (copies when a presented frame serves several targets). */
@@ -365,6 +371,7 @@ function captureByPlaying(job: Job): Promise<Result<Frame[], VideoError>> {
     }
     const commit = (served: number): void => {
       if (served <= 0 || previous === -1) return
+      job.stats.repeated += served - 1
       const made = readFrames(pair[previous], geometry, served, frames.length, delays)
       for (const frame of made) frames.push(frame)
       onProgress?.(frames.length, targets.length)
