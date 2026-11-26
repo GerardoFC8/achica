@@ -536,6 +536,8 @@ async function runBatch(browser, batch, downloads) {
     const words = { ...common, ...common[toolId] }
 
     await page.goto(new URL(pathOf(language, toolId), base).href)
+    // The prerendered screen is usable to look at before the script has mounted.
+    await page.waitForSelector('body[data-ready="true"]', { timeout: 30_000 })
     check(
       'the work surface is the first screen',
       await page.getByRole('heading', { level: 1, name: words.heading }).isVisible(),
@@ -878,6 +880,8 @@ function watchRequests(page) {
 /** Opens the audit page, hands it a HAR file and waits for its images to be listed. */
 async function loadAuditPage(page, language, harPath, startName) {
   await page.goto(new URL(pathOf(language, 'auditar'), base).href)
+  // A file handed to the prerendered input before React mounts is dropped.
+  await page.waitForSelector('body[data-ready="true"]', { timeout: 30_000 })
   await page.setInputFiles('input[type=file]', harPath)
   await page.getByRole('button', { name: startName }).waitFor({ timeout: 30_000 })
 }
