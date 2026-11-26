@@ -33,4 +33,14 @@
     <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/convertir-imagenes/" />
     <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/convert-images/" />
   </url>
+  <url>
+    <loc>https://achica.gfcode.dev/quitar-exif/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/quitar-exif/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/remove-exif/" />
+  </url>
+  <url>
+    <loc>https://achica.gfcode.dev/en/remove-exif/</loc>
+    <xhtml:link rel="alternate" hreflang="es" href="https://achica.gfcode.dev/quitar-exif/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://achica.gfcode.dev/en/remove-exif/" />
+  </url>
 </urlset>

@@ -7,6 +7,7 @@ describe('links', () => {
     expect(pathFor('redimensionar', 'es')).toBe('/redimensionar-imagenes/')
     expect(pathFor('redimensionar', 'en')).toBe('/en/resize-images/')
     expect(pathFor('convertir', 'en')).toBe('/en/convert-images/')
+    expect(pathFor('quitar-exif', 'en')).toBe('/en/remove-exif/')
     expect(pathFor('comprimir', 'es')).toBe('/')
   })
 

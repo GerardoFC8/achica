@@ -57,6 +57,8 @@ describe('describeJobError', () => {
       { code: 'unsupported-format', format: 'gif' },
       { code: 'decode-failed', format: 'jpeg', detail: 'x' },
       { code: 'encode-failed', format: 'webp', detail: 'x' },
+      { code: 'strip-unsupported', format: 'avif' },
+      { code: 'corrupt', format: 'png', detail: 'x' },
       { code: 'worker-crashed', detail: 'x' },
     ]
 

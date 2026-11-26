@@ -22,6 +22,20 @@ export type ToolChoices = {
   readonly format: OutputFormat
 }
 
+/**
+ * Quitar EXIF has nothing to choose, so its profile is one constant. It never
+ * recompresses: `stripOnly` makes the workers edit the container bytes.
+ */
+export const STRIP_PROFILE: Profile = {
+  id: 'quitar-exif',
+  label: 'Quitar metadatos',
+  group: 'Metadatos',
+  format: 'keep',
+  stripOnly: true,
+  stripMetadata: true,
+  note: 'Quita EXIF, ubicación GPS, XMP, IPTC, comentarios y datos añadidos tras la imagen sin recodificar: los píxeles no cambian. Conserva el perfil de color y la orientación.',
+}
+
 /** The profile every row is measured against. */
 export function profileForTool(tool: ToolId, choices: ToolChoices): Profile {
   switch (tool) {
@@ -31,6 +45,8 @@ export function profileForTool(tool: ToolId, choices: ToolChoices): Profile {
       return profileForResize(choices.resize)
     case 'convertir':
       return profileForFormat(choices.format)
+    case 'quitar-exif':
+      return STRIP_PROFILE
   }
 }
 

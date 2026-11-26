@@ -83,6 +83,15 @@ export function Toolbar({
         />
       ) : tool === 'redimensionar' ? (
         <ResizePicker choice={resize} formatters={formatters} onChange={onResize} />
+      ) : tool === 'quitar-exif' ? (
+        // Nothing to choose, so a label and not a button: it only says what
+        // the tool does, and it must not look like something to press.
+        <p
+          title={toolbar.stripTitle}
+          className="flex h-8 items-center gap-2 text-[13px] leading-4 text-ink-soft coarse:h-11"
+        >
+          {toolbar.stripLabel}
+        </p>
       ) : (
         <FormatPicker selected={format} formatters={formatters} onSelect={onFormat} />
       )}

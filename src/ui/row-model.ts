@@ -1,7 +1,9 @@
 import type { Profile } from '../core/profiles'
 import type { ToolId } from '../tools/registry'
 import type { QueueItem } from '../state/queue'
+import type { RemovedMetadata } from '../core/metadata'
 import type { Copy } from './copy'
+import type { StripFacts, StripPart } from './copy/es'
 import type { Formatters } from './format'
 import { describeJobError, formatName } from './messages'
 
@@ -107,6 +109,14 @@ export function rowNote(item: QueueItem, formatters: Formatters, copy: Copy, too
       return describeJobError(item.error, copy, tool)
     case 'done': {
       const { outcome } = item
+
+      if (outcome.metadata !== undefined) {
+        const facts = stripFacts(outcome.metadata, formatters)
+        return removedNothing(facts)
+          ? note.stripUnchanged(facts.keptOrientation)
+          : note.stripped(facts)
+      }
+
       const size = formatters.dimensions(outcome.width, outcome.height)
       const shrunk = outcome.shrunkForBudget !== null
 
@@ -120,6 +130,44 @@ export function rowNote(item: QueueItem, formatters: Formatters, copy: Copy, too
     }
   }
 }
+
+/**
+ * What the core says a strip-only run removed, as the facts a sentence is
+ * built from. Read from the report and nothing else: a part is named only if
+ * the core dropped it (location only when the EXIF really held a GPS entry).
+ */
+export function stripFacts(metadata: RemovedMetadata, formatters: Formatters): StripFacts {
+  const parts: StripPart[] = []
+  const has = (kind: RemovedMetadata['kinds'][number]): boolean => metadata.kinds.includes(kind)
+
+  if (metadata.exifUnreadable) parts.push('exif-unreadable')
+  else if (has('exif')) {
+    if (metadata.hadGps) parts.push('gps')
+    if (metadata.hadCameraInfo) parts.push('camera')
+    if (!metadata.hadGps && !metadata.hadCameraInfo) parts.push('exif')
+  }
+  for (const kind of [
+    'xmp',
+    'iptc',
+    'comment',
+    'thumbnail',
+    'mpf',
+    'png-text',
+    'png-time',
+    'other',
+  ] as const) {
+    if (has(kind)) parts.push(kind)
+  }
+
+  return {
+    parts,
+    trailing: metadata.trailingBytes > 0 ? formatters.bytes(metadata.trailingBytes) : null,
+    keptOrientation: metadata.orientation !== null,
+  }
+}
+
+const removedNothing = (facts: StripFacts): boolean =>
+  facts.parts.length === 0 && facts.trailing === null
 
 /** Negative when the result grew, which the interface shows rather than hides. */
 export function savedRatio(item: QueueItem): number | null {
@@ -143,6 +191,7 @@ export type RowDetail = {
  */
 function describeTarget(profile: Profile, formatters: Formatters, copy: Copy): string {
   const { details } = copy
+  if (profile.stripOnly === true) return details.stripTarget
   if (profile.maxBytes !== undefined) return details.ceiling(formatters.bytes(profile.maxBytes))
 
   /*
@@ -220,6 +269,28 @@ export function rowDetails(
   const ceiling =
     profile.maxBytes === undefined ? null : Math.min(profile.maxBytes, item.bytesBefore)
   const margin = ceiling === null ? null : ceiling - outcome.bytesAfter
+
+  if (outcome.metadata !== undefined) {
+    const facts = stripFacts(outcome.metadata, formatters)
+    return [
+      { label: details.output, value: outcome.format.toUpperCase() },
+      { label: details.dimensions, value: formatters.dimensions(outcome.width, outcome.height) },
+      {
+        label: details.removed,
+        value: removedNothing(facts) ? details.removedNothing : details.removedList(facts),
+      },
+      { label: details.removedBytes, value: formatters.bytes(outcome.metadata.bytesRemoved) },
+      { label: details.reencoding, value: details.reencodingNone },
+      { label: details.kept, value: details.keptValue(facts.keptOrientation) },
+      target,
+      {
+        label: details.saved,
+        value: `${formatters.bytes(item.bytesBefore - outcome.bytesAfter)} · ${formatters.percent(savedRatio(item) ?? 0)}`,
+        kind,
+      },
+      { label: details.time, value: formatters.ms(item.ms) },
+    ]
+  }
 
   return [
     {

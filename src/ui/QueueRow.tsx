@@ -149,13 +149,16 @@ export function QueueRow({
           ) : null}
           {item.status === 'done' ? (
             <>
-              <button
-                type="button"
-                onClick={onCompare}
-                className="h-11 rounded-sm border border-rule px-3 text-[13px] hover:border-ink-soft md:h-5 md:px-2 md:text-xs"
-              >
-                {copy.row.compare}
-              </button>
+              {/* A cleaned file has the same pixels as its source: nothing to compare. */}
+              {profile.stripOnly === true ? null : (
+                <button
+                  type="button"
+                  onClick={onCompare}
+                  className="h-11 rounded-sm border border-rule px-3 text-[13px] hover:border-ink-soft md:h-5 md:px-2 md:text-xs"
+                >
+                  {copy.row.compare}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onSave}

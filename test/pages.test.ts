@@ -131,6 +131,7 @@ describe('the registry', () => {
       ['/', '/en/'],
       ['/redimensionar-imagenes/', '/en/resize-images/'],
       ['/convertir-imagenes/', '/en/convert-images/'],
+      ['/quitar-exif/', '/en/remove-exif/'],
     ])
 
     for (const { tool, language } of listPages(REGISTRY)) {

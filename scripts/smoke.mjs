@@ -37,6 +37,7 @@
  * Run: npm run build && npm run smoke
  */
 
+import { readFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -136,6 +137,141 @@ async function verifyHalved(entries, batch) {
 }
 
 /*
+ * A dirty JPEG built here, with no dependency: the clean fixture plus an EXIF
+ * block (camera strings and a GPS position), an XMP packet, a COM segment and
+ * a tail after the EOI, each carrying a sentinel the output must not contain.
+ * "Nothing survived" is a raw byte search, not the stripper's own report.
+ */
+const le32 = (value) => {
+  const out = Buffer.alloc(4)
+  out.writeUInt32LE(value)
+  return out
+}
+const le16 = (value) => {
+  const out = Buffer.alloc(2)
+  out.writeUInt16LE(value)
+  return out
+}
+const segment = (marker, payload) =>
+  Buffer.concat([
+    Buffer.from([0xff, marker]),
+    Buffer.from([(payload.length + 2) >> 8, (payload.length + 2) & 0xff]),
+    payload,
+  ])
+
+const SENTINELS = {
+  make: Buffer.from('SMOKE_CAMERA_MAKE_ZX81'),
+  model: Buffer.from('SMOKE_CAMERA_MODEL_QQ9'),
+  xmp: Buffer.from('SMOKE_XMP_CREATOR_JANE'),
+  comment: Buffer.from('SMOKE_COMMENT_HELLO'),
+  tail: Buffer.from('SMOKE_TAIL_AFTER_EOI'),
+  // 40/1, 26/1, 4631/100 and 79/1, 58/1, 5614/100 as RATIONALs, plus the
+  // seconds alone: eight bytes that appear nowhere else.
+  latitude: Buffer.concat([40, 1, 26, 1, 4631, 100].map(le32)),
+  longitude: Buffer.concat([79, 1, 58, 1, 5614, 100].map(le32)),
+  seconds: Buffer.concat([4631, 100].map(le32)),
+}
+
+function dirtyJpeg(clean) {
+  const entry = (tag, type, count, value) =>
+    Buffer.concat([le16(tag), le16(type), le32(count), value])
+  const text = (sentinel) => {
+    const bytes = Buffer.concat([sentinel, Buffer.from([0])])
+    return bytes.length % 2 === 0 ? bytes : Buffer.concat([bytes, Buffer.from([0])])
+  }
+  const make = text(SENTINELS.make)
+  const model = text(SENTINELS.model)
+  // IFD0 has three entries, so its data starts at 8 + 2 + 3 * 12 + 4.
+  const makeAt = 8 + 2 + 3 * 12 + 4
+  const modelAt = makeAt + make.length
+  const gpsAt = modelAt + model.length
+  const latAt = gpsAt + 2 + 4 * 12 + 4
+  const lonAt = latAt + SENTINELS.latitude.length
+  const gps = Buffer.concat([
+    le16(4),
+    entry(1, 2, 2, Buffer.from([0x4e, 0, 0, 0])),
+    entry(2, 5, 3, le32(latAt)),
+    entry(3, 2, 2, Buffer.from([0x57, 0, 0, 0])),
+    entry(4, 5, 3, le32(lonAt)),
+    le32(0),
+  ])
+  const tiff = Buffer.concat([
+    Buffer.from('II'),
+    le16(42),
+    le32(8),
+    le16(3),
+    entry(0x010f, 2, make.length, le32(makeAt)),
+    entry(0x0110, 2, model.length, le32(modelAt)),
+    entry(0x8825, 4, 1, le32(gpsAt)),
+    le32(0),
+    make,
+    model,
+    gps,
+    SENTINELS.latitude,
+    SENTINELS.longitude,
+  ])
+  const xmp = Buffer.concat([
+    Buffer.from('http://ns.adobe.com/xap/1.0/\0'),
+    Buffer.from(`<x:xmpmeta><dc:creator>${SENTINELS.xmp}</dc:creator></x:xmpmeta>`),
+  ])
+
+  // The clean fixture opens with SOI and a bare 16-byte JFIF segment.
+  if (clean.readUInt16BE(2) !== 0xffe0 || clean.readUInt16BE(4) !== 16) {
+    throw new Error('the clean JPEG is expected to open with a bare JFIF segment')
+  }
+  if (clean.readUInt16BE(clean.length - 2) !== 0xffd9)
+    throw new Error('the clean JPEG lacks an EOI')
+  return Buffer.concat([
+    clean.subarray(0, 20),
+    segment(0xe1, Buffer.concat([Buffer.from('Exif\0\0'), tiff])),
+    segment(0xe1, xmp),
+    segment(0xfe, SENTINELS.comment),
+    clean.subarray(20),
+    SENTINELS.tail,
+  ])
+}
+
+// Two files, so the batch ends in a ZIP and the names can be told apart.
+const DIRTY_NAMES = ['foto-sucia.jpg', 'otra-foto.jpg']
+const dirtyInputs = () =>
+  DIRTY_NAMES.map((name) => ({
+    name,
+    mimeType: 'image/jpeg',
+    buffer: dirtyJpeg(readFileSync(fixture('generated/no-exif.jpg'))),
+  }))
+
+/** The strip batch: no sentinel survives, and the names and the dimensions stay. */
+async function verifyCleaned(entries, batch) {
+  for (const { name: expected, buffer: original } of batch.inputs()) {
+    const entry = entries.find((candidate) => candidate.name === expected)
+    check(
+      `${expected}: the name is kept`,
+      entry !== undefined,
+      entries.map((e) => e.name).join(', '),
+    )
+    if (entry === undefined) continue
+
+    for (const [name, sentinel] of Object.entries(SENTINELS)) {
+      check(`${expected}: the ${name} sentinel was in the input`, original.indexOf(sentinel) !== -1)
+      check(`${expected}: no ${name} sentinel in the output`, entry.data.indexOf(sentinel) === -1)
+    }
+    check(`${expected}: the output is a JPEG`, isJpeg(entry.data))
+    check(`${expected}: the output is smaller`, entry.data.length < original.length)
+
+    const before = dimensionsOf(original)
+    const after = dimensionsOf(entry.data)
+    check(
+      `${expected}: the dimensions are the original ones`,
+      before !== null &&
+        after !== null &&
+        before.width === after.width &&
+        before.height === after.height,
+      `${before?.width}x${before?.height} -> ${after?.width}x${after?.height}`,
+    )
+  }
+}
+
+/*
  * Full names in `expected`, not stems: the extension that comes out is what
  * each destination promises, so it is what gets checked.
  */
@@ -199,6 +335,27 @@ const BATCHES = [
     verify: verifySignature('WebP', isWebp),
   },
   {
+    // The cheap proof that nothing was re-encoded: no codec was fetched.
+    label: 'remove EXIF, in Spanish, from a JPEG with planted metadata',
+    tool: 'quitar-exif',
+    language: 'es',
+    inputs: dirtyInputs,
+    expected: DIRTY_NAMES,
+    oxipng: false,
+    wasm: false,
+    verify: verifyCleaned,
+  },
+  {
+    label: 'remove EXIF, in English, from a JPEG with planted metadata',
+    tool: 'quitar-exif',
+    language: 'en',
+    inputs: dirtyInputs,
+    expected: DIRTY_NAMES,
+    oxipng: false,
+    wasm: false,
+    verify: verifyCleaned,
+  },
+  {
     // A PNG with an alpha channel is the case that matters: JPEG has none, so
     // the pipeline composes it over white (it must not fail or go black).
     label: 'convert, in Spanish, to JPEG, with a transparent PNG',
@@ -246,6 +403,13 @@ const WORDS = {
       busy: 'Convirtiendo',
       finished: (count) => `${count} imágenes convertidas`,
     },
+    'quitar-exif': {
+      title: /EXIF/,
+      heading: /quieres quitar los metadatos/,
+      start: /Limpiar/,
+      busy: 'Limpiando',
+      finished: (count) => `${count} imágenes limpiadas`,
+    },
   },
   en: {
     destination: /^Destination/,
@@ -271,6 +435,13 @@ const WORDS = {
       start: /Convert/,
       busy: 'Converting',
       finished: (count) => `${count} images converted`,
+    },
+    'quitar-exif': {
+      title: /EXIF/,
+      heading: /remove the metadata from/,
+      start: /Clean/,
+      busy: 'Cleaning',
+      finished: (count) => `${count} images cleaned`,
     },
   },
 }
@@ -329,10 +500,13 @@ async function runBatch(browser, batch, downloads) {
      * ship under the same name, so this proves oxipng ran — not which build.
      */
     const oxipng = []
+    /** Every .wasm the page asked for: a codec fetched is a codec that ran. */
+    const wasm = []
     page.on('request', (request) => {
       const url = request.url()
       if (!/^https?:/.test(url)) return
       if (url.includes('oxipng')) oxipng.push(url)
+      if (new URL(url).pathname.endsWith('.wasm')) wasm.push(url)
       if (!url.startsWith(origin)) foreign.push(url)
       else if (url.includes('/cdn-cgi/')) injected.push(url)
     })
@@ -393,7 +567,10 @@ async function runBatch(browser, batch, downloads) {
       )
     }
 
-    await page.setInputFiles('input[type=file]', batch.files)
+    // A batch either names fixture files or builds its own bytes.
+    const inputs = batch.inputs?.() ?? batch.files
+    const count = inputs.length
+    await page.setInputFiles('input[type=file]', inputs)
     await page.getByRole('button', { name: words.start }).click()
     await page.waitForFunction(
       (busy) => !(document.body.textContent ?? '').includes(busy),
@@ -409,7 +586,7 @@ async function runBatch(browser, batch, downloads) {
       words.saved === undefined
         ? 'the batch reports what it did'
         : 'the batch reports what it saved',
-      summary.includes(words.finished(batch.files.length)) &&
+      summary.includes(words.finished(count)) &&
         (words.saved === undefined || words.saved.test(summary)),
       summary,
     )
@@ -431,7 +608,7 @@ async function runBatch(browser, batch, downloads) {
     check('the archive is complete', raw.includes(END_OF_DIRECTORY))
     check(
       'one entry per file',
-      raw.split(CENTRAL_ENTRY).length - 1 === batch.files.length,
+      raw.split(CENTRAL_ENTRY).length - 1 === count,
       `${raw.split(CENTRAL_ENTRY).length - 1} entries`,
     )
     for (const entry of batch.expected) {
@@ -445,6 +622,9 @@ async function runBatch(browser, batch, downloads) {
       oxipng.length > 0 === batch.oxipng,
       oxipng.join(', '),
     )
+    if (batch.wasm === false) {
+      check('no .wasm was requested (nothing was re-encoded)', wasm.length === 0, wasm.join(', '))
+    }
     check('nothing threw on the page', errors.length === 0, errors.join('; '))
     check(
       'no byte left the device',

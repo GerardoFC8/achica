@@ -5,6 +5,8 @@ import { en, es } from './copy'
 import { createFormatters, DEFAULT_LOCALE } from './format'
 import { profileForFormat } from './format-choice'
 import { profileForResize } from './resize-choice'
+import type { RemovedMetadata } from '../core/metadata'
+import { STRIP_PROFILE } from './tool-profiles'
 import { rowDetails, rowKind, rowNote, savedRatio, weightBar } from './row-model'
 
 /**
@@ -298,5 +300,99 @@ describe('what a row says the destination asked for', () => {
   it('says a format change keeps the dimensions', () => {
     expect(targetOf(profileForFormat('webp'), 'convertir')).toBe('mismas dimensiones, WebP')
     expect(targetOf(profileForFormat('jpeg'), 'convertir', en)).toBe('same dimensions, JPEG')
+  })
+})
+
+describe('Quitar EXIF', () => {
+  const formatters = createFormatters(DEFAULT_LOCALE)
+  const profile = STRIP_PROFILE
+
+  const report = (changes: Partial<RemovedMetadata>): RemovedMetadata => ({
+    kinds: [],
+    bytesRemoved: 0,
+    trailingBytes: 0,
+    orientation: null,
+    exifUnreadable: false,
+    hadGps: false,
+    hadCameraInfo: false,
+    ...changes,
+  })
+
+  const cleaned = (metadata: RemovedMetadata, bytesAfter = 900_000): QueueItem => {
+    const item = done(1_000_000, bytesAfter)
+    if (item.status !== 'done') throw new Error('unreachable')
+    return { ...item, outcome: { ...item.outcome, metadata } }
+  }
+
+  const note = (metadata: RemovedMetadata, copy = es): string =>
+    rowNote(cleaned(metadata), formatters, copy, 'quitar-exif')
+
+  it('names the location only when the core says there was one', () => {
+    const withGps = report({
+      kinds: ['exif'],
+      hadGps: true,
+      hadCameraInfo: true,
+      orientation: 6,
+      bytesRemoved: 5_000,
+    })
+    expect(note(withGps)).toBe('Quitó ubicación GPS y datos de la cámara; conservó la orientación')
+    expect(note(withGps, en)).toBe('Removed GPS location and camera details; kept the orientation')
+
+    const noGps = report({ kinds: ['exif'], hadCameraInfo: true })
+    expect(note(noGps)).toBe('Quitó datos de la cámara')
+    expect(note(noGps)).not.toMatch(/GPS|ubicación/)
+    expect(note(report({ kinds: ['exif'] }))).toBe('Quitó datos EXIF')
+  })
+
+  it('says what sat after the image, with its weight', () => {
+    const facts = report({ kinds: ['xmp', 'trailing-data'], trailingBytes: 12_000 })
+    expect(note(facts)).toMatch(/^Quitó XMP y .+ tras el fin de imagen$/)
+    expect(note(facts, en)).toMatch(/^Removed XMP and .+ after the end of the image$/)
+    expect(note(report({ kinds: ['xmp', 'iptc'] }))).toBe('Quitó XMP e IPTC')
+  })
+
+  it('says so when there was nothing to remove', () => {
+    expect(note(report({}))).toBe('No tenía metadatos: quedó igual')
+    expect(note(report({}), en)).toBe('It had no metadata: left as it was')
+    expect(note(report({ orientation: 6 }))).toBe(
+      'Solo tenía la orientación, que se conserva: quedó igual',
+    )
+  })
+
+  it('is honest about an EXIF that could not be read', () => {
+    const unreadable = report({ kinds: ['exif'], exifUnreadable: true, bytesRemoved: 80 })
+    expect(note(unreadable)).toBe('Se quitó un EXIF ilegible; no se pudo conservar la orientación')
+    expect(note(unreadable, en)).toBe(
+      'Removed an unreadable EXIF block; the orientation could not be kept',
+    )
+    expect(note(report({ kinds: ['exif', 'comment'], exifUnreadable: true }))).toBe(
+      'Se quitó un EXIF ilegible y comentarios; no se pudo conservar la orientación',
+    )
+  })
+
+  it('reads every finished file as done, even one that did not shrink', () => {
+    expect(rowKind(cleaned(report({}), 1_000_000), profile, 'quitar-exif')).toBe('done')
+    expect(rowKind(cleaned(report({ kinds: ['exif'] })), profile, 'quitar-exif')).toBe('done')
+    expect(savedRatio(cleaned(report({}), 1_000_000))).toBe(0)
+  })
+
+  it('details what was removed, how much, and that nothing was re-encoded', () => {
+    const item = cleaned(
+      report({ kinds: ['exif', 'comment'], hadGps: true, bytesRemoved: 4_096, orientation: 3 }),
+    )
+    const rows = rowDetails(item, profile, formatters, es, 'quitar-exif')
+    const value = (label: string): string | undefined =>
+      rows.find((row) => row.label === label)?.value
+
+    expect(value('Se quitó')).toBe('ubicación GPS y comentarios')
+    expect(value('Bytes quitados')).toBe(formatters.bytes(4_096))
+    expect(value('Recodificación')).toBe('ninguna, los píxeles no cambiaron')
+    expect(value('Se conserva')).toBe('píxeles, perfil de color y orientación')
+    expect(value('Destino pide')).toBe('quitar metadatos, sin recodificar')
+    // The compressor's own rows have no place here.
+    expect(rows.map((row) => row.label)).not.toContain('Pasadas de codificación')
+
+    const empty = rowDetails(cleaned(report({})), profile, formatters, en, 'quitar-exif')
+    expect(empty.find((row) => row.label === 'Removed')?.value).toBe('nothing')
   })
 })

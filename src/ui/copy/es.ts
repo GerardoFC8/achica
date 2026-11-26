@@ -42,6 +42,63 @@ export interface ToolWords {
   readonly resultAlt: (name: string) => string
 }
 
+/**
+ * What a strip-only run removed, as the classes a sentence names. The row
+ * model derives them from the core's report (never from what was expected to
+ * be there) and the catalogue turns them into words, so each language owns its
+ * word order and its list joining.
+ */
+export type StripPart =
+  | 'exif-unreadable'
+  | 'gps'
+  | 'camera'
+  | 'exif'
+  | 'xmp'
+  | 'iptc'
+  | 'comment'
+  | 'thumbnail'
+  | 'mpf'
+  | 'png-text'
+  | 'png-time'
+  | 'other'
+
+export type StripFacts = {
+  readonly parts: readonly StripPart[]
+  /** The formatted size of what followed the end of the image, or null. */
+  readonly trailing: string | null
+  /** The orientation was written back into the cleaned file. */
+  readonly keptOrientation: boolean
+}
+
+/** Spanish joins with "e" before a word that starts with the sound i. */
+const joinEs = (items: readonly string[]): string => {
+  if (items.length < 2) return items.join('')
+  const last = items[items.length - 1] ?? ''
+  const and = /^(hi(?!e)|i)/i.test(last) ? 'e' : 'y'
+  return `${items.slice(0, -1).join(', ')} ${and} ${last}`
+}
+
+const STRIP_PARTS_ES: Readonly<Record<StripPart, string>> = {
+  'exif-unreadable': 'un EXIF ilegible',
+  gps: 'ubicación GPS',
+  camera: 'datos de la cámara',
+  exif: 'datos EXIF',
+  xmp: 'XMP',
+  iptc: 'IPTC',
+  comment: 'comentarios',
+  thumbnail: 'una miniatura incrustada',
+  mpf: 'imágenes adicionales (MPF)',
+  'png-text': 'texto del PNG',
+  'png-time': 'la fecha de modificación',
+  other: 'otros bloques de datos',
+}
+
+const stripList = (facts: StripFacts): string =>
+  joinEs([
+    ...facts.parts.map((part) => STRIP_PARTS_ES[part]),
+    ...(facts.trailing === null ? [] : [`${facts.trailing} tras el fin de imagen`]),
+  ])
+
 export const es = {
   /** The language of this catalogue, as written in the page's lang attribute. */
   lang: 'es' as 'es' | 'en',
@@ -89,6 +146,18 @@ export const es = {
       weightHeader: 'Peso antes y después',
       resultAlt: (name) => `${name}, convertida`,
     },
+    'quitar-exif': {
+      heading: 'Arrastra aquí las imágenes de las que quieres quitar los metadatos',
+      start: (pending, count) => `Limpiar ${count} ${plural(pending, 'imagen', 'imágenes')}`,
+      running: 'Limpiando',
+      finished: (done, count) =>
+        `${count} ${plural(done, 'imagen limpiada', 'imágenes limpiadas')}`,
+      again: 'Limpiar de nuevo',
+      emptyFile: 'Archivo vacío, no hay nada que limpiar',
+      tableLabel: 'Cola de limpieza',
+      weightHeader: 'Peso antes y después',
+      resultAlt: (name) => `${name}, limpiada`,
+    },
   } satisfies Record<ToolId, ToolWords>,
 
   nav: {
@@ -97,6 +166,7 @@ export const es = {
       comprimir: 'Comprimir',
       redimensionar: 'Redimensionar',
       convertir: 'Convertir',
+      'quitar-exif': 'Quitar EXIF',
     } satisfies Record<ToolId, string>,
   },
 
@@ -111,6 +181,9 @@ export const es = {
     download: (done: number, count: string) =>
       done === 1 ? 'Descargar 1 imagen' : `Descargar ${count} en un ZIP`,
     cancel: 'Cancelar',
+    stripLabel: 'Sin recodificar',
+    stripTitle:
+      'Quita los metadatos del archivo sin tocar los píxeles. Conserva el perfil de color y la orientación.',
   },
 
   destination: {
@@ -227,6 +300,15 @@ export const es = {
     converted: (size: string, format: string) => `${size} · pasó a ${format} para entrar`,
     convertedAndShrunk: (size: string, format: string) =>
       `Pasó a ${format} y se redujo a ${size} para entrar`,
+    /** Nothing was removed; it may still carry the orientation it already had. */
+    stripUnchanged: (keptOrientation: boolean): string =>
+      keptOrientation
+        ? 'Solo tenía la orientación, que se conserva: quedó igual'
+        : 'No tenía metadatos: quedó igual',
+    stripped: (facts: StripFacts) =>
+      facts.parts.includes('exif-unreadable')
+        ? `Se quitó ${stripList(facts)}; no se pudo conservar la orientación`
+        : `Quitó ${stripList(facts)}${facts.keptOrientation ? '; conservó la orientación' : ''}`,
   },
 
   details: {
@@ -251,6 +333,16 @@ export const es = {
     excess: 'Exceso',
     saved: 'Ahorro',
     time: 'Tiempo en el worker',
+    stripTarget: 'quitar metadatos, sin recodificar',
+    removed: 'Se quitó',
+    removedList: (facts: StripFacts) => stripList(facts),
+    removedNothing: 'nada',
+    removedBytes: 'Bytes quitados',
+    reencoding: 'Recodificación',
+    reencodingNone: 'ninguna, los píxeles no cambiaron',
+    kept: 'Se conserva',
+    keptValue: (orientation: boolean): string =>
+      orientation ? 'píxeles, perfil de color y orientación' : 'píxeles y perfil de color',
   },
 
   totals: {
@@ -297,6 +389,10 @@ export const es = {
       `${format} no está soportado. Convierte el archivo a JPEG, PNG, WebP o AVIF`,
     decodeFailed: (format: string) => `${format} dañado, no se pudo leer la imagen`,
     encodeFailed: (format: string) => `No se pudo generar el ${format} de salida`,
+    stripUnsupported: (format: string) =>
+      `${format} guarda los metadatos de una forma que no se puede limpiar sin recodificar; usa Comprimir o Convertir, que también los quitan`,
+    corrupt: (format: string) =>
+      `${format} dañado: el archivo está cortado o su estructura no es válida, así que no se pudieron quitar los metadatos con seguridad. No se cambió nada`,
     workerCrashed:
       'El navegador cortó el proceso, probablemente por falta de memoria. Prueba con menos archivos a la vez',
   },

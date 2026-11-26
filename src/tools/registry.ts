@@ -44,7 +44,7 @@ export interface ToolLocale {
  * loaders and the copy are typed against it, so a tool added here and
  * forgotten there fails to compile.
  */
-export const TOOL_IDS = ['comprimir', 'redimensionar', 'convertir'] as const
+export const TOOL_IDS = ['comprimir', 'redimensionar', 'convertir', 'quitar-exif'] as const
 
 export type ToolId = (typeof TOOL_IDS)[number]
 
@@ -241,6 +241,67 @@ export const TOOLS: readonly Tool<ToolId>[] = [
           featureList: [
             'Batch conversion with no file limit',
             'Between JPEG, PNG, WebP and AVIF',
+            'Download as a ZIP or straight into a folder',
+            'No image ever leaves the device',
+          ],
+        },
+      },
+    },
+  },
+  {
+    id: 'quitar-exif',
+    applicationCategory: 'MultimediaApplication',
+    locales: {
+      es: {
+        path: '/quitar-exif/',
+        title: 'Quitar EXIF y metadatos de imágenes por lote, sin subirlas | achica',
+        description:
+          'Quita el EXIF, la ubicación GPS, el XMP, el IPTC, los comentarios y los datos añadidos tras la imagen de muchos JPEG, PNG y WebP a la vez, en tu navegador. Sin recodificar: los píxeles no cambian. Conserva el perfil de color y la orientación. Sin cuentas, gratis y de código abierto.',
+        ogTitle: 'achica: quita el EXIF de muchas imágenes a la vez, sin subirlas',
+        ogDescription:
+          'JPEG, PNG y WebP, en tu navegador y sin recodificar. Ningún byte de tus imágenes sale de tu dispositivo.',
+        ogImage: '/og.png',
+        ogImageAlt:
+          'achica, herramientas de imagen por lote: tres barras de peso sobre papel claro',
+        ogLocale: 'es_ES',
+        jsonLd: {
+          name: 'achica: quitar EXIF',
+          description:
+            'Limpiador de metadatos de imágenes por lote que corre entero en el navegador. Sin backend y sin cuentas.',
+          operatingSystem: 'Cualquiera con un navegador actual',
+          browserRequirements: 'Requiere JavaScript',
+          featureList: [
+            'Quita EXIF, ubicación GPS, XMP, IPTC, comentarios y datos añadidos tras la imagen',
+            'Sin recodificar: los píxeles no cambian',
+            'JPEG, PNG y WebP; AVIF todavía no',
+            'Conserva el perfil de color y la orientación',
+            'Descarga en ZIP o directo a una carpeta',
+            'Ninguna imagen sale del dispositivo',
+          ],
+        },
+      },
+      en: {
+        path: '/en/remove-exif/',
+        title: 'Remove EXIF and metadata from images in bulk, without uploading them | achica',
+        description:
+          'Remove EXIF, GPS location, XMP, IPTC, comments and data appended after the image from many JPEG, PNG and WebP files at once, in your browser. No re-encoding: the pixels do not change. Keeps the colour profile and the orientation. No account, free and open source.',
+        ogTitle: 'achica: remove EXIF from many images at once, without uploading them',
+        ogDescription:
+          'JPEG, PNG and WebP, in your browser and without re-encoding. Not a byte of your images leaves your device.',
+        ogImage: '/og-en.png',
+        ogImageAlt: 'achica, batch image tools: three weight bars on light paper',
+        ogLocale: 'en_US',
+        jsonLd: {
+          name: 'achica: remove EXIF',
+          description:
+            'Batch image metadata remover that runs entirely in the browser. No backend and no account.',
+          operatingSystem: 'Any with a current browser',
+          browserRequirements: 'Requires JavaScript',
+          featureList: [
+            'Removes EXIF, GPS location, XMP, IPTC, comments and data appended after the image',
+            'No re-encoding: the pixels do not change',
+            'JPEG, PNG and WebP; AVIF not yet',
+            'Keeps the colour profile and the orientation',
             'Download as a ZIP or straight into a folder',
             'No image ever leaves the device',
           ],

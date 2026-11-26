@@ -1,5 +1,5 @@
 import type { ProfileGroup } from '../../core/profiles'
-import type { Copy } from './es'
+import type { Copy, StripFacts, StripPart } from './es'
 
 /**
  * Every sentence the interface says, in English (D54).
@@ -18,6 +18,7 @@ const GROUPS: Readonly<Record<ProfileGroup, string>> = {
   Miniatura: 'Thumbnail',
   Tamaño: 'Size',
   Formato: 'Format',
+  Metadatos: 'Metadata',
 }
 
 /**
@@ -45,6 +46,32 @@ export const PROFILE_TEXT: Readonly<
     note: 'Fits inside a 400 px square, keeping its proportions. For listings, avatars and previews.',
   },
 }
+
+const STRIP_PARTS: Readonly<Record<StripPart, string>> = {
+  'exif-unreadable': 'an unreadable EXIF block',
+  gps: 'GPS location',
+  camera: 'camera details',
+  exif: 'EXIF data',
+  xmp: 'XMP',
+  iptc: 'IPTC',
+  comment: 'comments',
+  thumbnail: 'an embedded thumbnail',
+  mpf: 'extra images (MPF)',
+  'png-text': 'PNG text',
+  'png-time': 'the modification time',
+  other: 'other data blocks',
+}
+
+const joinEn = (items: readonly string[]): string =>
+  items.length < 2
+    ? items.join('')
+    : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1] ?? ''}`
+
+const stripList = (facts: StripFacts): string =>
+  joinEn([
+    ...facts.parts.map((part) => STRIP_PARTS[part]),
+    ...(facts.trailing === null ? [] : [`${facts.trailing} after the end of the image`]),
+  ])
 
 export const en: Copy = {
   lang: 'en',
@@ -86,6 +113,17 @@ export const en: Copy = {
       weightHeader: 'Weight before and after',
       resultAlt: (name) => `${name}, converted`,
     },
+    'quitar-exif': {
+      heading: 'Drop the images you want to remove the metadata from here',
+      start: (pending, count) => `Clean ${count} ${plural(pending, 'image', 'images')}`,
+      running: 'Cleaning',
+      finished: (done, count) => `${count} ${plural(done, 'image', 'images')} cleaned`,
+      again: 'Clean again',
+      emptyFile: 'Empty file, there is nothing to clean',
+      tableLabel: 'Cleaning queue',
+      weightHeader: 'Weight before and after',
+      resultAlt: (name) => `${name}, cleaned`,
+    },
   },
 
   nav: {
@@ -94,6 +132,7 @@ export const en: Copy = {
       comprimir: 'Compress',
       redimensionar: 'Resize',
       convertir: 'Convert',
+      'quitar-exif': 'Remove EXIF',
     },
   },
 
@@ -107,6 +146,9 @@ export const en: Copy = {
     saveToFolder: 'Save to a folder',
     download: (done, count) => (done === 1 ? 'Download 1 image' : `Download ${count} as a ZIP`),
     cancel: 'Cancel',
+    stripLabel: 'No re-encoding',
+    stripTitle:
+      'Removes the metadata from the file without touching the pixels. Keeps the colour profile and the orientation.',
   },
 
   destination: {
@@ -217,6 +259,14 @@ export const en: Copy = {
     shrunk: (size) => `Shrunk to ${size} to fit`,
     converted: (size, format) => `${size} · turned into ${format} to fit`,
     convertedAndShrunk: (size, format) => `Turned into ${format} and shrunk to ${size} to fit`,
+    stripUnchanged: (keptOrientation) =>
+      keptOrientation
+        ? 'It only had the orientation, which is kept: left as it was'
+        : 'It had no metadata: left as it was',
+    stripped: (facts) =>
+      facts.parts.includes('exif-unreadable')
+        ? `Removed ${stripList(facts)}; the orientation could not be kept`
+        : `Removed ${stripList(facts)}${facts.keptOrientation ? '; kept the orientation' : ''}`,
   },
 
   details: {
@@ -241,6 +291,16 @@ export const en: Copy = {
     excess: 'Over by',
     saved: 'Saved',
     time: 'Time in the worker',
+    stripTarget: 'remove metadata, no re-encoding',
+    removed: 'Removed',
+    removedList: (facts) => stripList(facts),
+    removedNothing: 'nothing',
+    removedBytes: 'Bytes removed',
+    reencoding: 'Re-encoding',
+    reencodingNone: 'none, the pixels did not change',
+    kept: 'Kept',
+    keptValue: (orientation) =>
+      orientation ? 'pixels, colour profile and orientation' : 'pixels and colour profile',
   },
 
   totals: {
@@ -285,6 +345,10 @@ export const en: Copy = {
       `${format} is not supported. Convert the file to JPEG, PNG, WebP or AVIF`,
     decodeFailed: (format) => `Damaged ${format}, the image could not be read`,
     encodeFailed: (format) => `Could not produce the output ${format}`,
+    stripUnsupported: (format) =>
+      `${format} stores its metadata in a way that cannot be cleaned without re-encoding the image. Use Compress or Convert instead, which also remove it`,
+    corrupt: (format) =>
+      `Damaged ${format}: the file is cut off or its structure is invalid, so its metadata could not be removed safely. Nothing was changed`,
     workerCrashed:
       'The browser stopped the process, probably for lack of memory. Try fewer files at a time',
   },

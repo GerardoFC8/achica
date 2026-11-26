@@ -38,7 +38,7 @@ describe('ToolNav', () => {
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1)
     expect(markup).toMatch(/<span[^>]*aria-current="page"[^>]*>Redimensionar<\/span>/)
     expect(markup).not.toContain('href="/redimensionar-imagenes/"')
-    expect(markup.match(/<a /g)).toHaveLength(2)
+    expect(markup.match(/<a /g)).toHaveLength(3)
   })
 
   it('is a labelled landmark', () => {

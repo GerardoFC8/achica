@@ -4,9 +4,16 @@ import '../styles.css'
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-react'
+import {
+  ALL_SENTINELS,
+  ascii,
+  dirtyJpeg,
+  indexOfBytes,
+  TEXT_SENTINELS,
+} from '../../test/helpers/metadata-builders'
 import { queueStore } from '../state/queue-store'
 import { saveList } from './save-list'
-import { CopyProvider, en } from './copy'
+import { CopyProvider, en, es } from './copy'
 import { App } from './App'
 
 /**
@@ -20,6 +27,12 @@ import { App } from './App'
  */
 
 const FIXTURE_URLS = import.meta.glob('../../test/fixtures/**/*.{jpg,png}', {
+  query: '?url',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
+
+const HEADER_URLS = import.meta.glob('../../test/fixtures/generated/headers/avif.bin', {
   query: '?url',
   import: 'default',
   eager: true,
@@ -483,6 +496,26 @@ describe('the other tools', () => {
       .toHaveAttribute('href', '/redimensionar-imagenes/')
   })
 
+  it('keeps four links and the strip label inside a phone-width toolbar', async () => {
+    await page.viewport(375, 812)
+    try {
+      for (const copy of [undefined, en]) {
+        const view = await render(
+          <CopyProvider value={copy ?? es}>
+            <App tool="quitar-exif" />
+          </CopyProvider>,
+        )
+        await expect.element(page.getByRole('navigation')).toBeVisible()
+        const header = page.getByRole('banner').element()
+        expect(header.scrollWidth).toBeLessThanOrEqual(header.clientWidth)
+        expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth)
+        await view.unmount()
+      }
+    } finally {
+      await page.viewport(414, 896)
+    }
+  })
+
   it('keeps the navigation inside a phone-width toolbar', async () => {
     await page.viewport(375, 812)
     try {
@@ -496,4 +529,81 @@ describe('the other tools', () => {
       await page.viewport(414, 896)
     }
   })
+})
+
+describe('Quitar EXIF', () => {
+  it(
+    'cleans a dirty JPEG without recoding it, and keeps its name',
+    { timeout: 60_000 },
+    async () => {
+      render(<App tool="quitar-exif" />)
+
+      await expect
+        .element(page.getByRole('heading', { level: 1, name: /quieres quitar los metadatos/ }))
+        .toBeVisible()
+      // A label, not a picker: nothing to choose.
+      await expect.element(page.getByText('Sin recodificar')).toBeVisible()
+      await expect.element(page.getByRole('button', { name: /^Destino/ })).not.toBeInTheDocument()
+
+      const clean = new Uint8Array(await (await fixture('no-exif.jpg')).arrayBuffer())
+      const dirty = dirtyJpeg(clean, { orientation: 6 })
+      queueStore.getState().add([new File([dirty], 'foto.JPG', { type: 'image/jpeg' })])
+
+      await userEvent.click(page.getByRole('button', { name: /Limpiar 1 imagen/ }))
+      await expect.element(page.getByText(/1 imagen limpiada/), { timeout: 50_000 }).toBeVisible()
+
+      const item = queueStore.getState().items[0]
+      expect(item?.status).toBe('done')
+      if (item?.status !== 'done') return
+
+      // (a) the row says what the core removed, location included.
+      await expect.element(page.getByText(/^Quitó ubicación GPS/)).toBeVisible()
+
+      // (b) a raw search of the output bytes for every sentinel.
+      const bytes = new Uint8Array(await item.blob.arrayBuffer())
+      for (const sentinel of ALL_SENTINELS) {
+        expect(indexOfBytes(bytes, sentinel), new TextDecoder().decode(sentinel)).toBe(-1)
+      }
+      expect(indexOfBytes(bytes, ascii(TEXT_SENTINELS.tail))).toBe(-1)
+      expect(item.outcome.encodes).toBe(0)
+
+      // (c) the file is saved under its own name and extension.
+      const [saved] = saveList(queueStore.getState().items)
+      expect(saved?.name).toBe('foto.jpg')
+
+      // (d) the pixels are the same, so there is nothing to compare.
+      await expect.element(page.getByRole('button', { name: 'Comparar' })).not.toBeInTheDocument()
+      await expect
+        .element(page.getByRole('button', { name: 'Descargar', exact: true }))
+        .toBeVisible()
+    },
+  )
+
+  it(
+    'explains what to do with an AVIF, and does not stop the batch',
+    { timeout: 60_000 },
+    async () => {
+      render(<App tool="quitar-exif" />)
+
+      const avifUrl = Object.values(HEADER_URLS)[0]
+      if (avifUrl === undefined) throw new Error('avif header fixture missing')
+      const avif = new File([await (await fetch(avifUrl)).arrayBuffer()], 'foto.avif')
+      const clean = new Uint8Array(await (await fixture('no-exif.jpg')).arrayBuffer())
+      queueStore
+        .getState()
+        .add([avif, new File([dirtyJpeg(clean)], 'otra.jpg', { type: 'image/jpeg' })])
+
+      await userEvent.click(page.getByRole('button', { name: /Limpiar 2 imágenes/ }))
+      await expect.element(page.getByText(/1 imagen limpiada/), { timeout: 50_000 }).toBeVisible()
+
+      const [first, second] = queueStore.getState().items
+      expect(first?.status).toBe('failed')
+      expect(second?.status).toBe('done')
+      if (first?.status === 'failed') expect(first.error.code).toBe('strip-unsupported')
+
+      await expect
+        .element(page.getByText(/AVIF guarda los metadatos de una forma que no se puede limpiar/))
+        .toBeVisible()
+    },
+  )
 })

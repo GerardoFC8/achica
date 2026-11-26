@@ -45,6 +45,12 @@ export function describeJobError(error: JobError, copy: Copy, tool: ToolId): str
     case 'encode-failed':
       return errors.encodeFailed(formatName(error.format))
 
+    case 'strip-unsupported':
+      return errors.stripUnsupported(formatName(error.format))
+
+    case 'corrupt':
+      return errors.corrupt(formatName(error.format))
+
     case 'worker-crashed':
       return errors.workerCrashed
   }
