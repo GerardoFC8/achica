@@ -72,6 +72,21 @@ Para los opacos, el script vuelve a decodificar el archivo con ffmpeg y escribe 
 | `single-frame.gif`     | GIF de un solo fotograma: `not-animated`.                                                                                            |
 | `static.png`           | PNG estático: `not-animated`.                                                                                                        |
 
+### Video
+
+Generados con **ffmpeg** por `node scripts/make-fixtures.mjs --video` (también corre con el script completo). Ningún test llama a ffmpeg. Los usa `src/media/video-frames.browser-test.ts`, en Chromium y Firefox.
+
+`video-gray-steps` es el oráculo: 16 fotogramas a 8 fps (2 s) donde el fotograma `k` es un gris plano de nivel `8 + 16k`. El valor de un píxel del fotograma extraído dice **de qué fotograma de origen salió**, así que un desfase de uno son 16 niveles y la tolerancia por la compresión con pérdida (±6) lo detecta sin ambigüedad. Los colores llevan las etiquetas BT.709 y rango limitado escritas, para que el navegador no adivine.
+
+| Archivo                   | Qué prueba                                                                                                |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `video-gray-steps.webm`   | VP9, 160×90. Desfases, duplicados y saltos; `start`/`length`; recorte a la duración; relleno del sticker. |
+| `video-gray-steps.mp4`    | Lo mismo en H.264. El test se salta, con un aviso, si `canPlayType` no admite H.264 (el CI es Linux).     |
+| `video-portrait.webm`     | 90×160: sticker con relleno a los lados, emoji reducido y nunca ampliado.                                 |
+| `video-colors.webm`       | Un segundo rojo, uno verde, uno azul: con `start: 1, length: 1` solo sale verde.                          |
+| `audio-only.m4a` / `.mp4` | Contenedor de vídeo sin pista de vídeo: `no-video-track`.                                                 |
+| `not-video.bin`           | 2 KB de ruido reproducible: `unsupported-video`, venga con el nombre y el tipo que venga.                 |
+
 ---
 
 ## `vendor/exif-orientation/`

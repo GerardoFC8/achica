@@ -4,11 +4,14 @@
  * the SHA-256 of every frame's RGB24 bytes, and its delay in milliseconds.
  */
 
-const URLS = import.meta.glob('../fixtures/generated/*.{gif,apng,webp,png,jpg,json}', {
-  query: '?url',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>
+const URLS = import.meta.glob(
+  '../fixtures/generated/*.{gif,apng,webp,png,jpg,json,webm,mp4,m4a,bin}',
+  {
+    query: '?url',
+    import: 'default',
+    eager: true,
+  },
+) as Record<string, string>
 
 export type ExpectedAnimation = {
   readonly width: number

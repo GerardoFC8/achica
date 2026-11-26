@@ -14,11 +14,12 @@
  *
  * Run: node scripts/make-fixtures.mjs
  *      node scripts/make-fixtures.mjs --animations   (only the animated files; needs ffmpeg)
+ *      node scripts/make-fixtures.mjs --video        (only the video files; needs ffmpeg)
  * Outputs are committed, so this only needs re-running when the corpus changes.
  */
 
 import { spawnSync } from 'node:child_process'
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -283,8 +284,105 @@ async function makeAnimations() {
   for (const entry of written) console.log(`  ${entry}`)
 }
 
+/**
+ * Video fixtures for src/media/video-frames.ts, made with ffmpeg like the
+ * animated ones (no test calls it; the outputs are committed).
+ *
+ * `video-gray-steps`: 16 frames at 8 fps where frame k is a flat gray of level
+ * 8 + 16k. A test can therefore tell which SOURCE frame a given instant
+ * produced from the pixel value alone, with a tolerance for lossy coding, and
+ * that is what catches off-by-one shifts, duplicated frames and skipped ones.
+ * Colour tags are written explicitly (BT.709, limited range) so a browser has
+ * nothing to guess about the range.
+ */
+async function makeVideos() {
+  const out = (name) => join(OUT, name)
+  const written = []
+  const tag = ['-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709']
+  const toYuv = 'scale=out_color_matrix=bt709:out_range=tv,format=yuv420p'
+  const vp9 = ['-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '24', '-g', '8', ...tag]
+  const gray = [
+    '-f',
+    'lavfi',
+    '-i',
+    "nullsrc=size=160x90:rate=8:duration=2,format=gbrp,geq=r='8+16*N':g='8+16*N':b='8+16*N'," +
+      toYuv,
+  ]
+  ffmpeg([...gray, ...vp9, out('video-gray-steps.webm')])
+  ffmpeg([
+    ...gray,
+    '-c:v',
+    'libx264',
+    '-crf',
+    '18',
+    '-g',
+    '8',
+    '-movflags',
+    '+faststart',
+    ...tag,
+    out('video-gray-steps.mp4'),
+  ])
+
+  // Portrait, for the sticker padding and the emoji sizing.
+  ffmpeg([
+    '-f',
+    'lavfi',
+    '-i',
+    `testsrc2=size=90x160:rate=8:duration=1,${toYuv}`,
+    ...vp9,
+    out('video-portrait.webm'),
+  ])
+
+  // Red, green and blue, one second each, for the start/length segment.
+  ffmpeg([
+    '-filter_complex',
+    'color=c=red:size=160x90:rate=8:duration=1[a];' +
+      'color=c=green:size=160x90:rate=8:duration=1[b];' +
+      'color=c=blue:size=160x90:rate=8:duration=1[c];' +
+      `[a][b][c]concat=n=3:v=1:a=0,${toYuv}`,
+    ...vp9,
+    out('video-colors.webm'),
+  ])
+
+  // Audio only: the container is a video container, there is just no video track.
+  const tone = ['-f', 'lavfi', '-i', 'sine=frequency=440:duration=1']
+  ffmpeg([...tone, '-c:a', 'aac', '-b:a', '32k', '-f', 'ipod', out('audio-only.m4a')])
+  ffmpeg([...tone, '-c:a', 'aac', '-b:a', '32k', '-f', 'mp4', out('audio-only.mp4')])
+
+  // Not a video at all: 2 KB of reproducible noise (xorshift32, fixed seed).
+  const noise = Buffer.alloc(2048)
+  let state = 0x2545f491
+  for (let i = 0; i < noise.length; i += 1) {
+    state ^= state << 13
+    state ^= state >>> 17
+    state ^= state << 5
+    noise[i] = state & 0xff
+  }
+  await writeFile(out('not-video.bin'), noise)
+
+  for (const name of [
+    'video-gray-steps.webm',
+    'video-gray-steps.mp4',
+    'video-portrait.webm',
+    'video-colors.webm',
+    'audio-only.m4a',
+    'audio-only.mp4',
+    'not-video.bin',
+  ]) {
+    const size = (await stat(out(name))).size
+    written.push(`${name} (${size} B)`)
+  }
+  console.log(`Wrote ${written.length} video fixtures to test/fixtures/generated:`)
+  for (const entry of written) console.log(`  ${entry}`)
+}
+
 async function main() {
   await mkdir(OUT, { recursive: true })
+
+  if (process.argv.includes('--video')) {
+    await makeVideos()
+    return
+  }
 
   if (process.argv.includes('--animations')) {
     await makeAnimations()
@@ -358,6 +456,7 @@ async function main() {
   }
 
   await makeAnimations()
+  await makeVideos()
 
   console.log(`Wrote ${written.length} fixtures to test/fixtures/generated:`)
   for (const entry of written) console.log(`  ${entry}`)
