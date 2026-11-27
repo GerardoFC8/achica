@@ -34,7 +34,9 @@ export function RequirementLine({ profile }: { readonly profile: Profile }) {
         {new URL(requirement.source).hostname}
       </a>
       {' · '}
-      <span className="tnum">{destination.verifiedAt(requirement.verifiedAt)}</span>
+      <span className="tnum whitespace-nowrap">
+        {destination.verifiedAt(requirement.verifiedAt)}
+      </span>
     </p>
   )
 }

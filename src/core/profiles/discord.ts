@@ -56,7 +56,7 @@ export const DISCORD_PERFILES: readonly ExternalProfile[] = [
     maxBytes: 512_000,
     animation: { layout: { kind: 'sticker', size: 320 }, format: 'gif' },
     stripMetadata: true,
-    note: 'Lienzo cuadrado de 320 × 320 px con fondo transparente y un GIF de hasta 512 000 bytes. Si no cabe, baja los fotogramas por segundo y los colores, y marca el resultado si aun así pesa más. El GIF solo tiene transparencia de todo o nada, así que los bordes suaves quedan dentados.',
+    note: 'Transparencia de todo o nada, así que los bordes suaves quedan dentados.',
     requirement: { source: STICKER_SOURCE, verifiedAt: VERIFIED_AT, evidence: STICKER_EVIDENCE },
   },
   {
@@ -67,7 +67,7 @@ export const DISCORD_PERFILES: readonly ExternalProfile[] = [
     maxBytes: 512_000,
     animation: { layout: { kind: 'sticker', size: 320 }, format: 'apng' },
     stripMetadata: true,
-    note: 'Lienzo cuadrado de 320 × 320 px y un APNG de hasta 512 000 bytes, con transparencia suave. Se guarda como .png, porque Discord rechaza la extensión .apng. Si no cabe, baja los fotogramas por segundo y los colores.',
+    note: 'Transparencia suave. Se guarda como .png, porque Discord rechaza .apng.',
     requirement: { source: STICKER_SOURCE, verifiedAt: VERIFIED_AT, evidence: STICKER_EVIDENCE },
   },
   {
@@ -78,7 +78,7 @@ export const DISCORD_PERFILES: readonly ExternalProfile[] = [
     maxBytes: 256_000,
     animation: { layout: { kind: 'emoji', maxSide: 128 }, format: 'gif' },
     stripMetadata: true,
-    note: 'Cabe en 128 × 128 px sin ampliarse, conserva la proporción y pesa hasta 256 000 bytes. Si no cabe, baja los fotogramas por segundo y los colores.',
+    note: 'Conserva la proporción y no se amplía.',
     requirement: { source: EMOJI_SOURCE, verifiedAt: VERIFIED_AT, evidence: EMOJI_EVIDENCE },
   },
 ]

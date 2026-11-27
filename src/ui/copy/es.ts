@@ -19,6 +19,17 @@ import type { SkipReason } from '../../core/har'
 const plural = (count: number, one: string, many: string): string => (count === 1 ? one : many)
 
 /**
+ * The Discord destinations' names inside their own panel, by id. The group
+ * header already says "Discord", so the option keeps only what tells them
+ * apart; the toolbar button keeps the full label from the catalogue.
+ */
+const SHORT_LABELS: Readonly<Record<string, string>> = {
+  'discord-sticker-gif': 'Sticker GIF',
+  'discord-sticker-apng': 'Sticker APNG',
+  'discord-emoji-gif': 'Emoji GIF',
+}
+
+/**
  * The words that change from tool to tool: the same queue, table and workers
  * serve every tool, so only the verb moves. Typed by `ToolId`, which is what
  * makes a tool without its words (or a word missing in English) not compile.
@@ -288,15 +299,20 @@ export const es = {
 
   destination: {
     ourAdvice: 'Recomendación nuestra',
-    /** Replaces "our advice" on a destination whose limit is somebody else's. */
-    theirLimit: 'Límite de peso que Discord publica',
     source: 'Fuente',
     verifiedAt: (date: string) => `verificado el ${date}`,
     /** Said once, under the Discord destinations: the file fits the numbers, not the verdict. */
-    notAGuarantee:
-      'El archivo se ajusta a los límites de peso que Discord publica, pero no se garantiza que lo acepte: conviene probarlo.',
+    notAGuarantee: 'Se ajusta al peso que Discord publica, pero no se garantiza que lo acepte.',
     canvasReduction: 'Si no entra, reducir el lienzo a 256 px',
-    canvasReductionNote: 'Discord lo aceptó en nuestras pruebas, pero su pantalla pide 320 × 320',
+    canvasReductionNote: 'Aceptado en nuestras pruebas; Discord pide 320 × 320',
+    /** A Discord destination's name in its own panel, where the group already says "Discord". */
+    shortLabel: (profile: Profile): string => SHORT_LABELS[profile.id] ?? profile.label,
+    /** The sticker's square canvas, as the option's numbers show it. */
+    canvasSize: (side: number) => `${side} × ${side}`,
+    /** The emoji's longest side, as the option's numbers show it. */
+    upToSide: (side: number) => `hasta ${side} px`,
+    /** The selected Discord destination's explanation, under the list. */
+    detail: (name: string, note: string) => `${name}. ${note}`,
     ceiling: (bytes: string) => `máx. ${bytes}`,
     originalSize: 'tamaño original',
     group: (group: ProfileGroup): string => group,
@@ -364,14 +380,13 @@ export const es = {
   /** The Discord panel's section for cutting a video (the tool's own numbers, not Discord's). */
   video: {
     title: 'Video',
-    onlyVideos:
-      'Solo cuenta para los archivos de video. Los fotogramas por segundo son un máximo: el resultado nunca supera a los del propio video, así que un video de 10 fps sale a 10 fps aunque pidas 15.',
+    onlyVideos: 'Los fps son un máximo: nunca más que los del video.',
     start: 'Inicio (s)',
     length: 'Duración (s)',
     fps: 'Fotogramas por segundo (máx.)',
-    /** Why there is a cap, and whose it is. */
+    /** Whose the cap is: achica's, not Discord's. */
     capNote: (seconds: string, frames: string) =>
-      `El tope de ${seconds} s y ${frames} fotogramas es de achica, no de Discord: reproducir el tramo lleva tanto tiempo como dure, y los fotogramas se guardan en memoria.`,
+      `El tope de ${seconds} s y ${frames} fotogramas es de achica, no de Discord.`,
     problems: {
       empty: 'Escribe un número.',
       notNumber: 'Eso no es un número. Escribe, por ejemplo, 2,5.',

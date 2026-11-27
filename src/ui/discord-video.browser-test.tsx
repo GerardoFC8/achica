@@ -152,7 +152,7 @@ describe('a WebM video', () => {
       // Now the emoji (256 KB) is selected. Nothing about the row may change
       // its verdict or its measure, and it says it was made for another one.
       await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
-      await userEvent.click(page.getByRole('button', { name: /Emoji animado de Discord/ }))
+      await userEvent.click(page.getByRole('button', { name: /Emoji GIF/ }))
 
       await expect.element(page.getByRole('img', { name: /con un límite de 512 KB/ })).toBeVisible()
       await expect.element(page.getByText(/^con margen/)).toBeVisible()

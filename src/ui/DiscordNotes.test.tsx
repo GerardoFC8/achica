@@ -57,7 +57,7 @@ describe('the canvas option', () => {
     expect(off).not.toContain('checked')
     expect(on).toContain('checked')
     expect(off).toContain('Si no entra, reducir el lienzo a 256 px')
-    expect(off).toContain('Discord lo aceptó en nuestras pruebas, pero su pantalla pide 320 × 320')
+    expect(off).toContain('Aceptado en nuestras pruebas; Discord pide 320 × 320')
   })
 
   it('reads in English too', () => {
