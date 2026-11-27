@@ -132,20 +132,39 @@ export function fusedDelays(
 }
 
 /**
+ * How close to the clip end a presented frame counts as already past it. The
+ * end itself belongs to the NEXT segment (a frame presented at exactly
+ * `start + length` is the first one after the clip), and media times reported
+ * by the browser may land a hair below the container's timestamp. 1 ms is the
+ * tolerance the capture already uses for seeks, and far below a frame interval.
+ */
+export const CLIP_END_EPSILON_SECONDS = 1e-3
+
+/** Whether a presented frame is at or past the clip end, so it must serve no target. */
+function pastEnd(mediaTime: number, endSeconds: number): boolean {
+  return mediaTime >= endSeconds - CLIP_END_EPSILON_SECONDS
+}
+
+/**
  * The reference, non-streaming version: for each target, the index of the
  * presented frame whose media time is the nearest (the earlier one on a tie).
  * `mediaTimes` must be ascending. The streaming selector below must agree with
  * it, and the tests check that on random inputs.
+ *
+ * Frames at or past `endSeconds` are not candidates, except the very first
+ * frame when nothing came before it (see `createNearestSelector`).
  */
 export function nearestFrameIndices(
   targets: readonly number[],
   mediaTimes: readonly number[],
+  endSeconds = Infinity,
 ): number[] {
   return targets.map((target) => {
     let best = 0
     for (let i = 1; i < mediaTimes.length; i += 1) {
-      const distance = Math.abs((mediaTimes[i] ?? 0) - target)
-      if (distance < Math.abs((mediaTimes[best] ?? 0) - target)) best = i
+      const time = mediaTimes[i] ?? 0
+      if (pastEnd(time, endSeconds)) break
+      if (Math.abs(time - target) < Math.abs((mediaTimes[best] ?? 0) - target)) best = i
     }
     return best
   })
@@ -162,6 +181,15 @@ export function nearestFrameIndices(
  *
  * A frame whose media time does not advance (a repeat, or a seek going back)
  * is ignored: `skip` is true and nothing changes.
+ *
+ * THE CLIP END. A frame at or past `endSeconds` (the clip's start + length)
+ * shows what comes AFTER the clip, so it never serves a target: when one
+ * arrives, every unresolved target goes to the previous frame, as `flush`
+ * does, and the selector is done. Without this, frames dropped just before the
+ * end let the first frame of the next second serve the last target (blue in a
+ * clip of green). The one exception is a first frame already past the end (a
+ * gap in the video longer than the whole clip): it is kept, because it is the
+ * nearest frame there is, and the alternative is a clip of zero frames.
  */
 export type NearestSelector = {
   feed(mediaTime: number): { readonly skip: boolean; readonly served: number }
@@ -171,12 +199,24 @@ export type NearestSelector = {
   readonly done: boolean
 }
 
-export function createNearestSelector(targets: readonly number[]): NearestSelector {
+export function createNearestSelector(
+  targets: readonly number[],
+  endSeconds = Infinity,
+): NearestSelector {
   let next = 0
   let previous: number | null = null
+  const flush = (): number => {
+    if (previous === null) return 0
+    const served = targets.length - next
+    next = targets.length
+    return served
+  }
   return {
     feed(mediaTime) {
       if (previous !== null && !(mediaTime > previous)) return { skip: true, served: 0 }
+      // Past the end: the previous frame takes the rest and this one is never kept.
+      if (previous !== null && pastEnd(mediaTime, endSeconds))
+        return { skip: false, served: flush() }
       let served = 0
       if (previous !== null) {
         const midpoint = (previous + mediaTime) / 2
@@ -188,12 +228,7 @@ export function createNearestSelector(targets: readonly number[]): NearestSelect
       previous = mediaTime
       return { skip: false, served }
     },
-    flush() {
-      if (previous === null) return 0
-      const served = targets.length - next
-      next = targets.length
-      return served
-    },
+    flush,
     get resolved() {
       return next
     },
