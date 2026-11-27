@@ -115,7 +115,7 @@ describe('the empty screen', () => {
 })
 
 describe('the destination picker', () => {
-  it('lists the three destinations, the lightest sticker first, each with its source', async () => {
+  it('lists the three destinations on one line each, and the source of the selected one', async () => {
     render(<App tool="discord" />)
 
     const toolbarButton = page.getByRole('button', { name: /^Destino/ })
@@ -123,26 +123,24 @@ describe('the destination picker', () => {
     await expect.element(toolbarButton).toHaveTextContent('512 KB')
 
     await userEvent.click(toolbarButton)
-    for (const label of [
-      'Sticker animado de Discord (GIF)',
-      'Sticker animado de Discord (APNG)',
-      'Emoji animado de Discord (GIF)',
+    for (const name of [
+      'Sticker GIF 320 × 320 · máx. 512 KB',
+      'Sticker APNG 320 × 320 · máx. 512 KB',
+      'Emoji GIF hasta 128 px · máx. 256 KB',
     ]) {
-      await expect
-        .element(
-          page.getByRole('button', { name: new RegExp(label.replace(/[()]/g, '\\$&')) }).first(),
-        )
-        .toBeVisible()
+      await expect.element(page.getByRole('button', { name, exact: true })).toBeVisible()
     }
 
+    // The source and its date are said once, for the selected destination.
     const links = [...document.querySelectorAll('a[target=_blank]')]
-    expect(links).toHaveLength(3)
-    for (const link of links) {
-      expect(link.getAttribute('rel')).toBe('noopener noreferrer')
-      expect(link.getAttribute('href')).toMatch(/^https:\/\/support\.discord\.com\//)
-    }
-    await expect.element(page.getByText(/verificado el 2026-11-26/).first()).toBeVisible()
+    expect(links).toHaveLength(1)
+    expect(links[0]?.getAttribute('rel')).toBe('noopener noreferrer')
+    expect(links[0]?.getAttribute('href')).toMatch(/^https:\/\/support\.discord\.com\//)
+    await expect.element(page.getByText(/verificado el 2026-11-26/)).toBeVisible()
     await expect.element(page.getByText(/no se garantiza que lo acepte/)).toBeVisible()
+    await expect
+      .element(page.getByText(/^Sticker GIF\. Transparencia de todo o nada/))
+      .toBeVisible()
   })
 
   it('offers the 256 px canvas for a sticker only, off until ticked', async () => {
@@ -153,16 +151,14 @@ describe('the destination picker', () => {
     await expect.element(box).toBeVisible()
     await expect.element(box).not.toBeChecked()
     await expect
-      .element(
-        page.getByText('Discord lo aceptó en nuestras pruebas, pero su pantalla pide 320 × 320'),
-      )
+      .element(page.getByText('Aceptado en nuestras pruebas; Discord pide 320 × 320'))
       .toBeVisible()
 
     await userEvent.click(box)
     await expect.element(box).toBeChecked()
 
     // The emoji has no canvas to reduce, and the choice stays for the sticker.
-    await userEvent.click(page.getByRole('button', { name: /Emoji animado de Discord/ }))
+    await userEvent.click(page.getByRole('button', { name: /^Emoji GIF/ }))
     await userEvent.click(page.getByRole('button', { name: /^Destino/ }))
     await expect
       .element(page.getByRole('checkbox', { name: /reducir el lienzo a 256 px/ }))
@@ -280,7 +276,7 @@ describe('a sticker as APNG', () => {
     { timeout: 120_000 },
     async () => {
       render(<App tool="discord" />)
-      await choose(/Sticker animado de Discord \(APNG\)/)
+      await choose(/^Sticker APNG/)
       queueStore.getState().add(await Promise.all(SOURCES.map(file)))
 
       await userEvent.click(page.getByRole('button', { name: /Preparar 3 animaciones/ }))
@@ -316,7 +312,7 @@ describe('a sticker as APNG', () => {
 describe('an emoji', () => {
   it('fits inside 128 px and under 256 000 bytes', { timeout: 120_000 }, async () => {
     render(<App tool="discord" />)
-    await choose(/Emoji animado de Discord/)
+    await choose(/^Emoji GIF/)
     queueStore.getState().add(await Promise.all(SOURCES.map(file)))
 
     await userEvent.click(page.getByRole('button', { name: /Preparar 3 animaciones/ }))

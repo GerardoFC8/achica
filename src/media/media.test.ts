@@ -209,11 +209,13 @@ describe('nearest frame selection', () => {
     expect(nearestFrameIndices([0.5], [0, 1])).toEqual([0])
   })
 
-  function stream(targets: number[], times: number[]): number[] {
-    const selector = createNearestSelector(targets)
+  function stream(targets: number[], times: number[], end = Infinity): number[] {
+    const selector = createNearestSelector(targets, end)
     const chosen: number[] = []
     let previous = -1
     times.forEach((time, index) => {
+      // The capture stops feeding once every target is resolved.
+      if (selector.done) return
       const fed = selector.feed(time)
       if (fed.skip) return
       for (let i = 0; i < fed.served; i += 1) chosen.push(previous)
@@ -241,7 +243,63 @@ describe('nearest frame selection', () => {
         time += (1 / (5 + random() * 55)) * (0.5 + random())
       }
       expect(stream(targets, times)).toEqual(nearestFrameIndices(targets, times))
+      // With the clip end: frames at or past it are never chosen (but the first).
+      const end = start + count / fps
+      const chosen = stream(targets, times, end)
+      expect(chosen).toEqual(nearestFrameIndices(targets, times, end))
+      for (const index of chosen) {
+        if (index > 0) expect(times[index] ?? Infinity).toBeLessThan(end)
+      }
     }
+  })
+
+  describe('at the clip end', () => {
+    // Second 1 of an 8 fps video, 8 targets: 1, 1.125, ..., 1.875. The clip ends at 2.
+    const targets = targetTimes(1, 8, 8)
+
+    it('never lets a frame at or past the end serve a target, even after drops', () => {
+      // 1.75 and 1.875 were dropped under load; 2.0 is the first frame of the next second.
+      const times = [1, 1.125, 1.25, 1.375, 1.5, 1.625, 2.0, 2.125]
+      expect(stream(targets, times)).toEqual([0, 1, 2, 3, 4, 5, 5, 6]) // the bug, without an end
+      expect(stream(targets, times, 2)).toEqual([0, 1, 2, 3, 4, 5, 5, 5])
+
+      const selector = createNearestSelector(targets, 2)
+      for (const time of times.slice(0, 6)) selector.feed(time)
+      expect(selector.done).toBe(false)
+      // The frame at the end gives the previous one every target left, and finishes.
+      expect(selector.feed(2.0)).toEqual({ skip: false, served: 3 })
+      expect(selector.done).toBe(true)
+      expect(selector.flush()).toBe(0)
+    })
+
+    it('counts a frame reported a hair below the end as past it, but not one half a millisecond earlier', () => {
+      const exactly = createNearestSelector([0, 0.5], 1)
+      exactly.feed(0)
+      expect(exactly.feed(0.9995).served).toBe(2)
+      expect(exactly.done).toBe(true)
+
+      const inside = createNearestSelector([0, 0.5], 1)
+      inside.feed(0)
+      expect(inside.feed(0.998).served).toBe(1)
+      expect(inside.done).toBe(false)
+      expect(inside.flush()).toBe(1)
+    })
+
+    it('keeps a first frame already past the end rather than return no frame at all', () => {
+      const selector = createNearestSelector(targets, 2)
+      expect(selector.feed(2.5)).toEqual({ skip: false, served: 0 })
+      expect(selector.feed(3)).toEqual({ skip: false, served: 8 })
+      expect(selector.done).toBe(true)
+      expect(stream(targets, [2.5, 3], 2)).toEqual(new Array<number>(8).fill(0))
+    })
+
+    it('leaves the delays adding up to the clip length', () => {
+      // The runs of the first case: the last in-clip frame stays until the end.
+      const runs = [1, 1.125, 1.25, 1.375, 1.5].map((mediaTime) => ({ mediaTime, targets: 1 }))
+      runs.push({ mediaTime: 1.625, targets: 3 })
+      expect(fusedDelays(runs, 1, 1)).toEqual([125, 125, 125, 125, 125, 375])
+      expect(fusedDelays([{ mediaTime: 2.5, targets: 8 }], 1, 1)).toEqual([1000])
+    })
   })
 
   it('ignores a frame whose media time does not advance', () => {

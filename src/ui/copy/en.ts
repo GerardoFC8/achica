@@ -23,6 +23,13 @@ const GROUPS: Readonly<Record<ProfileGroup, string>> = {
   Discord: 'Discord',
 }
 
+/** The Discord destinations' names inside their own panel (see the Spanish catalogue). */
+const SHORT_LABELS: Readonly<Record<string, string>> = {
+  'discord-sticker-gif': 'Sticker GIF',
+  'discord-sticker-apng': 'Sticker APNG',
+  'discord-emoji-gif': 'Emoji GIF',
+}
+
 /**
  * The destinations, by id. The catalogue in core is written in Spanish and
  * stays the source of truth for what each one does; this is how it reads in
@@ -49,15 +56,15 @@ export const PROFILE_TEXT: Readonly<
   },
   'discord-sticker-gif': {
     label: 'Discord animated sticker (GIF)',
-    note: 'A square 320 × 320 px canvas with a transparent background and a GIF of up to 512,000 bytes. If it does not fit, it lowers the frames per second and the colours, and flags the result if it is still too heavy. GIF only has all-or-nothing transparency, so soft edges come out jagged.',
+    note: 'All-or-nothing transparency, so soft edges come out jagged.',
   },
   'discord-sticker-apng': {
     label: 'Discord animated sticker (APNG)',
-    note: 'A square 320 × 320 px canvas and an APNG of up to 512,000 bytes, with soft transparency. It is saved as .png, because Discord rejects the .apng extension. If it does not fit, it lowers the frames per second and the colours.',
+    note: 'Soft transparency. Saved as .png, because Discord rejects .apng.',
   },
   'discord-emoji-gif': {
     label: 'Discord animated emoji (GIF)',
-    note: 'Fits inside 128 × 128 px without being enlarged, keeps its proportions and weighs up to 256,000 bytes. If it does not fit, it lowers the frames per second and the colours.',
+    note: 'Keeps its proportions and is never enlarged.',
   },
   miniatura: {
     label: 'Thumbnail',
@@ -249,13 +256,15 @@ export const en: Copy = {
 
   destination: {
     ourAdvice: 'Our advice',
-    theirLimit: 'File size limit Discord publishes',
     source: 'Source',
     verifiedAt: (date) => `verified on ${date}`,
-    notAGuarantee:
-      'The file is fitted to the size limits Discord publishes, but there is no guarantee that Discord accepts it: worth testing it.',
+    notAGuarantee: 'Fitted to the size Discord publishes, but there is no guarantee it accepts it.',
     canvasReduction: 'If it does not fit, reduce the canvas to 256 px',
-    canvasReductionNote: 'Discord accepted it in our tests, but its screen asks for 320 × 320',
+    canvasReductionNote: 'Accepted in our tests; Discord asks for 320 × 320',
+    shortLabel: (profile) => SHORT_LABELS[profile.id] ?? profile.label,
+    canvasSize: (side) => `${side} × ${side}`,
+    upToSide: (side) => `up to ${side} px`,
+    detail: (name, note) => `${name}. ${note}`,
     ceiling: (bytes) => `max. ${bytes}`,
     originalSize: 'original size',
     group: (group) => GROUPS[group],
@@ -318,13 +327,12 @@ export const en: Copy = {
 
   video: {
     title: 'Video',
-    onlyVideos:
-      "Only used for video files. Frames per second is a maximum: the result never goes above the video's own rate, so a 10 fps video comes out at 10 fps even if you ask for 15.",
+    onlyVideos: "The fps is a maximum: never more than the video's own.",
     start: 'Start (s)',
     length: 'Length (s)',
     fps: 'Frames per second (max)',
     capNote: (seconds, frames) =>
-      `The cap of ${seconds} s and ${frames} frames is achica's, not Discord's: playing the segment takes as long as it lasts, and the frames are held in memory.`,
+      `The cap of ${seconds} s and ${frames} frames is achica's, not Discord's.`,
     problems: {
       empty: 'Type a number.',
       notNumber: 'That is not a number. Type, for example, 2.5.',

@@ -36,7 +36,8 @@ import {
  *   are over 1 GB.
  * - Only the previous presented frame is held (see NearestSelector in
  *   timeline.ts): a target is served by the nearest presented frame by media
- *   time, and that is known once the next one arrives.
+ *   time, and that is known once the next one arrives. A frame at or past the
+ *   clip end is never a candidate: it belongs to what comes after the clip.
  * - Every wait has a timeout and none uses requestAnimationFrame. `seeked`
  *   never fires when currentTime already has the value (frame 0), nor with an
  *   unknown duration, and a hidden tab presents no frames at all: that case is
@@ -284,6 +285,8 @@ async function extract(
       video,
       geometry,
       targets,
+      // The same length fusedDelays gets: the clip ends where its delays do.
+      endSeconds: plan.value.startSeconds + plan.value.lengthSeconds,
       signal,
       stallMs,
       loadWaitMs,
@@ -324,6 +327,8 @@ type Job = {
   readonly video: HTMLVideoElement
   readonly geometry: Geometry
   readonly targets: readonly number[]
+  /** Where the clip ends: a frame presented at or past it serves no target. */
+  readonly endSeconds: number
   readonly signal: AbortSignal | undefined
   readonly stallMs: number
   readonly loadWaitMs: number
@@ -357,7 +362,7 @@ function captureByPlaying(job: Job): Promise<Result<Captured, VideoError>> {
     return Promise.resolve(fail('internal', 'A 2D canvas is not available.'))
   }
   const pair: readonly [Canvas2D, Canvas2D] = [first, second]
-  const selector = createNearestSelector(targets)
+  const selector = createNearestSelector(targets, job.endSeconds)
   const frames: Frame[] = []
   const runs: PresentedRun[] = []
   // Targets resolved so far, fused ones included: what progress counts.
@@ -369,6 +374,8 @@ function captureByPlaying(job: Job): Promise<Result<Captured, VideoError>> {
   let playing = false
   // Whether any callback has reported a frame yet (see the seed below).
   let reported = false
+  // Whether the previous canvas was drawn by the seed and not by a callback.
+  let seeded = false
   let finished = false
   let callbackId: number | null = null
   let stallTimer: ReturnType<typeof setTimeout> | undefined
@@ -402,9 +409,22 @@ function captureByPlaying(job: Job): Promise<Result<Captured, VideoError>> {
       resolved += served
       onProgress?.(resolved, targets.length)
     }
-    const onFrame = (mediaTime: number): void => {
+    const onFrame = (mediaTime: number, fromCallback: boolean): void => {
       const fed = selector.feed(mediaTime)
-      if (fed.skip) return
+      if (fed.skip) {
+        // The seed drew right after `seeked`, and Chromium can still hand back
+        // the frame from BEFORE the seek there. When a callback then reports
+        // the seek's frame at the same media time, the selector skips it as a
+        // repeat; the canvas, not yet committed, is redrawn from the frame that
+        // is really being presented. Only for the seed: a canvas drawn in a
+        // callback already holds that frame, and redrawing it later could pick
+        // up a newer one.
+        if (fromCallback && seeded && mediaTime === previousTime && previous !== -1) {
+          seeded = false
+          drawFrame(pair[previous], video, geometry)
+        }
+        return
+      }
       commit(fed.served)
       if (selector.done) {
         finish(ok(captured()))
@@ -412,6 +432,7 @@ function captureByPlaying(job: Job): Promise<Result<Captured, VideoError>> {
       }
       previous = previous === 0 ? 1 : 0
       previousTime = mediaTime
+      seeded = !fromCallback
       drawFrame(pair[previous], video, geometry)
     }
     const schedule = (): void => {
@@ -419,12 +440,14 @@ function captureByPlaying(job: Job): Promise<Result<Captured, VideoError>> {
         if (finished) return
         reported = true
         if (playing) armStall()
-        onFrame(metadata.mediaTime)
+        onFrame(metadata.mediaTime, true)
         if (!finished) schedule()
       })
     }
     const onEnded = (): void => {
       // The last frame's callback may still be on its way; give it a moment.
+      // (A clip that ends before the video does finishes earlier, on the first
+      // frame presented at or past its end: see NearestSelector.)
       endTimer = setTimeout(() => {
         commit(selector.flush())
         if (frames.length === 0) finish(fail('corrupt', 'The video ended without a frame.'))
@@ -456,16 +479,18 @@ function captureByPlaying(job: Job): Promise<Result<Captured, VideoError>> {
         if (sought !== 'event') return // aborted or error: their own handlers finish
       }
       // The frame on screen now was presented BEFORE we asked for callbacks (frame
-      // 0 on load, or the frame a seek landed on), so no callback will ever
+      // 0 on load, or the frame a seek landed on), so a callback may never
       // report it, and without it the first target would get the next frame: a
-      // shift of one. Unless a callback already reported the seek's frame, it is taken here, at the time the element says it shows.
+      // shift of one. Unless a callback already reported the seek's frame, it is
+      // taken here, at the time the element says it shows; if a callback reports
+      // that same frame later, it is drawn again there (see onFrame).
       if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
         const ready = await waitFor(video, 'loadeddata', job.loadWaitMs, signal)
         if (finished) return
         if (ready === 'timeout') return finish(fail('stalled', STALLED_MESSAGE))
         if (ready !== 'event') return
       }
-      if (!reported) onFrame(video.currentTime)
+      if (!reported) onFrame(video.currentTime, false)
       if (finished) return
       playing = true
       armStall()

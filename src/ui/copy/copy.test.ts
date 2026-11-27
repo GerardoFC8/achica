@@ -136,11 +136,7 @@ describe('the Discord tool, in both languages', () => {
 
   it('promises the weight and never the verdict of Discord', () => {
     for (const copy of [es, en]) {
-      const said = [
-        copy.destination.theirLimit,
-        copy.destination.notAGuarantee,
-        copy.destination.canvasReductionNote,
-      ].join(' ')
+      const said = [copy.destination.notAGuarantee, copy.destination.canvasReductionNote].join(' ')
 
       expect(said).not.toMatch(/oficial|official|aprobad|approved|garantiza que lo acepta/i)
     }
@@ -150,8 +146,20 @@ describe('the Discord tool, in both languages', () => {
 
   it('says the honest sentence about the 256 px canvas, in both languages', () => {
     expect(es.destination.canvasReductionNote).toBe(
-      'Discord lo aceptó en nuestras pruebas, pero su pantalla pide 320 × 320',
+      'Aceptado en nuestras pruebas; Discord pide 320 × 320',
     )
     expect(en.destination.canvasReductionNote).toContain('320 × 320')
+  })
+
+  it('gives every Discord destination a short name for its own panel, in both languages', () => {
+    for (const copy of [es, en]) {
+      const names = DISCORD_PERFILES.map((profile) => copy.destination.shortLabel(profile))
+
+      for (const [index, profile] of DISCORD_PERFILES.entries()) {
+        expect(names[index], profile.id).not.toBe(profile.label)
+        expect(names[index]?.length ?? 99, profile.id).toBeLessThanOrEqual(14)
+      }
+      expect(new Set(names).size).toBe(DISCORD_PERFILES.length)
+    }
   })
 })

@@ -79,6 +79,21 @@ function summaryOf(profile: Profile, formatters: Formatters, copy: Copy): string
   return profile.format === 'keep' ? size : `WebP · ${size}`
 }
 
+/**
+ * A Discord option's numbers: its canvas or its longest side, then the weight,
+ * since the option's name says only "Sticker GIF" or "Emoji GIF". The toolbar
+ * button keeps the bare weight, where the long label already says the rest.
+ */
+function optionSummaryOf(profile: Profile, formatters: Formatters, copy: Copy): string {
+  const summary = summaryOf(profile, formatters, copy)
+  const layout = profile.animation?.layout
+  if (layout === undefined) return summary
+  const words = copy.destination
+  const size =
+    layout.kind === 'sticker' ? words.canvasSize(layout.size) : words.upToSide(layout.maxSide)
+  return `${size} · ${summary}`
+}
+
 export function DestinationPicker({
   selected,
   budget,
@@ -99,6 +114,7 @@ export function DestinationPicker({
   const [invalid, setInvalid] = useState(false)
   const customId = useId()
   const summary = summaryOf(showBudget ? withBudget(selected, budget) : selected, formatters, copy)
+  const selectedNote = words.profile(selected).note
 
   return (
     <div className="relative" ref={container}>
@@ -139,11 +155,16 @@ export function DestinationPicker({
                 {words.group(group)}
               </div>
 
-              {members.map((profile) => (
-                // The source is a link, and a link cannot live inside the
-                // button: the two are siblings.
-                <div key={profile.id}>
+              {members.map((profile) => {
+                // A destination with somebody else's limit (Discord) is one
+                // line, its short name and its numbers. What it means, and
+                // where the limit comes from, is said once under the list,
+                // for the selected one.
+                const theirs = profile.requirement !== undefined
+                const { label, note } = words.profile(profile)
+                return (
                   <button
+                    key={profile.id}
                     type="button"
                     onClick={() => {
                       onSelect(profile)
@@ -156,30 +177,36 @@ export function DestinationPicker({
                   >
                     <span className="flex items-baseline justify-between gap-3">
                       <span className="text-[13px] leading-4 font-medium">
-                        {words.profile(profile).label}
+                        {theirs ? words.shortLabel(profile) : label}
                       </span>
                       <span className="tnum text-[11px] text-ink-soft">
-                        {summaryOf(profile, formatters, copy)}
+                        {optionSummaryOf(profile, formatters, copy)}
                       </span>
                     </span>
-                    <span className="text-xs leading-4 text-pretty text-ink-soft">
-                      {profile.requirement === undefined ? words.ourAdvice : words.theirLimit}
-                      {words.profile(profile).note === undefined
-                        ? ''
-                        : `. ${words.profile(profile).note}`}
-                    </span>
+                    {theirs ? null : (
+                      <span className="text-xs leading-4 text-pretty text-ink-soft">
+                        {words.ourAdvice}
+                        {note === undefined ? '' : `. ${note}`}
+                      </span>
+                    )}
                   </button>
-                  <RequirementLine profile={profile} />
-                </div>
-              ))}
+                )
+              })}
             </div>
           ))}
 
-          {profiles.some((profile) => profile.requirement !== undefined) ? (
-            <div className="border-t border-rule">
-              <p className="px-3 py-2 text-xs leading-4 text-pretty text-ink-soft">
+          {selected.requirement !== undefined ? (
+            <div className="grid gap-1 border-t border-rule pt-2">
+              {selectedNote === undefined ? null : (
+                <p className="px-3 text-xs leading-4 text-pretty text-ink-soft">
+                  {words.detail(words.shortLabel(selected), selectedNote)}
+                </p>
+              )}
+              <p className="px-3 text-xs leading-4 text-pretty text-ink-soft">
                 {words.notAGuarantee}
               </p>
+              {/* The source is a link, and a link cannot live inside an option's button. */}
+              <RequirementLine profile={selected} />
               {onCanvasReduction !== undefined && isSticker(selected) ? (
                 <CanvasChoice checked={canvasReduction} onChange={onCanvasReduction} />
               ) : null}
